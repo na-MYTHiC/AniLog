@@ -84,6 +84,7 @@ accentPicker.addEventListener('input', (e) => {
 
 // Sync other segmented controls to saved state
 syncSegState('theme-seg', 'theme', state.theme);
+syncSegState('view-seg', 'view', state.viewMode || 'mobile');
 syncSegState('density-seg', 'density', state.density);
 syncSegState('landing-seg', 'landing', state.landing);
 syncSegState('lang-seg', 'lang', state.preferEnglish ? 'english' : 'default');
@@ -768,33 +769,47 @@ async function loadSocial() {
     </div>
   `).join('');
 
-  const q = `query {
-    Page(perPage: 25) {
-      activities(isFollowing: true, sort: ID_DESC) {
-        ... on ListActivity {
-          id type status progress createdAt likeCount replyCount isLiked
-          user { id name avatar { large medium } }
-          media { id title { userPreferred english romaji } coverImage { large color } type }
-          replies { id text createdAt user { id name avatar { large medium } } }
-        }
-        ... on TextActivity {
-          id type text createdAt likeCount replyCount isLiked
-          user { id name avatar { large medium } }
-          replies { id text createdAt user { id name avatar { large medium } } }
-        }
-      }
+  const activityBody = `
+    ... on ListActivity {
+      id type status progress createdAt likeCount replyCount isLiked
+      user { id name avatar { large medium } }
+      media { id title { userPreferred english romaji } coverImage { large color } type }
+      replies { id text createdAt user { id name avatar { large medium } } }
     }
-  }`;
-  const data = await anilist(q);
+    ... on TextActivity {
+      id type text createdAt likeCount replyCount isLiked
+      user { id name avatar { large medium } }
+      replies { id text createdAt user { id name avatar { large medium } } }
+    }`;
+
+  // Try friends-only first
+  const friendsQ = `query { Page(perPage: 25) { activities(isFollowing: true, sort: ID_DESC) { ${activityBody} } } }`;
+  const friendsData = await anilist(friendsQ);
   if (socialReqId !== myReq) return;
-  const items = (data?.Page?.activities || []).filter(a => a && (a.type === 'ANIME_LIST' || a.type === 'TEXT'));
-  if (!items.length) {
-    feed.innerHTML = `<div class="no-results" style="padding: 50px 20px;">
-      No activity from your follows yet. Follow people on AniList to see their updates here.
-    </div>`;
+  const friends = (friendsData?.Page?.activities || []).filter(a => a && (a.type === 'ANIME_LIST' || a.type === 'TEXT'));
+
+  if (friends.length > 0) {
+    feed.innerHTML = friends.map(renderActivity).join('');
+    attachActivityHandlers(feed);
     return;
   }
-  feed.innerHTML = items.map(renderActivity).join('');
+
+  // No friend activity — fall back to everyone's feed with a clear notice on top
+  const globalQ = `query { Page(perPage: 25) { activities(hasRepliesOrTypeText: false, sort: ID_DESC) { ${activityBody} } } }`;
+  const globalData = await anilist(globalQ);
+  if (socialReqId !== myReq) return;
+  const everyone = (globalData?.Page?.activities || []).filter(a => a && (a.type === 'ANIME_LIST' || a.type === 'TEXT'));
+
+  const notice = `
+    <div class="social-fallback-notice">
+      <strong>You don't have any followed friends with recent activity.</strong>
+      Showing everyone's activity below — follow people on AniList to see them here first.
+    </div>`;
+  if (!everyone.length) {
+    feed.innerHTML = notice + `<div class="no-results" style="padding: 40px 20px;">No recent activity at all right now.</div>`;
+    return;
+  }
+  feed.innerHTML = notice + everyone.map(renderActivity).join('');
   attachActivityHandlers(feed);
 }
 
@@ -1363,6 +1378,15 @@ document.querySelectorAll('#density-seg .seg-btn').forEach(b => {
     syncSegState('density-seg', 'density', b.dataset.density);
     state.density = b.dataset.density;
     applyDensity();
+    savePrefs();
+  });
+});
+
+document.querySelectorAll('#view-seg .seg-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    syncSegState('view-seg', 'view', b.dataset.view);
+    state.viewMode = b.dataset.view;
+    applyViewMode();
     savePrefs();
   });
 });

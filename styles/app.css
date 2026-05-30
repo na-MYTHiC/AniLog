@@ -1163,6 +1163,23 @@
   height: 14px;
 }
 
+/* Notice banner shown when the user has no follows with recent activity */
+.social-fallback-notice {
+  margin: 12px 20px 6px;
+  padding: 12px 14px;
+  background: var(--accent-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text);
+}
+.social-fallback-notice strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--accent);
+}
+
 /* Replies — collapsed by default, expand when the user taps the reply button */
 .activity-replies {
   display: none;

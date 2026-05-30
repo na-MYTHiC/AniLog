@@ -10,6 +10,7 @@ const state = {
   accent: '#7c5cff',
   customAccent: '#7c5cff',
   theme: 'dark',
+  viewMode: 'mobile',           // 'mobile' or 'desktop' — toggled in Profile
   density: 'comfortable',
   landing: 'home',
   season: 'SPRING',

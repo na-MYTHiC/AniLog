@@ -69,8 +69,12 @@ function applyTheme() {
 function applyDensity() {
   document.documentElement.setAttribute('data-density', state.density);
 }
+function applyViewMode() {
+  document.documentElement.setAttribute('data-view', state.viewMode || 'mobile');
+}
 applyTheme();
 applyDensity();
+applyViewMode();
 
 function syncSegState(segId, key, value) {
   document.querySelectorAll(`#${segId} .seg-btn`).forEach(b => {

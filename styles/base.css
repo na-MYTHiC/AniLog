@@ -13,6 +13,8 @@
   --radius-sm: 10px;
   --topbar-h: 56px;
   --bottombar-h: 68px;
+  /* What sits BEHIND the centered .app on tablet/desktop. Per-theme. */
+  --body-bg: radial-gradient(ellipse at center, #1a1a24 0%, #000 70%);
 
   /* Density-driven sizes — default = cozy */
   --card-w: 134px;
@@ -96,6 +98,7 @@
   --text-dim: #65657a;
   --text-faint: #a0a0b0;
   --shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  --body-bg: radial-gradient(ellipse at center, #e0e0e8 0%, #b8b8c0 70%);
 }
 
 /* AMOLED — true black background, near-black surfaces. Saves power on OLED screens. */
@@ -108,6 +111,7 @@
   --text-dim: #888894;
   --text-faint: #4a4a52;
   --shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  --body-bg: #000000;
 }
 
 * {
@@ -134,9 +138,10 @@ html, body {
   transition: background 0.3s ease;
 }
 
+/* When the viewport is wider than the phone frame, body shows the per-theme backdrop */
 @media (min-width: 481px) {
   body {
-    background: radial-gradient(ellipse at center, #1a1a24 0%, #000 70%);
+    background: var(--body-bg);
     display: flex; align-items: center; justify-content: center;
   }
   .app {
@@ -146,7 +151,7 @@ html, body {
   }
 }
 
-/* Tablet — wider container, more grid columns, larger rows */
+/* Tablet — slightly wider mobile frame, more grid columns */
 @media (min-width: 768px) {
   .app {
     max-width: 720px;
@@ -161,61 +166,102 @@ html, body {
   [data-density="spacious"] { --grid-cols: 3; }
 }
 
-/* Desktop — sidebar nav on the left, content fills the rest */
+/* DESKTOP VIEW — explicit setting in Profile. Spans the full window, puts the
+   nav tabs in the top bar next to the logo, no bottom dock, website-style. */
+[data-view="desktop"] body {
+  background: var(--bg);
+  display: block;
+  overflow: auto;
+}
+[data-view="desktop"] .app {
+  max-width: 100%;
+  height: 100vh;
+  max-height: none;
+  border-radius: 0;
+  box-shadow: none;
+  display: grid;
+  grid-template-rows: 64px 1fr;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    "topbar bottombar"
+    "content content";
+}
+[data-view="desktop"] .topbar {
+  grid-area: topbar;
+  height: 64px;
+  padding: 0 24px;
+  width: auto;
+  border-right: 1px solid var(--border);
+}
+[data-view="desktop"] .content { grid-area: content; }
+
+[data-view="desktop"] .bottombar {
+  grid-area: bottombar;
+  position: static;
+  flex-direction: row;
+  height: 64px;
+  width: auto;
+  padding: 0 18px;
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border-top: none;
+  border-bottom: 1px solid var(--border);
+  justify-content: flex-end;
+  gap: 6px;
+}
+[data-view="desktop"] .bottombar .nav-btn {
+  flex: 0 0 auto;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  height: 100%;
+  border-radius: 0;
+}
+[data-view="desktop"] .bottombar .nav-btn svg { width: 18px; height: 18px; }
+[data-view="desktop"] .bottombar .nav-btn span { font-size: 14px; }
+[data-view="desktop"] .bottombar .nav-btn.active::before { display: none; }
+[data-view="desktop"] .bottombar .nav-btn.active {
+  color: var(--accent);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+/* Desktop content gets more breathing room and more grid columns */
+[data-view="desktop"] {
+  --grid-cols: 5;
+  --grid-pad-x: 32px;
+}
+[data-view="desktop"][data-density="compact"]  { --grid-cols: 7; }
+[data-view="desktop"][data-density="spacious"] { --grid-cols: 4; }
+
+[data-view="desktop"] .tab { padding-bottom: 32px !important; }
+[data-view="desktop"] .tab.active { animation: none; }
+
+/* Cap inner content width so giant screens don't make text run wide */
+[data-view="desktop"] .my-list-header,
+[data-view="desktop"] .seasonal-header,
+[data-view="desktop"] .social-header,
+[data-view="desktop"] .search-wrap,
+[data-view="desktop"] .list-controls,
+[data-view="desktop"] .sort-trigger-bar,
+[data-view="desktop"] .section,
+[data-view="desktop"] .list-rows,
+[data-view="desktop"] .grid,
+[data-view="desktop"] .social-feed,
+[data-view="desktop"] .recent-searches {
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Hide topbar action on desktop — no need for the mobile burger */
+[data-view="desktop"] .topbar-action { display: none; }
+
+/* ============ Legacy auto-desktop sidebar removed ============
+   The old @media (min-width: 1024px) sidebar layout conflicted with the
+   explicit Mobile/Desktop toggle. Removed in v1.6. */
 @media (min-width: 1024px) {
-  .app {
-    max-width: 1080px;
-    height: min(1100px, 100vh);
-    max-height: 1100px;
-    flex-direction: row;
-  }
-  :root {
-    --grid-cols: 4;
-    --grid-pad-x: 28px;
-  }
-  [data-density="compact"]  { --grid-cols: 6; }
-  [data-density="spacious"] { --grid-cols: 4; }
-  .topbar {
-    order: -1;
-    flex-direction: column;
-    width: 220px;
-    height: 100%;
-    align-items: flex-start;
-    padding: 24px 18px;
-    border-bottom: none;
-    border-right: 1px solid var(--border);
-    flex-shrink: 0;
-  }
-  .content {
-    flex: 1;
-    height: 100%;
-  }
-  .bottombar {
-    flex-direction: column;
-    height: auto;
-    width: 220px;
-    position: absolute;
-    top: 90px;
-    left: 0;
-    border-top: none;
-    background: transparent;
-    padding-bottom: 0;
-    gap: 4px;
-    padding: 12px;
-  }
-  .bottombar .nav-btn {
-    flex: 0 0 auto;
-    flex-direction: row;
-    justify-content: flex-start;
-    gap: 12px;
-    padding: 10px 14px;
-    border-radius: 10px;
-  }
-  .bottombar .nav-btn span { font-size: 14px; }
-  .bottombar .nav-btn.active::before { display: none; }
-  .bottombar .nav-btn.active {
-    background: var(--accent-soft);
-  }
   .tab {
     padding-bottom: 24px !important;
   }
