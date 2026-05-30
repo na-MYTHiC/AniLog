@@ -1,0 +1,135 @@
+:root {
+  --accent: #7c5cff;
+  --accent-soft: rgba(124, 92, 255, 0.15);
+  --bg: #0d0d12;
+  --surface: #16161f;
+  --surface-2: #1f1f2b;
+  --border: rgba(255, 255, 255, 0.06);
+  --text: #f4f4f7;
+  --text-dim: #8a8a99;
+  --text-faint: #5a5a68;
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --radius: 14px;
+  --radius-sm: 10px;
+  --topbar-h: 56px;
+  --bottombar-h: 68px;
+
+  /* Density-driven sizes — default = cozy */
+  --card-w: 134px;
+  --card-h: 196px;
+  --card-gap: 14px;
+  --card-title-size: 13px;
+  --card-meta-size: 11px;
+  --card-title-mt: 8px;
+  --card-radius: 10px;
+  --section-title-size: 18px;
+  --section-pad-y: 22px;
+  --grid-cols: 2;
+  --grid-gap: 14px;
+  --grid-pad-y: 16px;
+  --grid-pad-x: 20px;
+  /* List row sizing — drives My List row scale with density */
+  --row-cover-w: 64px;
+  --row-cover-h: 90px;
+  --row-pad-y: 12px;
+  --row-pad-x: 20px;
+  --row-gap: 12px;
+  --row-title-size: 14px;
+  --row-meta-size: 12px;
+  --row-bar-h: 5px;
+}
+
+[data-density="compact"] {
+  --card-w: 90px;
+  --card-h: 132px;
+  --card-gap: 7px;
+  --card-title-size: 11px;
+  --card-meta-size: 9px;
+  --card-title-mt: 5px;
+  --card-radius: 8px;
+  --section-title-size: 15px;
+  --section-pad-y: 12px;
+  --grid-cols: 3;
+  --grid-gap: 8px;
+  --grid-pad-y: 10px;
+  --grid-pad-x: 14px;
+  --row-cover-w: 46px;
+  --row-cover-h: 65px;
+  --row-pad-y: 8px;
+  --row-pad-x: 16px;
+  --row-gap: 10px;
+  --row-title-size: 12px;
+  --row-meta-size: 10px;
+  --row-bar-h: 4px;
+}
+
+[data-density="spacious"] {
+  --card-w: 180px;
+  --card-h: 264px;
+  --card-gap: 18px;
+  --card-title-size: 15px;
+  --card-meta-size: 13px;
+  --card-title-mt: 11px;
+  --card-radius: 14px;
+  --section-title-size: 22px;
+  --section-pad-y: 32px;
+  --grid-cols: 2;
+  --grid-gap: 22px;
+  --grid-pad-y: 24px;
+  --grid-pad-x: 20px;
+  --row-cover-w: 84px;
+  --row-cover-h: 118px;
+  --row-pad-y: 16px;
+  --row-pad-x: 20px;
+  --row-gap: 16px;
+  --row-title-size: 16px;
+  --row-meta-size: 13px;
+  --row-bar-h: 6px;
+}
+
+[data-theme="light"] {
+  --bg: #f7f7fa;
+  --surface: #ffffff;
+  --surface-2: #f0f0f5;
+  --border: rgba(0, 0, 0, 0.06);
+  --text: #14141c;
+  --text-dim: #65657a;
+  --text-faint: #a0a0b0;
+  --shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+  margin: 0; padding: 0; height: 100%;
+  overflow: hidden; background: #000;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  position: relative;
+  width: 100%; height: 100%;
+  max-width: 480px; margin: 0 auto;
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 0 60px rgba(0, 0, 0, 0.5);
+  transition: background 0.3s ease;
+}
+
+@media (min-width: 481px) {
+  body {
+    background: radial-gradient(ellipse at center, #1a1a24 0%, #000 70%);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .app {
+    height: min(900px, 100vh);
+    border-radius: 24px;
+    max-height: 900px;
+  }
+}

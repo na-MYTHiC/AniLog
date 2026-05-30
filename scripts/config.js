@@ -1,0 +1,138 @@
+// AniLog — constants, OAuth config, and GraphQL fragments.
+// Everything here is read-only configuration; no app state lives in this file.
+
+// ============ THEMES ============
+const THEMES = [
+  { id: 'iris',     name: 'Iris',     color: '#7c5cff' },
+  { id: 'sakura',   name: 'Sakura',   color: '#ff6b9d' },
+  { id: 'midnight', name: 'Midnight', color: '#4f46e5' },
+  { id: 'forest',   name: 'Forest',   color: '#10b981' },
+  { id: 'sunset',   name: 'Sunset',   color: '#f97316' },
+  { id: 'ember',    name: 'Ember',    color: '#ef4444' },
+  { id: 'solstice', name: 'Solstice', color: '#f59e0b' },
+  { id: 'lavender', name: 'Lavender', color: '#a78bfa' },
+  { id: 'ocean',    name: 'Ocean',    color: '#06b6d4' },
+  { id: 'crimson',  name: 'Crimson',  color: '#e11d48' },
+];
+
+
+// ============ ANILIST OAUTH ============
+const ANILIST_CLIENT_ID = '42596';
+const ANILIST_REDIRECT_URI = 'https://na-mythic.github.io/AniLog/';
+const ANILIST_AUTH_URL = `https://anilist.co/api/v2/oauth/authorize?client_id=${ANILIST_CLIENT_ID}&redirect_uri=${encodeURIComponent(ANILIST_REDIRECT_URI)}&response_type=token`;
+
+const ANILIST = 'https://graphql.anilist.co';
+
+const MEDIA_FRAGMENT = `
+  id
+  title { userPreferred english romaji }
+  coverImage { large color }
+  averageScore
+  format
+  episodes
+  season
+  seasonYear
+`;
+
+const MEDIA_DETAIL_FRAGMENT = `
+  id
+  title { userPreferred english romaji }
+  coverImage { extraLarge large color }
+  bannerImage
+  description(asHtml: false)
+  averageScore
+  meanScore
+  popularity
+  favourites
+  format
+  status
+  episodes
+  duration
+  season
+  seasonYear
+  genres
+  type
+  mediaListEntry { id status score progress }
+  studios(isMain: true) { nodes { id name } }
+  characters(sort: ROLE, perPage: 12) {
+    edges {
+      role
+      node {
+        id
+        name { userPreferred }
+        image { large }
+      }
+      voiceActors {
+        id
+        name { userPreferred }
+        image { large }
+        languageV2
+      }
+    }
+  }
+  nextAiringEpisode { airingAt episode timeUntilAiring }
+  startDate { year month day }
+  endDate { year month day }
+  relations {
+    edges {
+      relationType
+      node {
+        id
+        title { userPreferred english romaji }
+        coverImage { large color }
+        averageScore
+        format
+        episodes
+        season
+        seasonYear
+        type
+      }
+    }
+  }
+  recommendations(sort: RATING_DESC, perPage: 12) {
+    edges {
+      node {
+        mediaRecommendation {
+          id
+          title { userPreferred english romaji }
+          coverImage { large color }
+          averageScore
+          format
+          episodes
+          season
+          seasonYear
+          type
+        }
+      }
+    }
+  }
+`;
+
+const SEASONS_ORDER = ['WINTER', 'SPRING', 'SUMMER', 'FALL'];
+
+const MEDIA_SORT_OPTIONS = [
+  { value: 'POPULARITY_DESC', label: 'Popular' },
+  { value: 'SCORE_DESC', label: 'Top Rated' },
+  { value: 'TRENDING_DESC', label: 'Trending' },
+  { value: 'START_DATE_DESC', label: 'Newest' },
+];
+
+const LIST_STATUS_OPTIONS = [
+  { value: 'CURRENT',   label: 'Watching' },
+  { value: 'PLANNING',  label: 'Planning' },
+  { value: 'COMPLETED', label: 'Completed' },
+  { value: 'PAUSED',    label: 'Paused' },
+  { value: 'DROPPED',   label: 'Dropped' },
+  { value: 'REPEATING', label: 'Rewatching' },
+  { value: 'ALL',       label: 'All' },
+];
+// AniList's MediaListSort enum values
+const LIST_SORT_OPTIONS = [
+  { value: 'SCORE_DESC',            label: 'Score' },
+  { value: 'MEDIA_TITLE_ROMAJI',    label: 'Title' },
+  { value: 'PROGRESS_DESC',         label: 'Progress' },
+  { value: 'UPDATED_TIME_DESC',     label: 'Last Updated' },
+  { value: 'STARTED_ON_DESC',       label: 'Date Started' },
+  { value: 'MEDIA_POPULARITY_DESC', label: 'Popularity' },
+  { value: 'ADDED_TIME_DESC',       label: 'Recently Added' },
+];
