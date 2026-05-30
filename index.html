@@ -283,7 +283,7 @@
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v1.3.1 · Powered by AniList
+        AniLog · v1.3.2 · Powered by AniList
       </div>
     </section>
 
@@ -467,6 +467,15 @@
 </div>
 
 
+<script>
+// Diagnostic: surface any JS error directly on the page so we can see it without dev tools.
+window.addEventListener('error', (e) => {
+  const div = document.createElement('div');
+  div.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#ff3b30;color:#fff;padding:12px 14px;font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.4;z-index:99999;white-space:pre-wrap;word-break:break-word;max-height:60vh;overflow:auto;';
+  div.textContent = `JS ERROR\n${e.message}\n${(e.filename||'').split('/').pop()}:${e.lineno}:${e.colno}`;
+  document.body.appendChild(div);
+});
+</script>
 <script src="scripts/config.js"></script>
 <script src="scripts/state.js"></script>
 <script src="scripts/api.js"></script>
