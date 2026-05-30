@@ -29,14 +29,14 @@
   --grid-pad-y: 16px;
   --grid-pad-x: 20px;
   /* List row sizing — drives My List row scale with density */
-  --row-cover-w: 64px;
-  --row-cover-h: 90px;
-  --row-pad-y: 12px;
+  --row-cover-w: 76px;
+  --row-cover-h: 108px;
+  --row-pad-y: 14px;
   --row-pad-x: 20px;
-  --row-gap: 12px;
-  --row-title-size: 14px;
+  --row-gap: 14px;
+  --row-title-size: 15px;
   --row-meta-size: 12px;
-  --row-bar-h: 5px;
+  --row-bar-h: 6px;
 }
 
 [data-density="compact"] {
@@ -53,14 +53,14 @@
   --grid-gap: 8px;
   --grid-pad-y: 10px;
   --grid-pad-x: 14px;
-  --row-cover-w: 46px;
-  --row-cover-h: 65px;
-  --row-pad-y: 8px;
+  --row-cover-w: 56px;
+  --row-cover-h: 80px;
+  --row-pad-y: 10px;
   --row-pad-x: 16px;
-  --row-gap: 10px;
-  --row-title-size: 12px;
-  --row-meta-size: 10px;
-  --row-bar-h: 4px;
+  --row-gap: 12px;
+  --row-title-size: 13px;
+  --row-meta-size: 11px;
+  --row-bar-h: 5px;
 }
 
 [data-density="spacious"] {
@@ -77,14 +77,14 @@
   --grid-gap: 22px;
   --grid-pad-y: 24px;
   --grid-pad-x: 20px;
-  --row-cover-w: 84px;
-  --row-cover-h: 118px;
-  --row-pad-y: 16px;
+  --row-cover-w: 96px;
+  --row-cover-h: 136px;
+  --row-pad-y: 18px;
   --row-pad-x: 20px;
-  --row-gap: 16px;
-  --row-title-size: 16px;
-  --row-meta-size: 13px;
-  --row-bar-h: 6px;
+  --row-gap: 18px;
+  --row-title-size: 17px;
+  --row-meta-size: 14px;
+  --row-bar-h: 7px;
 }
 
 [data-theme="light"] {
@@ -131,5 +131,80 @@ html, body {
     height: min(900px, 100vh);
     border-radius: 24px;
     max-height: 900px;
+  }
+}
+
+/* Tablet — wider container, more grid columns, larger rows */
+@media (min-width: 768px) {
+  .app {
+    max-width: 720px;
+    height: min(1000px, 100vh);
+    max-height: 1000px;
+  }
+  :root {
+    --grid-cols: 3;
+    --grid-pad-x: 24px;
+  }
+  [data-density="compact"] { --grid-cols: 4; }
+  [data-density="spacious"] { --grid-cols: 3; }
+}
+
+/* Desktop — sidebar nav on the left, content fills the rest */
+@media (min-width: 1024px) {
+  .app {
+    max-width: 1080px;
+    height: min(1100px, 100vh);
+    max-height: 1100px;
+    flex-direction: row;
+  }
+  :root {
+    --grid-cols: 4;
+    --grid-pad-x: 28px;
+  }
+  [data-density="compact"]  { --grid-cols: 6; }
+  [data-density="spacious"] { --grid-cols: 4; }
+  .topbar {
+    order: -1;
+    flex-direction: column;
+    width: 220px;
+    height: 100%;
+    align-items: flex-start;
+    padding: 24px 18px;
+    border-bottom: none;
+    border-right: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .content {
+    flex: 1;
+    height: 100%;
+  }
+  .bottombar {
+    flex-direction: column;
+    height: auto;
+    width: 220px;
+    position: absolute;
+    top: 90px;
+    left: 0;
+    border-top: none;
+    background: transparent;
+    padding-bottom: 0;
+    gap: 4px;
+    padding: 12px;
+  }
+  .bottombar .nav-btn {
+    flex: 0 0 auto;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 10px;
+  }
+  .bottombar .nav-btn span { font-size: 14px; }
+  .bottombar .nav-btn.active::before { display: none; }
+  .bottombar .nav-btn.active {
+    background: var(--accent-soft);
+  }
+  .tab {
+    padding-bottom: 24px !important;
   }
 }

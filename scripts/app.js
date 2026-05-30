@@ -107,6 +107,7 @@ function switchTab(tab) {
 
   if (tab === 'search') loadSearchTab();
   if (tab === 'seasonal') loadSeasonal();
+  if (tab === 'social') loadSocial();
   if (tab === 'home' && state.user) loadMyList();
 }
 
@@ -616,6 +617,175 @@ async function loadMyList() {
   }
 }
 
+// ============ SOCIAL TAB (activity feed) ============
+let socialScope = 'global';   // 'global' | 'following'
+let socialReqId = 0;
+let socialLoaded = false;
+
+function formatRelativeTime(unixSeconds) {
+  if (!unixSeconds) return '';
+  const now = Math.floor(Date.now() / 1000);
+  const diff = now - unixSeconds;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+  if (diff < 2592000) return `${Math.floor(diff / 604800)}w ago`;
+  return `${Math.floor(diff / 2592000)}mo ago`;
+}
+
+function activityActionText(act) {
+  if (act.type === 'TEXT') return ''; // text activities render text body separately
+  if (act.status === 'CURRENT' && act.progress) return `Watched episode <strong>${escapeHtml(String(act.progress))}</strong>`;
+  if (act.status === 'COMPLETED') return `Completed`;
+  if (act.status === 'PLANNING') return `Planning to watch`;
+  if (act.status === 'PAUSED') return `Paused`;
+  if (act.status === 'DROPPED') return `Dropped`;
+  if (act.status === 'REPEATING') return `Rewatching${act.progress ? ` (ep ${escapeHtml(String(act.progress))})` : ''}`;
+  return act.status ? escapeHtml(String(act.status)) : '';
+}
+
+function renderActivity(act) {
+  if (!act) return '';
+  const u = act.user;
+  const avatar = u?.avatar?.large || u?.avatar?.medium || '';
+  const name = u?.name || 'someone';
+  const time = formatRelativeTime(act.createdAt);
+  const likes = act.likeCount || 0;
+  const replies = act.replyCount || 0;
+  const liked = !!act.isLiked;
+  const isText = act.type === 'TEXT';
+  const m = act.media;
+
+  const body = isText
+    ? `<div class="activity-text">${escapeHtml(act.text || '').slice(0, 600)}</div>`
+    : m
+      ? `<div class="activity-action">${activityActionText(act)}</div>
+         <div class="activity-anime" data-media-id="${m.id}">
+           <div class="activity-anime-cover" style="background-image:url('${m.coverImage?.large || ''}'); background-color:${m.coverImage?.color || 'var(--surface-2)'};"></div>
+           <div class="activity-anime-title">${escapeHtml(pickTitle(m.title) || 'Unknown')}</div>
+         </div>`
+      : `<div class="activity-action">${activityActionText(act)}</div>`;
+
+  return `
+    <div class="activity-card" data-activity-id="${act.id}">
+      <div class="activity-avatar" style="background-image:url('${avatar}');"></div>
+      <div class="activity-body">
+        <div class="activity-header-row">
+          <span class="activity-user">${escapeHtml(name)}</span>
+          <span class="activity-time">${time}</span>
+        </div>
+        ${body}
+        <div class="activity-footer">
+          <button class="activity-action-btn like-btn${liked ? ' liked' : ''}" data-activity-id="${act.id}">
+            <svg viewBox="0 0 24 24" fill="${liked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            <span>${likes}</span>
+          </button>
+          <button class="activity-action-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span>${replies}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function loadSocial() {
+  const feed = document.getElementById('social-feed');
+  if (!feed) return;
+  const myReq = ++socialReqId;
+  // Show a skeleton while we wait
+  feed.innerHTML = Array(5).fill(`
+    <div class="activity-card">
+      <div class="activity-avatar skeleton"></div>
+      <div class="activity-body">
+        <div class="skeleton" style="height: 14px; width: 40%; border-radius: 4px; margin-bottom: 8px;"></div>
+        <div class="skeleton" style="height: 52px; border-radius: 8px;"></div>
+      </div>
+    </div>
+  `).join('');
+
+  // "Following" requires sign-in; gracefully fall back if not authed
+  if (socialScope === 'following' && !state.user) {
+    feed.innerHTML = `
+      <div class="empty" style="padding: 50px 20px;">
+        <div class="empty-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11l-3-3-3 3"/><path d="M19 8v6"/></svg>
+        </div>
+        <div class="empty-title">Sign in to see followed activity</div>
+        <div class="empty-text">When you sign in we'll show updates from everyone you follow on AniList.</div>
+        <button class="btn-primary" onclick="signIn()">Sign in with AniList</button>
+      </div>`;
+    return;
+  }
+
+  // isFollowing: true narrows to people the viewer follows (requires auth header).
+  const followingClause = socialScope === 'following' ? 'isFollowing: true, ' : '';
+  const q = `query {
+    Page(perPage: 25) {
+      activities(${followingClause}sort: ID_DESC) {
+        ... on ListActivity {
+          id type status progress createdAt likeCount replyCount isLiked
+          user { id name avatar { large medium } }
+          media { id title { userPreferred english romaji } coverImage { large color } type }
+        }
+        ... on TextActivity {
+          id type text createdAt likeCount replyCount isLiked
+          user { id name avatar { large medium } }
+        }
+      }
+    }
+  }`;
+  const data = await anilist(q);
+  if (socialReqId !== myReq) return;
+  const items = (data?.Page?.activities || []).filter(a => a && (a.type === 'ANIME_LIST' || a.type === 'TEXT'));
+  if (!items.length) {
+    feed.innerHTML = `<div class="no-results" style="padding: 50px 20px;">No recent activity.</div>`;
+    return;
+  }
+  feed.innerHTML = items.map(renderActivity).join('');
+
+  // Tap an anime block to open detail
+  feed.querySelectorAll('.activity-anime').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = parseInt(el.dataset.mediaId, 10);
+      if (!isNaN(id)) openMedia(id);
+    });
+  });
+  // Tap a like button to toggle like (requires sign-in)
+  feed.querySelectorAll('.like-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!state.user) return openSignInModal();
+      const id = parseInt(btn.dataset.activityId, 10);
+      if (isNaN(id)) return;
+      const mutation = `mutation ($id: Int) {
+        ToggleLikeV2(id: $id, type: ACTIVITY) { ... on ListActivity { id likeCount isLiked } ... on TextActivity { id likeCount isLiked } }
+      }`;
+      const data = await anilist(mutation, { id });
+      const updated = data?.ToggleLikeV2;
+      if (updated) {
+        btn.classList.toggle('liked', updated.isLiked);
+        const countEl = btn.querySelector('span');
+        if (countEl) countEl.textContent = updated.likeCount;
+        const svg = btn.querySelector('svg');
+        if (svg) svg.setAttribute('fill', updated.isLiked ? 'currentColor' : 'none');
+      }
+    });
+  });
+}
+
+// Scope chips
+document.querySelectorAll('#social-scope-row .chip').forEach(c => {
+  c.addEventListener('click', () => {
+    document.querySelectorAll('#social-scope-row .chip').forEach(x => x.classList.remove('active'));
+    c.classList.add('active');
+    socialScope = c.dataset.scope;
+    loadSocial();
+  });
+});
+
 // ============ CATEGORY OVERLAY ("See all") ============
 
 async function openCategory(sort, type, title, opts = {}) {
@@ -909,7 +1079,20 @@ async function openMedia(id) {
       </div>
     </div>
     <div class="detail-stats">
-      ${m.averageScore ? `<div class="stat-pill"><strong>${(m.averageScore/10).toFixed(1)}</strong>★ score</div>` : ''}
+      ${(() => {
+        // If the user is signed in and has rated, prefer their score; otherwise show community avg.
+        const userScore = m.mediaListEntry?.score;
+        if (state.accessToken && userScore > 0) {
+          return `<div class="stat-pill score-clickable user-score" id="detail-score-pill" title="Tap to change your rating"><strong>${userScore}</strong>★ your rating</div>`;
+        }
+        if (m.averageScore) {
+          const clickable = state.accessToken ? ' score-clickable' : '';
+          const id = state.accessToken ? ' id="detail-score-pill"' : '';
+          const hint = state.accessToken ? ' title="Tap to rate"' : '';
+          return `<div class="stat-pill${clickable}"${id}${hint}><strong>${(m.averageScore/10).toFixed(1)}</strong>★ score</div>`;
+        }
+        return '';
+      })()}
       ${m.popularity ? `<div class="stat-pill"><strong>${formatNum(m.popularity)}</strong>members</div>` : ''}
       ${m.favourites ? `<div class="stat-pill"><strong>${formatNum(m.favourites)}</strong>favorites</div>` : ''}
       ${m.status ? `<div class="stat-pill"><strong>${capitalize(m.status)}</strong></div>` : ''}
@@ -1023,7 +1206,51 @@ async function openMedia(id) {
       openCharacter(parseInt(card.dataset.characterId, 10));
     });
   });
+  // Score pill → rate modal (only when signed in; pill has score-clickable class)
+  const scorePill = body.querySelector('#detail-score-pill');
+  if (scorePill) {
+    scorePill.addEventListener('click', () => {
+      const currentUserScore = m.mediaListEntry?.score || 0;
+      openRateModal(m.id, currentUserScore, pickTitle(m.title) || 'this anime');
+    });
+  }
 }
+
+// ============ RATE MODAL ============
+let ratingMediaId = null;
+function openRateModal(mediaId, currentScore, title) {
+  ratingMediaId = mediaId;
+  document.getElementById('rate-modal-title').textContent = `Rate ${title}`;
+  const grid = document.getElementById('rate-grid');
+  grid.innerHTML = Array.from({ length: 10 }, (_, i) => {
+    const score = i + 1;
+    const active = score === currentScore ? ' current' : '';
+    return `<button class="rate-btn${active}" data-score="${score}">${score}</button>`;
+  }).join('');
+  grid.querySelectorAll('.rate-btn').forEach(btn => {
+    btn.addEventListener('click', () => saveScore(parseInt(btn.dataset.score, 10)));
+  });
+  document.getElementById('rate-modal').classList.add('visible');
+}
+function closeRateModal() {
+  document.getElementById('rate-modal').classList.remove('visible');
+  ratingMediaId = null;
+}
+async function saveScore(score) {
+  if (!ratingMediaId) return;
+  if (!state.user) { closeRateModal(); openSignInModal(); return; }
+  const mutation = `mutation ($mediaId: Int, $score: Float) {
+    SaveMediaListEntry(mediaId: $mediaId, score: $score) { id score status progress }
+  }`;
+  const data = await anilist(mutation, { mediaId: ratingMediaId, score });
+  if (data?.SaveMediaListEntry) {
+    const mid = ratingMediaId;
+    closeRateModal();
+    openMedia(mid); // refresh detail page so pill + button reflect the new score
+  }
+}
+window.closeRateModal = closeRateModal;
+document.getElementById('rate-clear-btn').addEventListener('click', () => saveScore(0));
 
 // ============ SIGN-IN MODAL ============
 function openSignInModal() { document.getElementById('signin-modal').classList.add('visible'); }
@@ -1103,11 +1330,8 @@ document.querySelectorAll('.seg[data-notif]').forEach(seg => {
   });
 });
 
-// Boot
-if (state.landing && state.landing !== 'home') {
-  switchTab(state.landing);
-}
-// If we have a stored token, hydrate the user + list immediately
+// Boot — always run switchTab so state.activeTab + DOM stay in sync regardless of localStorage
+switchTab(state.landing || 'home');
 updateAuthUI();
 if (state.accessToken) {
   fetchViewer();
