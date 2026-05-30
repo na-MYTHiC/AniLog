@@ -1342,7 +1342,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   overflow: hidden;
 }
 .list-row-title {
@@ -1394,6 +1394,16 @@
 .list-row-meta .sep {
   color: var(--text-faint);
   margin: 0 5px;
+}
+/* AniList community score on the row — slightly brighter than meta */
+.list-row-meta .row-score-community {
+  color: var(--text);
+  font-weight: 600;
+}
+/* The user's own score — tinted in the accent color so it pops next to community */
+.list-row-meta .row-score-user {
+  color: var(--accent);
+  font-weight: 700;
 }
 
 .signin-card {

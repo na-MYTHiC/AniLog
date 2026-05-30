@@ -31,14 +31,14 @@
   --grid-pad-y: 16px;
   --grid-pad-x: 20px;
   /* List row sizing — drives My List row scale with density */
-  --row-cover-w: 76px;
-  --row-cover-h: 108px;
-  --row-pad-y: 14px;
+  --row-cover-w: 92px;
+  --row-cover-h: 130px;
+  --row-pad-y: 16px;
   --row-pad-x: 20px;
-  --row-gap: 14px;
-  --row-title-size: 15px;
-  --row-meta-size: 12px;
-  --row-bar-h: 6px;
+  --row-gap: 16px;
+  --row-title-size: 18px;
+  --row-meta-size: 14px;
+  --row-bar-h: 7px;
 }
 
 [data-density="compact"] {
@@ -55,14 +55,14 @@
   --grid-gap: 8px;
   --grid-pad-y: 10px;
   --grid-pad-x: 14px;
-  --row-cover-w: 56px;
-  --row-cover-h: 80px;
-  --row-pad-y: 10px;
+  --row-cover-w: 70px;
+  --row-cover-h: 100px;
+  --row-pad-y: 12px;
   --row-pad-x: 16px;
-  --row-gap: 12px;
-  --row-title-size: 13px;
-  --row-meta-size: 11px;
-  --row-bar-h: 5px;
+  --row-gap: 14px;
+  --row-title-size: 15px;
+  --row-meta-size: 12px;
+  --row-bar-h: 6px;
 }
 
 [data-density="spacious"] {
@@ -79,14 +79,14 @@
   --grid-gap: 22px;
   --grid-pad-y: 24px;
   --grid-pad-x: 20px;
-  --row-cover-w: 96px;
-  --row-cover-h: 136px;
-  --row-pad-y: 18px;
-  --row-pad-x: 20px;
-  --row-gap: 18px;
-  --row-title-size: 17px;
-  --row-meta-size: 14px;
-  --row-bar-h: 7px;
+  --row-cover-w: 116px;
+  --row-cover-h: 166px;
+  --row-pad-y: 20px;
+  --row-pad-x: 22px;
+  --row-gap: 20px;
+  --row-title-size: 20px;
+  --row-meta-size: 16px;
+  --row-bar-h: 8px;
 }
 
 [data-theme="light"] {

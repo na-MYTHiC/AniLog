@@ -183,7 +183,14 @@ function renderListEntryRow(entry) {
   const sep = '<span class="sep">·</span>';
   const parts = [];
   parts.push(`<strong>${progress}</strong>/${total || '?'}`);
-  if (entry.score > 0) parts.push(`★ ${entry.score}`);
+  // AniList community score — always show when available
+  if (m.averageScore) {
+    parts.push(`<span class="row-score-community">★ ${(m.averageScore / 10).toFixed(1)}</span>`);
+  }
+  // The user's own score (only if they've rated it) — tinted in the accent color
+  if (entry.score > 0) {
+    parts.push(`<span class="row-score-user">★ ${entry.score} you</span>`);
+  }
   if (m.nextAiringEpisode && m.nextAiringEpisode.timeUntilAiring > 0) {
     parts.push(`Ep ${m.nextAiringEpisode.episode} in ${formatHM(m.nextAiringEpisode.timeUntilAiring)}`);
   }
