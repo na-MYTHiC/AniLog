@@ -52,17 +52,13 @@ function savePrefs() {
   localStorage.setItem('anilog-prefs', JSON.stringify(state));
 }
 
-// Mutable runtime state (not persisted)
-let currentMedia = null;
-let seasonalView = { season: state.season, year: state.seasonYear };
-let categoryState = { sort: 'POPULARITY_DESC', type: 'ANIME', isSeasonal: false };
-let genreState = { genre: '', type: 'ANIME', sort: 'POPULARITY_DESC' };
-let studioState = { id: null, name: '', sort: 'POPULARITY_DESC' };
-let staffState = { id: null, name: '', sort: 'FAVOURITES_DESC' };
-let editingEntry = null;
+// Mutable runtime state (not persisted). Each lives next to its first consumer
+// in app.js (currentMedia, seasonalView, searchReqId, etc.). The few overlay
+// states below don't have an obvious home in app.js, so they live here.
+let categoryState  = { sort: 'POPULARITY_DESC', type: 'ANIME', isSeasonal: false };
+let genreState     = { genre: '', type: 'ANIME', sort: 'POPULARITY_DESC' };
+let studioState    = { id: null, name: '', sort: 'POPULARITY_DESC' };
+let staffState     = { id: null, name: '', sort: 'FAVOURITES_DESC' };
+let editingEntry   = null;
 let editingMediaId = null;
-let homeReqId = 0;
-let searchReqId = 0;
-let myListReqId = 0;
-let searchTimer;
-let _sortOnSelect = null;
+let homeReqId      = 0;
