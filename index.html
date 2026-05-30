@@ -118,12 +118,48 @@
           <div class="carousel" id="popular-row"></div>
         </div>
 
-        <div class="section" id="search-season-section">
+        <!-- Popular genres — each links to the full genre browser on "See all" -->
+        <div class="section">
           <div class="section-header">
-            <div class="section-title">This Season</div>
-            <a class="section-link" id="search-season-link">See all</a>
+            <div class="section-title">Action</div>
+            <a class="section-link" data-genre-link="Action">See all</a>
           </div>
-          <div class="carousel" id="season-row"></div>
+          <div class="carousel" data-genre-row="Action"></div>
+        </div>
+        <div class="section">
+          <div class="section-header">
+            <div class="section-title">Romance</div>
+            <a class="section-link" data-genre-link="Romance">See all</a>
+          </div>
+          <div class="carousel" data-genre-row="Romance"></div>
+        </div>
+        <div class="section">
+          <div class="section-header">
+            <div class="section-title">Comedy</div>
+            <a class="section-link" data-genre-link="Comedy">See all</a>
+          </div>
+          <div class="carousel" data-genre-row="Comedy"></div>
+        </div>
+        <div class="section">
+          <div class="section-header">
+            <div class="section-title">Drama</div>
+            <a class="section-link" data-genre-link="Drama">See all</a>
+          </div>
+          <div class="carousel" data-genre-row="Drama"></div>
+        </div>
+        <div class="section">
+          <div class="section-header">
+            <div class="section-title">Fantasy</div>
+            <a class="section-link" data-genre-link="Fantasy">See all</a>
+          </div>
+          <div class="carousel" data-genre-row="Fantasy"></div>
+        </div>
+        <div class="section">
+          <div class="section-header">
+            <div class="section-title">Slice of Life</div>
+            <a class="section-link" data-genre-link="Slice of Life">See all</a>
+          </div>
+          <div class="carousel" data-genre-row="Slice of Life"></div>
         </div>
       </div>
 
@@ -159,12 +195,8 @@
     <!-- SOCIAL -->
     <section class="tab" id="tab-social">
       <div class="social-header">
-        <div class="social-title">Social</div>
-        <div class="social-sub">Recent activity from the AniList community</div>
-      </div>
-      <div class="sort-row" id="social-scope-row">
-        <div class="chip active" data-scope="global">Global</div>
-        <div class="chip" data-scope="following">Following</div>
+        <div class="social-title">Friends</div>
+        <div class="social-sub">Recent activity from people you follow</div>
       </div>
       <div id="social-feed" class="social-feed"></div>
     </section>
@@ -192,6 +224,7 @@
           <div class="seg" id="theme-seg">
             <button class="seg-btn" data-theme="light">Light</button>
             <button class="seg-btn active" data-theme="dark">Dark</button>
+            <button class="seg-btn" data-theme="amoled">AMOLED</button>
           </div>
         </div>
         <div class="settings-row" id="theme-picker-row" style="cursor: pointer;">
@@ -283,7 +316,7 @@
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v1.4 · Powered by AniList
+        AniLog · v1.5 · Powered by AniList
       </div>
     </section>
 

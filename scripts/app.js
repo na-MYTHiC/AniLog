@@ -124,32 +124,56 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
 
 // ============ SEARCH TAB ============
 let searchReqId = 0;
+// Genre carousels shown on the pre-search screen. Each loads independently below.
+const SEARCH_GENRES = ['Action', 'Romance', 'Comedy', 'Drama', 'Fantasy', 'Slice of Life'];
+
 async function loadSearchTab() {
   const myReq = ++searchReqId;
 
-  // Wire "See all" links
-  document.getElementById('search-trending-link').onclick = () => openCategory('TRENDING_DESC', 'ANIME', 'Trending Now');
-  document.getElementById('search-top-link').onclick = () => openCategory('SCORE_DESC', 'ANIME', 'Top 100');
-  document.getElementById('search-popular-link').onclick = () => openCategory('POPULARITY_DESC', 'ANIME', 'All-Time Popular');
-  document.getElementById('search-season-link').onclick = () => openCategory('POPULARITY_DESC', 'ANIME', 'Spring 2026', { season: true });
+  // Wire "See all" — Trending/Top/Popular skip the sort UI (the entry IS the sort).
+  document.getElementById('search-trending-link').onclick = () => openCategory('TRENDING_DESC', 'ANIME', 'Trending Now', { noSort: true });
+  document.getElementById('search-top-link').onclick     = () => openCategory('SCORE_DESC',    'ANIME', 'Top 100',       { noSort: true });
+  document.getElementById('search-popular-link').onclick = () => openCategory('POPULARITY_DESC','ANIME', 'All-Time Popular', { noSort: true });
 
+  // Genre "See all" links — open the genre overlay (which keeps the sort dropdown)
+  document.querySelectorAll('[data-genre-link]').forEach(a => {
+    const g = a.dataset.genreLink;
+    a.onclick = () => openGenre(g, 'ANIME');
+  });
+
+  // Top three rows — fixed sort, single carousel each
   const rows = [
     { id: 'trending-row', sort: 'TRENDING_DESC' },
-    { id: 'top-row', sort: 'SCORE_DESC' },
-    { id: 'popular-row', sort: 'POPULARITY_DESC' },
-    { id: 'season-row', sort: 'POPULARITY_DESC', extra: `season: ${state.season}, seasonYear: ${state.seasonYear},` },
+    { id: 'top-row',      sort: 'SCORE_DESC' },
+    { id: 'popular-row',  sort: 'POPULARITY_DESC' },
   ];
-
   for (const r of rows) {
     if (searchReqId !== myReq) return;
-    const q = `query { Page(perPage: 12) { media(${r.extra || ''} sort: ${r.sort}, type: ANIME, isAdult: false) { ${MEDIA_FRAGMENT} } } }`;
-    const cacheKey = q + JSON.stringify({});
+    const q = `query { Page(perPage: 12) { media(sort: ${r.sort}, type: ANIME, isAdult: false) { ${MEDIA_FRAGMENT} } } }`;
     const el = document.getElementById(r.id);
+    if (cache['pub:' + q + '{}']) {
+      renderIntoEl(el, cache['pub:' + q + '{}']);
+    } else {
+      skeletonFill(el, 6);
+      const data = await anilist(q);
+      if (searchReqId !== myReq) return;
+      renderIntoEl(el, data);
+    }
+  }
+
+  // Then the genre rows — popularity-sorted, filtered by the genre name
+  for (const genre of SEARCH_GENRES) {
+    if (searchReqId !== myReq) return;
+    const el = document.querySelector(`[data-genre-row="${genre}"]`);
+    if (!el) continue;
+    const q = `query ($genre: String) { Page(perPage: 12) { media(genre: $genre, sort: POPULARITY_DESC, type: ANIME, isAdult: false) { ${MEDIA_FRAGMENT} } } }`;
+    const vars = { genre };
+    const cacheKey = 'pub:' + q + JSON.stringify(vars);
     if (cache[cacheKey]) {
       renderIntoEl(el, cache[cacheKey]);
     } else {
       skeletonFill(el, 6);
-      const data = await anilist(q);
+      const data = await anilist(q, vars);
       if (searchReqId !== myReq) return;
       renderIntoEl(el, data);
     }
@@ -617,10 +641,8 @@ async function loadMyList() {
   }
 }
 
-// ============ SOCIAL TAB (activity feed) ============
-let socialScope = 'global';   // 'global' | 'following'
+// ============ SOCIAL TAB (friends-only activity feed) ============
 let socialReqId = 0;
-let socialLoaded = false;
 
 function formatRelativeTime(unixSeconds) {
   if (!unixSeconds) return '';
@@ -645,6 +667,23 @@ function activityActionText(act) {
   return act.status ? escapeHtml(String(act.status)) : '';
 }
 
+function renderReply(r) {
+  const ru = r.user;
+  const ravatar = ru?.avatar?.large || ru?.avatar?.medium || '';
+  return `
+    <div class="activity-reply">
+      <div class="activity-reply-avatar" style="background-image:url('${ravatar}');"></div>
+      <div class="activity-reply-body">
+        <div class="activity-reply-head">
+          <span class="activity-reply-user">${escapeHtml(ru?.name || 'unknown')}</span>
+          <span class="activity-reply-time">${formatRelativeTime(r.createdAt)}</span>
+        </div>
+        <div class="activity-reply-text">${escapeHtml((r.text || '').slice(0, 600))}</div>
+      </div>
+    </div>
+  `;
+}
+
 function renderActivity(act) {
   if (!act) return '';
   const u = act.user;
@@ -667,6 +706,8 @@ function renderActivity(act) {
          </div>`
       : `<div class="activity-action">${activityActionText(act)}</div>`;
 
+  const replyList = (act.replies || []).map(renderReply).join('');
+
   return `
     <div class="activity-card" data-activity-id="${act.id}">
       <div class="activity-avatar" style="background-image:url('${avatar}');"></div>
@@ -681,10 +722,17 @@ function renderActivity(act) {
             <svg viewBox="0 0 24 24" fill="${liked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
             <span>${likes}</span>
           </button>
-          <button class="activity-action-btn">
+          <button class="activity-action-btn reply-toggle" data-activity-id="${act.id}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            <span>${replies}</span>
+            <span class="reply-count">${replies}</span>
           </button>
+        </div>
+        <div class="activity-replies" data-activity-id="${act.id}">
+          <div class="activity-reply-list">${replyList}</div>
+          <form class="activity-reply-form" data-activity-id="${act.id}">
+            <input class="activity-reply-input" type="text" placeholder="Reply…" maxlength="500" />
+            <button class="activity-reply-send" type="submit">Send</button>
+          </form>
         </div>
       </div>
     </div>
@@ -695,7 +743,21 @@ async function loadSocial() {
   const feed = document.getElementById('social-feed');
   if (!feed) return;
   const myReq = ++socialReqId;
-  // Show a skeleton while we wait
+
+  // Friends-only — sign-in is required (AniList's isFollowing filter needs auth)
+  if (!state.user) {
+    feed.innerHTML = `
+      <div class="empty" style="padding: 50px 20px;">
+        <div class="empty-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11l-3-3-3 3"/><path d="M19 8v6"/></svg>
+        </div>
+        <div class="empty-title">Sign in to see your friends</div>
+        <div class="empty-text">When you sign in we'll show updates from everyone you follow on AniList.</div>
+        <button class="btn-primary" onclick="signIn()">Sign in with AniList</button>
+      </div>`;
+    return;
+  }
+
   feed.innerHTML = Array(5).fill(`
     <div class="activity-card">
       <div class="activity-avatar skeleton"></div>
@@ -706,33 +768,19 @@ async function loadSocial() {
     </div>
   `).join('');
 
-  // "Following" requires sign-in; gracefully fall back if not authed
-  if (socialScope === 'following' && !state.user) {
-    feed.innerHTML = `
-      <div class="empty" style="padding: 50px 20px;">
-        <div class="empty-icon">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11l-3-3-3 3"/><path d="M19 8v6"/></svg>
-        </div>
-        <div class="empty-title">Sign in to see followed activity</div>
-        <div class="empty-text">When you sign in we'll show updates from everyone you follow on AniList.</div>
-        <button class="btn-primary" onclick="signIn()">Sign in with AniList</button>
-      </div>`;
-    return;
-  }
-
-  // isFollowing: true narrows to people the viewer follows (requires auth header).
-  const followingClause = socialScope === 'following' ? 'isFollowing: true, ' : '';
   const q = `query {
     Page(perPage: 25) {
-      activities(${followingClause}sort: ID_DESC) {
+      activities(isFollowing: true, sort: ID_DESC) {
         ... on ListActivity {
           id type status progress createdAt likeCount replyCount isLiked
           user { id name avatar { large medium } }
           media { id title { userPreferred english romaji } coverImage { large color } type }
+          replies { id text createdAt user { id name avatar { large medium } } }
         }
         ... on TextActivity {
           id type text createdAt likeCount replyCount isLiked
           user { id name avatar { large medium } }
+          replies { id text createdAt user { id name avatar { large medium } } }
         }
       }
     }
@@ -741,19 +789,24 @@ async function loadSocial() {
   if (socialReqId !== myReq) return;
   const items = (data?.Page?.activities || []).filter(a => a && (a.type === 'ANIME_LIST' || a.type === 'TEXT'));
   if (!items.length) {
-    feed.innerHTML = `<div class="no-results" style="padding: 50px 20px;">No recent activity.</div>`;
+    feed.innerHTML = `<div class="no-results" style="padding: 50px 20px;">
+      No activity from your follows yet. Follow people on AniList to see their updates here.
+    </div>`;
     return;
   }
   feed.innerHTML = items.map(renderActivity).join('');
+  attachActivityHandlers(feed);
+}
 
-  // Tap an anime block to open detail
+// Wire taps, likes, reply expansion + submission for every activity card in the feed
+function attachActivityHandlers(feed) {
   feed.querySelectorAll('.activity-anime').forEach(el => {
     el.addEventListener('click', () => {
       const id = parseInt(el.dataset.mediaId, 10);
       if (!isNaN(id)) openMedia(id);
     });
   });
-  // Tap a like button to toggle like (requires sign-in)
+
   feed.querySelectorAll('.like-btn').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -774,17 +827,53 @@ async function loadSocial() {
       }
     });
   });
-}
 
-// Scope chips
-document.querySelectorAll('#social-scope-row .chip').forEach(c => {
-  c.addEventListener('click', () => {
-    document.querySelectorAll('#social-scope-row .chip').forEach(x => x.classList.remove('active'));
-    c.classList.add('active');
-    socialScope = c.dataset.scope;
-    loadSocial();
+  // Reply count button toggles the inline replies panel
+  feed.querySelectorAll('.reply-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.activityId;
+      const panel = feed.querySelector(`.activity-replies[data-activity-id="${id}"]`);
+      if (!panel) return;
+      panel.classList.toggle('open');
+      // Auto-focus the input when opening so the user can type immediately
+      if (panel.classList.contains('open')) {
+        const input = panel.querySelector('.activity-reply-input');
+        if (input) setTimeout(() => input.focus(), 50);
+      }
+    });
   });
-});
+
+  // Submit a reply via SaveActivityReply
+  feed.querySelectorAll('.activity-reply-form').forEach(form => {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!state.user) return openSignInModal();
+      const input = form.querySelector('.activity-reply-input');
+      const text = input.value.trim();
+      if (!text) return;
+      const sendBtn = form.querySelector('.activity-reply-send');
+      sendBtn.disabled = true;
+      const activityId = parseInt(form.dataset.activityId, 10);
+      const mutation = `mutation ($activityId: Int, $text: String) {
+        SaveActivityReply(activityId: $activityId, text: $text) {
+          id text createdAt user { id name avatar { large medium } }
+        }
+      }`;
+      const data = await anilist(mutation, { activityId, text });
+      sendBtn.disabled = false;
+      const reply = data?.SaveActivityReply;
+      if (reply) {
+        const list = form.parentElement.querySelector('.activity-reply-list');
+        if (list) list.insertAdjacentHTML('beforeend', renderReply(reply));
+        input.value = '';
+        // Bump the count next to the reply icon
+        const card = form.closest('.activity-card');
+        const count = card?.querySelector('.reply-count');
+        if (count) count.textContent = (parseInt(count.textContent || '0', 10) + 1);
+      }
+    });
+  });
+}
 
 // ============ CATEGORY OVERLAY ("See all") ============
 
@@ -794,6 +883,9 @@ async function openCategory(sort, type, title, opts = {}) {
   categoryState.isSeasonal = !!opts.season;
   document.getElementById('category-title').textContent = title;
   document.getElementById('category-sort-label').textContent = labelForSort(sort);
+  // Hide the sort dropdown for categories that ARE the sort (Trending / Top / Popular)
+  const sortBar = document.querySelector('#category-overlay .sort-trigger-bar');
+  if (sortBar) sortBar.style.display = opts.noSort ? 'none' : '';
   document.getElementById('category-overlay').classList.add('visible');
   loadCategory();
 }

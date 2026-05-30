@@ -63,7 +63,8 @@ function applyTheme() {
   const g = parseInt(hex.substr(2, 2), 16);
   const b = parseInt(hex.substr(4, 2), 16);
   document.documentElement.style.setProperty('--accent-soft', `rgba(${r}, ${g}, ${b}, 0.15)`);
-  document.querySelector('meta[name="theme-color"]').setAttribute('content', state.theme === 'dark' ? '#0d0d12' : '#f7f7fa');
+  const themeColor = state.theme === 'amoled' ? '#000000' : state.theme === 'light' ? '#f7f7fa' : '#0d0d12';
+  document.querySelector('meta[name="theme-color"]').setAttribute('content', themeColor);
 }
 function applyDensity() {
   document.documentElement.setAttribute('data-density', state.density);

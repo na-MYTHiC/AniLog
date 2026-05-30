@@ -67,8 +67,9 @@ async function fetchViewer() {
   if (data?.Viewer) {
     state.user = data.Viewer;
     updateAuthUI();
-    // Auto-load the list if we're on Home
-    if (state.activeTab === 'home') loadMyList();
+    // Always populate the home list — the grid sits inside the home tab whether
+    // it's visible or not, so when the user reaches home it's already ready.
+    loadMyList();
   }
 }
 

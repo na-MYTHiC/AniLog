@@ -1163,6 +1163,83 @@
   height: 14px;
 }
 
+/* Replies — collapsed by default, expand when the user taps the reply button */
+.activity-replies {
+  display: none;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.activity-replies.open { display: block; }
+.activity-reply {
+  display: flex;
+  gap: 10px;
+  padding: 6px 0;
+}
+.activity-reply-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  background-size: cover;
+  background-position: center;
+  flex-shrink: 0;
+}
+.activity-reply-body {
+  flex: 1;
+  min-width: 0;
+}
+.activity-reply-head {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  font-size: 11px;
+}
+.activity-reply-user {
+  font-weight: 700;
+  color: var(--text);
+}
+.activity-reply-time { color: var(--text-dim); }
+.activity-reply-text {
+  font-size: 13px;
+  color: var(--text);
+  margin-top: 2px;
+  line-height: 1.4;
+  white-space: pre-line;
+  word-break: break-word;
+}
+.activity-reply-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.activity-reply-input {
+  flex: 1;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 12px;
+  border-radius: 18px;
+  font-size: 13px;
+  outline: none;
+  font-family: inherit;
+}
+.activity-reply-input:focus { border-color: var(--accent); }
+.activity-reply-send {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 18px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.activity-reply-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .my-list-header {
   padding: 20px 20px 0;
 }
