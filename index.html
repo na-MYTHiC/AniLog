@@ -1198,14 +1198,15 @@
         </button>
       </div>
 
-      <div class="empty" style="padding-top: 50px;">
+      <div class="empty" id="home-empty" style="padding-top: 50px;">
         <div class="empty-icon">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         </div>
         <div class="empty-title">Sign in to see your list</div>
         <div class="empty-text">Connect your AniList account to track episodes, scores, and progress — synced across devices.</div>
-        <button class="btn-primary" onclick="openSignInModal()">Sign in with AniList</button>
+        <button class="btn-primary" onclick="signIn()">Sign in with AniList</button>
       </div>
+      <div class="grid" id="my-list-grid" style="display: none;"></div>
     </section>
 
     <!-- SEARCH -->
@@ -1303,13 +1304,13 @@
 
     <!-- PROFILE -->
     <section class="tab" id="tab-profile">
-      <div class="empty" style="padding: 30px 20px 16px;">
+      <div class="empty" id="profile-card" style="padding: 30px 20px 16px;">
         <div class="empty-icon" style="width: 72px; height: 72px; border-radius: 50%;">
           <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
         </div>
         <div class="empty-title">Guest</div>
         <div class="empty-text">Sign in with AniList to sync your library across devices.</div>
-        <button class="btn-primary" onclick="openSignInModal()">Sign in with AniList</button>
+        <button class="btn-primary" onclick="signIn()">Sign in with AniList</button>
       </div>
 
       <div class="section-header" style="margin-top: 16px;">
@@ -1415,7 +1416,7 @@
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · Prototype v0.9 · Powered by AniList
+        AniLog · v1.0 · Powered by AniList
       </div>
     </section>
 
@@ -1569,7 +1570,7 @@
       <h3>Sign in with AniList</h3>
       <p>Connect your AniList account to track shows, sync progress across devices, comment on friends, and get notified when new episodes air.</p>
       <div class="modal-actions">
-        <button class="btn-primary" onclick="alert('OAuth flow lives here in the real app — opens AniList in a browser, returns a token.'); closeSignInModal();">Continue with AniList</button>
+        <button class="btn-primary" onclick="signIn()">Continue with AniList</button>
         <button class="btn-secondary" onclick="closeSignInModal()">Maybe later</button>
       </div>
     </div>
@@ -1610,8 +1611,37 @@
     listStatus: 'CURRENT',
     listSort: 'SCORE_DESC',
     recentSearches: [],
+    accessToken: null,
+    user: null,
   };
   const cache = {};
+
+  // ============ ANILIST OAUTH ============
+  const ANILIST_CLIENT_ID = '42596';
+  const ANILIST_REDIRECT_URI = 'https://na-mythic.github.io/AniLog/';
+  const ANILIST_AUTH_URL = `https://anilist.co/api/v2/oauth/authorize?client_id=${ANILIST_CLIENT_ID}&redirect_uri=${encodeURIComponent(ANILIST_REDIRECT_URI)}&response_type=token`;
+
+  // Catch the token if we just came back from AniList authorization
+  if (window.location.hash && window.location.hash.includes('access_token=')) {
+    const params = new URLSearchParams(window.location.hash.substring(1));
+    const token = params.get('access_token');
+    if (token) {
+      state.accessToken = token;
+      history.replaceState(null, '', window.location.pathname);
+      try { localStorage.setItem('anilog-prefs', JSON.stringify(state)); } catch (e) {}
+    }
+  }
+
+  function signIn() { window.location.href = ANILIST_AUTH_URL; }
+  function signOut() {
+    state.accessToken = null;
+    state.user = null;
+    savePrefs();
+    Object.keys(cache).forEach(k => delete cache[k]);
+    window.location.reload();
+  }
+  window.signIn = signIn;
+  window.signOut = signOut;
 
   try {
     const saved = JSON.parse(localStorage.getItem('anilog-prefs') || '{}');
@@ -1754,6 +1784,7 @@
 
     if (tab === 'search') loadSearchTab();
     if (tab === 'seasonal') loadSeasonal();
+    if (tab === 'home' && state.user) loadMyList();
   }
 
   document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -1764,14 +1795,22 @@
   const ANILIST = 'https://graphql.anilist.co';
 
   async function anilist(query, variables = {}) {
-    const key = query + JSON.stringify(variables);
+    // Cache key differs when authed vs. not so we don't leak personal data across sessions
+    const key = (state.accessToken ? 'auth:' : 'pub:') + query + JSON.stringify(variables);
     if (cache[key]) return cache[key];
+    const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+    if (state.accessToken) headers['Authorization'] = `Bearer ${state.accessToken}`;
     try {
       const res = await fetch(ANILIST, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        headers,
         body: JSON.stringify({ query, variables }),
       });
+      if (res.status === 401) {
+        // Token expired or revoked — sign out gracefully
+        signOut();
+        return null;
+      }
       const json = await res.json();
       cache[key] = json.data;
       return json.data;
@@ -2185,14 +2224,15 @@
     { value: 'REPEATING', label: 'Rewatching' },
     { value: 'ALL',       label: 'All' },
   ];
+  // AniList's MediaListSort enum values
   const LIST_SORT_OPTIONS = [
-    { value: 'SCORE_DESC',           label: 'Score' },
-    { value: 'TITLE',                label: 'Title' },
-    { value: 'PROGRESS_DESC',        label: 'Progress' },
-    { value: 'UPDATED_TIME_DESC',    label: 'Last Updated' },
-    { value: 'STARTED_ON_DESC',      label: 'Date Started' },
+    { value: 'SCORE_DESC',            label: 'Score' },
+    { value: 'MEDIA_TITLE_ROMAJI',    label: 'Title' },
+    { value: 'PROGRESS_DESC',         label: 'Progress' },
+    { value: 'UPDATED_TIME_DESC',     label: 'Last Updated' },
+    { value: 'STARTED_ON_DESC',       label: 'Date Started' },
     { value: 'MEDIA_POPULARITY_DESC', label: 'Popularity' },
-    { value: 'MEDIA_SCORE_DESC',     label: 'Average Score' },
+    { value: 'ADDED_TIME_DESC',       label: 'Recently Added' },
   ];
 
   function listStatusLabel(v) { return LIST_STATUS_OPTIONS.find(o => o.value === v)?.label || 'Watching'; }
@@ -2206,6 +2246,7 @@
       state.listStatus = v;
       document.getElementById('list-status-label').textContent = listStatusLabel(v);
       savePrefs();
+      if (state.user) loadMyList();
     }, 'My List', LIST_STATUS_OPTIONS);
   });
 
@@ -2214,8 +2255,127 @@
       state.listSort = v;
       document.getElementById('list-sort-label').textContent = listSortLabel(v);
       savePrefs();
+      if (state.user) loadMyList();
     }, 'Sort My List', LIST_SORT_OPTIONS);
   });
+
+  // ============ MY LIST (authenticated) ============
+  async function fetchViewer() {
+    if (!state.accessToken) return;
+    const q = `query {
+      Viewer {
+        id
+        name
+        avatar { large medium }
+        statistics {
+          anime {
+            count
+            meanScore
+            minutesWatched
+            episodesWatched
+          }
+        }
+      }
+    }`;
+    const data = await anilist(q);
+    if (data?.Viewer) {
+      state.user = data.Viewer;
+      updateAuthUI();
+      // Auto-load the list if we're on Home
+      if (state.activeTab === 'home') loadMyList();
+    }
+  }
+
+  function updateAuthUI() {
+    const card = document.getElementById('profile-card');
+    if (!card) return;
+    if (state.user) {
+      const u = state.user;
+      const stats = u.statistics?.anime;
+      const hours = stats?.minutesWatched ? Math.round(stats.minutesWatched / 60) : 0;
+      const meanScore = stats?.meanScore ? stats.meanScore.toFixed(1) : '—';
+      card.innerHTML = `
+        <div class="empty-icon" style="width: 72px; height: 72px; border-radius: 50%; padding: 0; overflow: hidden; background: var(--surface-2);">
+          ${u.avatar?.large || u.avatar?.medium
+            ? `<img src="${u.avatar.large || u.avatar.medium}" alt="${escapeHtml(u.name)}" style="width: 100%; height: 100%; object-fit: cover;">`
+            : `<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>`}
+        </div>
+        <div class="empty-title">${escapeHtml(u.name)}</div>
+        <div class="empty-text">
+          <strong>${stats?.count || 0}</strong> anime · <strong>${meanScore}</strong> mean · <strong>${hours}h</strong> watched
+        </div>
+        <button class="btn-secondary" onclick="signOut()">Sign out</button>
+      `;
+    }
+    // Hide the home empty CTA if signed in; show otherwise
+    const homeEmpty = document.getElementById('home-empty');
+    const myGrid = document.getElementById('my-list-grid');
+    if (state.user) {
+      if (homeEmpty) homeEmpty.style.display = 'none';
+      if (myGrid) myGrid.style.display = '';
+    } else {
+      if (homeEmpty) homeEmpty.style.display = '';
+      if (myGrid) myGrid.style.display = 'none';
+    }
+  }
+
+  function renderListEntryCard(entry) {
+    const m = entry.media;
+    if (!m) return '';
+    const userScore = entry.score && entry.score > 0
+      ? `<div class="card-score">★ ${entry.score}</div>`
+      : '';
+    const progress = entry.progress != null
+      ? `${entry.progress}${m.episodes ? '/' + m.episodes : ''} ep`
+      : '';
+    return `
+      <div class="card" onclick="openMedia(${m.id})">
+        <div class="card-image" style="background-image:url('${m.coverImage?.large || ''}'); background-color:${m.coverImage?.color || 'var(--surface-2)'};">
+          ${userScore}
+        </div>
+        <div class="card-title">${escapeHtml(pickTitle(m.title) || 'Unknown')}</div>
+        ${progress ? `<div class="card-meta">${progress}</div>` : ''}
+      </div>
+    `;
+  }
+
+  let myListReqId = 0;
+  async function loadMyList() {
+    if (!state.user) return;
+    const myReq = ++myListReqId;
+    const grid = document.getElementById('my-list-grid');
+    if (!grid) return;
+    grid.style.display = '';
+    skeletonFill(grid, 8);
+
+    const isAll = state.listStatus === 'ALL';
+    const q = isAll
+      ? `query ($userId: Int, $sort: [MediaListSort]) {
+          MediaListCollection(userId: $userId, type: ANIME, sort: $sort) {
+            lists { entries { id status score progress media { ${MEDIA_FRAGMENT} } } }
+          }
+        }`
+      : `query ($userId: Int, $status: MediaListStatus, $sort: [MediaListSort]) {
+          MediaListCollection(userId: $userId, type: ANIME, status: $status, sort: $sort) {
+            lists { entries { id status score progress media { ${MEDIA_FRAGMENT} } } }
+          }
+        }`;
+
+    const vars = isAll
+      ? { userId: state.user.id, sort: [state.listSort] }
+      : { userId: state.user.id, status: state.listStatus, sort: [state.listSort] };
+
+    const data = await anilist(q, vars);
+    if (myListReqId !== myReq) return;
+    const entries = (data?.MediaListCollection?.lists || []).flatMap(l => l.entries || []);
+    if (entries.length === 0) {
+      grid.innerHTML = `<div class="no-results" style="grid-column: 1/-1; padding: 50px 20px;">
+        Your <strong>${escapeHtml(listStatusLabel(state.listStatus))}</strong> list is empty.
+      </div>`;
+    } else {
+      grid.innerHTML = entries.map(renderListEntryCard).join('');
+    }
+  }
 
   // ============ CATEGORY OVERLAY ("See all") ============
   let categoryState = { sort: 'POPULARITY_DESC', type: 'ANIME', isSeasonal: false };
@@ -2720,6 +2880,11 @@
   // Boot
   if (state.landing && state.landing !== 'home') {
     switchTab(state.landing);
+  }
+  // If we have a stored token, hydrate the user + list immediately
+  updateAuthUI();
+  if (state.accessToken) {
+    fetchViewer();
   }
 </script>
 </body>
