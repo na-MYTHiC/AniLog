@@ -36,6 +36,15 @@
     --grid-gap: 14px;
     --grid-pad-y: 16px;
     --grid-pad-x: 20px;
+    /* List row sizing — drives My List row scale with density */
+    --row-cover-w: 64px;
+    --row-cover-h: 90px;
+    --row-pad-y: 12px;
+    --row-pad-x: 20px;
+    --row-gap: 12px;
+    --row-title-size: 14px;
+    --row-meta-size: 12px;
+    --row-bar-h: 5px;
   }
 
   [data-density="compact"] {
@@ -52,6 +61,14 @@
     --grid-gap: 8px;
     --grid-pad-y: 10px;
     --grid-pad-x: 14px;
+    --row-cover-w: 46px;
+    --row-cover-h: 65px;
+    --row-pad-y: 8px;
+    --row-pad-x: 16px;
+    --row-gap: 10px;
+    --row-title-size: 12px;
+    --row-meta-size: 10px;
+    --row-bar-h: 4px;
   }
 
   [data-density="spacious"] {
@@ -68,6 +85,14 @@
     --grid-gap: 22px;
     --grid-pad-y: 24px;
     --grid-pad-x: 20px;
+    --row-cover-w: 84px;
+    --row-cover-h: 118px;
+    --row-pad-y: 16px;
+    --row-pad-x: 20px;
+    --row-gap: 16px;
+    --row-title-size: 16px;
+    --row-meta-size: 13px;
+    --row-bar-h: 6px;
   }
 
   [data-theme="light"] {
@@ -1119,6 +1144,91 @@
     padding: 14px 20px 4px;
     flex-wrap: wrap;
   }
+  /* My List — list rows (density-scaled) */
+  .list-rows {
+    display: flex;
+    flex-direction: column;
+    padding-top: 4px;
+  }
+  .list-row {
+    display: flex;
+    gap: var(--row-gap);
+    padding: var(--row-pad-y) var(--row-pad-x);
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+    transition: background 0.15s ease;
+  }
+  .list-row:hover { background: var(--surface); }
+  .list-row:active { transform: scale(0.995); }
+  .list-row-cover {
+    width: var(--row-cover-w);
+    height: var(--row-cover-h);
+    border-radius: 6px;
+    background: var(--surface-2);
+    background-size: cover;
+    background-position: center;
+    flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  }
+  .list-row-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow: hidden;
+  }
+  .list-row-title {
+    font-size: var(--row-title-size);
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--text);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .list-row-bar {
+    position: relative;
+    height: var(--row-bar-h);
+    background: var(--surface-2);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .list-row-bar-aired,
+  .list-row-bar-watched {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    border-radius: 999px;
+    transition: width 0.3s ease;
+  }
+  .list-row-bar-aired {
+    background: color-mix(in srgb, var(--accent) 32%, transparent);
+  }
+  .list-row-bar-watched {
+    background: var(--accent);
+  }
+  .list-row-meta {
+    font-size: var(--row-meta-size);
+    color: var(--text-dim);
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .list-row-meta strong {
+    color: var(--text);
+    font-weight: 700;
+  }
+  .list-row-meta .behind {
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .list-row-meta .sep {
+    color: var(--text-faint);
+    margin: 0 5px;
+  }
 
   .signin-card {
     margin: 14px 20px 8px;
@@ -1206,7 +1316,7 @@
         <div class="empty-text">Connect your AniList account to track episodes, scores, and progress — synced across devices.</div>
         <button class="btn-primary" onclick="signIn()">Sign in with AniList</button>
       </div>
-      <div class="grid" id="my-list-grid" style="display: none;"></div>
+      <div class="list-rows" id="my-list-grid" style="display: none;"></div>
     </section>
 
     <!-- SEARCH -->
@@ -1416,7 +1526,7 @@
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v1.0.2 · Powered by AniList
+        AniLog · v1.1 · Powered by AniList
       </div>
     </section>
 
@@ -2319,24 +2429,74 @@
     }
   }
 
-  function renderListEntryCard(entry) {
+  function formatHM(seconds) {
+    if (!seconds || seconds <= 0) return 'soon';
+    const d = Math.floor(seconds / 86400);
+    const h = Math.floor((seconds % 86400) / 3600);
+    if (d > 0 && h > 0) return `${d}d ${h}h`;
+    if (d > 0) return `${d}d`;
+    if (h > 0) return `${h}h`;
+    const m = Math.floor((seconds % 3600) / 60);
+    return `${m}m`;
+  }
+
+  function renderListEntryRow(entry) {
     const m = entry.media;
     if (!m) return '';
-    const userScore = entry.score && entry.score > 0
-      ? `<div class="card-score">★ ${entry.score}</div>`
-      : '';
-    const progress = entry.progress != null
-      ? `${entry.progress}${m.episodes ? '/' + m.episodes : ''} ep`
-      : '';
+    const progress = entry.progress || 0;
+    const total = m.episodes || 0;
+    // How many episodes have aired so far
+    let aired = total;
+    if (m.nextAiringEpisode && m.nextAiringEpisode.episode > 0) {
+      aired = m.nextAiringEpisode.episode - 1;
+    } else if (m.status === 'NOT_YET_RELEASED') {
+      aired = 0;
+    }
+    // Clamp so weird AniList data doesn't break visuals
+    aired = Math.min(aired, total || aired);
+    const behind = Math.max(0, aired - progress);
+
+    // Bar widths — use a rolling guess when total is unknown
+    const denom = total > 0 ? total : Math.max(aired, progress, 12);
+    const progressPct = Math.max(0, Math.min(100, (progress / denom) * 100));
+    const airedPct = Math.max(0, Math.min(100, (aired / denom) * 100));
+
+    // Meta line
+    const sep = '<span class="sep">·</span>';
+    const parts = [];
+    parts.push(`<strong>${progress}</strong>/${total || '?'}`);
+    if (entry.score > 0) parts.push(`★ ${entry.score}`);
+    if (m.nextAiringEpisode && m.nextAiringEpisode.timeUntilAiring > 0) {
+      parts.push(`Ep ${m.nextAiringEpisode.episode} in ${formatHM(m.nextAiringEpisode.timeUntilAiring)}`);
+    }
+    if (behind > 0) parts.push(`<span class="behind">${behind} behind</span>`);
+
     return `
-      <div class="card" onclick="openMedia(${m.id})">
-        <div class="card-image" style="background-image:url('${m.coverImage?.large || ''}'); background-color:${m.coverImage?.color || 'var(--surface-2)'};">
-          ${userScore}
+      <div class="list-row" onclick="openMedia(${m.id})">
+        <div class="list-row-cover" style="background-image:url('${m.coverImage?.large || ''}'); background-color:${m.coverImage?.color || 'var(--surface-2)'};"></div>
+        <div class="list-row-body">
+          <div class="list-row-title">${escapeHtml(pickTitle(m.title) || 'Unknown')}</div>
+          <div class="list-row-bar">
+            ${aired > 0 ? `<div class="list-row-bar-aired" style="width:${airedPct}%"></div>` : ''}
+            ${progress > 0 ? `<div class="list-row-bar-watched" style="width:${progressPct}%"></div>` : ''}
+          </div>
+          <div class="list-row-meta">${parts.join(' ' + sep + ' ')}</div>
         </div>
-        <div class="card-title">${escapeHtml(pickTitle(m.title) || 'Unknown')}</div>
-        ${progress ? `<div class="card-meta">${progress}</div>` : ''}
       </div>
     `;
+  }
+
+  function skeletonFillRows(el, n) {
+    el.innerHTML = Array(n).fill(`
+      <div class="list-row">
+        <div class="list-row-cover skeleton"></div>
+        <div class="list-row-body">
+          <div class="skeleton" style="height: var(--row-title-size); width: 70%; border-radius: 4px;"></div>
+          <div class="skeleton" style="height: var(--row-bar-h); border-radius: 999px; margin-top: 4px;"></div>
+          <div class="skeleton" style="height: var(--row-meta-size); width: 45%; border-radius: 4px; margin-top: 4px;"></div>
+        </div>
+      </div>
+    `).join('');
   }
 
   let myListReqId = 0;
@@ -2346,18 +2506,29 @@
     const grid = document.getElementById('my-list-grid');
     if (!grid) return;
     grid.style.display = '';
-    skeletonFill(grid, 8);
+    skeletonFillRows(grid, 6);
+
+    const mediaShape = `
+      id
+      title { userPreferred english romaji }
+      coverImage { large color }
+      averageScore
+      format
+      episodes
+      status
+      nextAiringEpisode { airingAt episode timeUntilAiring }
+    `;
 
     const isAll = state.listStatus === 'ALL';
     const q = isAll
       ? `query ($userId: Int, $sort: [MediaListSort]) {
           MediaListCollection(userId: $userId, type: ANIME, sort: $sort) {
-            lists { entries { id status score progress media { ${MEDIA_FRAGMENT} } } }
+            lists { entries { id status score progress media { ${mediaShape} } } }
           }
         }`
       : `query ($userId: Int, $status: MediaListStatus, $sort: [MediaListSort]) {
           MediaListCollection(userId: $userId, type: ANIME, status: $status, sort: $sort) {
-            lists { entries { id status score progress media { ${MEDIA_FRAGMENT} } } }
+            lists { entries { id status score progress media { ${mediaShape} } } }
           }
         }`;
 
@@ -2369,11 +2540,11 @@
     if (myListReqId !== myReq) return;
     const entries = (data?.MediaListCollection?.lists || []).flatMap(l => l.entries || []);
     if (entries.length === 0) {
-      grid.innerHTML = `<div class="no-results" style="grid-column: 1/-1; padding: 50px 20px;">
+      grid.innerHTML = `<div class="no-results" style="padding: 50px 20px;">
         Your <strong>${escapeHtml(listStatusLabel(state.listStatus))}</strong> list is empty.
       </div>`;
     } else {
-      grid.innerHTML = entries.map(renderListEntryCard).join('');
+      grid.innerHTML = entries.map(renderListEntryRow).join('');
     }
   }
 
