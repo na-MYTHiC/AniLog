@@ -740,6 +740,26 @@
     display: flex; gap: 8px;
   }
   .detail-actions .btn-primary, .detail-actions .btn-secondary { flex: 1; }
+  /* "On list" variant of the primary button — quieter, with a check */
+  .btn-primary.list-btn-on {
+    background: var(--accent-soft);
+    color: var(--accent);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .btn-primary.list-btn-on:hover { filter: brightness(1.05); }
+  .list-btn-prog {
+    color: var(--text-dim);
+    font-weight: 600;
+    margin-left: 8px;
+    font-size: 12px;
+  }
+  /* Stack modal actions vertically for the edit sheet */
+  #list-edit-modal .modal-actions { flex-direction: column; gap: 8px; }
+  #list-edit-modal .modal-actions button { width: 100%; }
+  #list-edit-status { justify-content: center; gap: 6px; padding-bottom: 14px !important; }
+  #list-edit-status .chip { cursor: pointer; }
   .detail-section {
     padding: 16px 20px;
     border-top: 1px solid var(--border);
@@ -1150,17 +1170,50 @@
     flex-direction: column;
     padding-top: 4px;
   }
+  /* Each row is wrapped so we can layer swipe-action targets behind it */
+  .list-row-wrap {
+    position: relative;
+    overflow: hidden;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+  }
+  .list-row-action {
+    position: absolute;
+    top: 0; bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 90px;
+    font-weight: 800;
+    font-size: 17px;
+    color: white;
+    pointer-events: none;
+    user-select: none;
+    transition: filter 0.15s ease;
+  }
+  .list-row-action.armed { filter: brightness(1.15) saturate(1.2); }
+  .list-row-action-add {
+    right: 0;
+    background: var(--accent);
+  }
+  .list-row-action-sub {
+    left: 0;
+    background: color-mix(in srgb, var(--text-dim) 70%, var(--bg));
+  }
   .list-row {
     display: flex;
     gap: var(--row-gap);
     padding: var(--row-pad-y) var(--row-pad-x);
     cursor: pointer;
-    border-bottom: 1px solid var(--border);
     align-items: center;
-    transition: background 0.15s ease;
+    background: var(--bg);
+    position: relative;
+    z-index: 1;
+    transition: transform 0.22s cubic-bezier(0.32, 0.72, 0, 1), background 0.15s ease;
+    touch-action: pan-y;
   }
+  .list-row.swiping { transition: none; }
   .list-row:hover { background: var(--surface); }
-  .list-row:active { transform: scale(0.995); }
   .list-row-cover {
     width: var(--row-cover-w);
     height: var(--row-cover-h);
@@ -1526,7 +1579,7 @@
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v1.1 · Powered by AniList
+        AniLog · v1.2 · Powered by AniList
       </div>
     </section>
 
@@ -1670,6 +1723,27 @@
       <div class="modal-grip"></div>
       <h3>Accent Theme</h3>
       <div class="theme-list" id="theme-list"></div>
+    </div>
+  </div>
+
+  <!-- List entry edit modal (status switcher + remove) -->
+  <div class="modal-backdrop" id="list-edit-modal" onclick="if(event.target===this)closeListEditSheet()">
+    <div class="modal">
+      <div class="modal-grip"></div>
+      <h3 id="list-edit-title">Edit Entry</h3>
+      <p style="text-align: center; font-size: 12px; color: var(--text-dim); margin: -4px 0 18px;">Change status or remove from your list</p>
+      <div class="sort-row" id="list-edit-status" style="padding: 0 0 12px; flex-wrap: wrap;">
+        <div class="chip" data-status="CURRENT">Watching</div>
+        <div class="chip" data-status="PLANNING">Planning</div>
+        <div class="chip" data-status="COMPLETED">Completed</div>
+        <div class="chip" data-status="PAUSED">Paused</div>
+        <div class="chip" data-status="DROPPED">Dropped</div>
+        <div class="chip" data-status="REPEATING">Rewatching</div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="list-edit-remove-btn">Remove from list</button>
+        <button class="btn-secondary" onclick="closeListEditSheet()">Cancel</button>
+      </div>
     </div>
   </div>
 
@@ -1905,9 +1979,10 @@
   const ANILIST = 'https://graphql.anilist.co';
 
   async function anilist(query, variables = {}) {
+    const isMutation = query.trim().startsWith('mutation');
     // Cache key differs when authed vs. not so we don't leak personal data across sessions
     const key = (state.accessToken ? 'auth:' : 'pub:') + query + JSON.stringify(variables);
-    if (cache[key]) return cache[key];
+    if (!isMutation && cache[key]) return cache[key];
     const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
     if (state.accessToken) headers['Authorization'] = `Bearer ${state.accessToken}`;
     try {
@@ -1922,7 +1997,12 @@
         return null;
       }
       const json = await res.json();
-      cache[key] = json.data;
+      if (!isMutation) {
+        cache[key] = json.data;
+      } else {
+        // Mutations invalidate cached reads — wipe so list views refetch fresh
+        Object.keys(cache).forEach(k => delete cache[k]);
+      }
       return json.data;
     } catch (e) {
       console.error('AniList error', e);
@@ -1959,6 +2039,7 @@
     seasonYear
     genres
     type
+    mediaListEntry { id status score progress }
     studios(isMain: true) { nodes { id name } }
     characters(sort: ROLE, perPage: 12) {
       edges {
@@ -2445,23 +2526,18 @@
     if (!m) return '';
     const progress = entry.progress || 0;
     const total = m.episodes || 0;
-    // How many episodes have aired so far
     let aired = total;
     if (m.nextAiringEpisode && m.nextAiringEpisode.episode > 0) {
       aired = m.nextAiringEpisode.episode - 1;
     } else if (m.status === 'NOT_YET_RELEASED') {
       aired = 0;
     }
-    // Clamp so weird AniList data doesn't break visuals
     aired = Math.min(aired, total || aired);
     const behind = Math.max(0, aired - progress);
-
-    // Bar widths — use a rolling guess when total is unknown
     const denom = total > 0 ? total : Math.max(aired, progress, 12);
     const progressPct = Math.max(0, Math.min(100, (progress / denom) * 100));
     const airedPct = Math.max(0, Math.min(100, (aired / denom) * 100));
 
-    // Meta line
     const sep = '<span class="sep">·</span>';
     const parts = [];
     parts.push(`<strong>${progress}</strong>/${total || '?'}`);
@@ -2472,18 +2548,178 @@
     if (behind > 0) parts.push(`<span class="behind">${behind} behind</span>`);
 
     return `
-      <div class="list-row" onclick="openMedia(${m.id})">
-        <div class="list-row-cover" style="background-image:url('${m.coverImage?.large || ''}'); background-color:${m.coverImage?.color || 'var(--surface-2)'};"></div>
-        <div class="list-row-body">
-          <div class="list-row-title">${escapeHtml(pickTitle(m.title) || 'Unknown')}</div>
-          <div class="list-row-bar">
-            ${aired > 0 ? `<div class="list-row-bar-aired" style="width:${airedPct}%"></div>` : ''}
-            ${progress > 0 ? `<div class="list-row-bar-watched" style="width:${progressPct}%"></div>` : ''}
+      <div class="list-row-wrap" data-media-id="${m.id}">
+        <div class="list-row-action list-row-action-sub">−1</div>
+        <div class="list-row-action list-row-action-add">+1</div>
+        <div class="list-row">
+          <div class="list-row-cover" style="background-image:url('${m.coverImage?.large || ''}'); background-color:${m.coverImage?.color || 'var(--surface-2)'};"></div>
+          <div class="list-row-body">
+            <div class="list-row-title">${escapeHtml(pickTitle(m.title) || 'Unknown')}</div>
+            <div class="list-row-bar">
+              ${aired > 0 ? `<div class="list-row-bar-aired" style="width:${airedPct}%"></div>` : ''}
+              ${progress > 0 ? `<div class="list-row-bar-watched" style="width:${progressPct}%"></div>` : ''}
+            </div>
+            <div class="list-row-meta">${parts.join(' ' + sep + ' ')}</div>
           </div>
-          <div class="list-row-meta">${parts.join(' ' + sep + ' ')}</div>
         </div>
       </div>
     `;
+  }
+
+  // Attach swipe-to-update + tap-to-open to each row wrap
+  function attachListRowHandlers(wrap, entry) {
+    const row = wrap.querySelector('.list-row');
+    const actionAdd = wrap.querySelector('.list-row-action-add');
+    const actionSub = wrap.querySelector('.list-row-action-sub');
+    let startX = 0, startY = 0, dx = 0;
+    let isDragging = false, isHorizontal = false, dragged = false;
+    const THRESHOLD = 72; // pixels of drag to trigger an action
+
+    row.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      startX = e.clientX;
+      startY = e.clientY;
+      dx = 0;
+      isDragging = true;
+      isHorizontal = false;
+      dragged = false;
+      row.classList.add('swiping');
+      try { row.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+
+    row.addEventListener('pointermove', (e) => {
+      if (!isDragging) return;
+      const cx = e.clientX, cy = e.clientY;
+      const adx = Math.abs(cx - startX), ady = Math.abs(cy - startY);
+      if (!isHorizontal) {
+        if (ady > 8 && ady > adx) { isDragging = false; row.classList.remove('swiping'); return; }
+        if (adx > 8) { isHorizontal = true; dragged = true; }
+        else return;
+      }
+      dx = cx - startX;
+      row.style.transform = `translateX(${dx}px)`;
+      // Highlight the action that would fire on release
+      actionAdd.classList.toggle('armed', dx <= -THRESHOLD);
+      actionSub.classList.toggle('armed', dx >= THRESHOLD);
+    });
+
+    const finish = (e) => {
+      if (!isDragging) return;
+      isDragging = false;
+      row.classList.remove('swiping');
+      actionAdd.classList.remove('armed');
+      actionSub.classList.remove('armed');
+      const finalDx = dx;
+      row.style.transform = '';
+      if (finalDx <= -THRESHOLD) {
+        bumpProgress(entry, +1, wrap);
+      } else if (finalDx >= THRESHOLD) {
+        bumpProgress(entry, -1, wrap);
+      }
+    };
+    row.addEventListener('pointerup', finish);
+    row.addEventListener('pointercancel', finish);
+
+    // Tap-to-open — suppress when we just dragged
+    row.addEventListener('click', (e) => {
+      if (dragged) { e.preventDefault(); e.stopPropagation(); dragged = false; return; }
+      openMedia(entry.media.id);
+    });
+  }
+
+  // Optimistically update progress, then fire mutation; revert + reload on failure
+  async function bumpProgress(entry, delta, wrap) {
+    if (!entry?.media) return;
+    const total = entry.media.episodes || Infinity;
+    const newProgress = Math.max(0, Math.min(total, (entry.progress || 0) + delta));
+    if (newProgress === (entry.progress || 0)) return;
+    const oldProgress = entry.progress || 0;
+    entry.progress = newProgress;
+
+    // Optimistic re-render of just this row
+    const fresh = renderListEntryRow(entry);
+    const tmp = document.createElement('div');
+    tmp.innerHTML = fresh;
+    const newWrap = tmp.firstElementChild;
+    wrap.replaceWith(newWrap);
+    attachListRowHandlers(newWrap, entry);
+
+    // If user just completed the show (progress === total), auto-bump to COMPLETED status
+    const becomesCompleted = total !== Infinity && newProgress === total && entry.status !== 'COMPLETED';
+    const variables = { mediaId: entry.media.id, progress: newProgress };
+    let mutation = `mutation ($mediaId: Int, $progress: Int) {
+      SaveMediaListEntry(mediaId: $mediaId, progress: $progress) { id progress status }
+    }`;
+    if (becomesCompleted) {
+      mutation = `mutation ($mediaId: Int, $progress: Int, $status: MediaListStatus) {
+        SaveMediaListEntry(mediaId: $mediaId, progress: $progress, status: $status) { id progress status }
+      }`;
+      variables.status = 'COMPLETED';
+    }
+    const data = await anilist(mutation, variables);
+    if (!data?.SaveMediaListEntry) {
+      // Revert + reload
+      entry.progress = oldProgress;
+      loadMyList();
+      return;
+    }
+    entry.status = data.SaveMediaListEntry.status;
+    // If we moved into a different list bucket, reload so the row drops off
+    if (becomesCompleted && state.listStatus !== 'ALL' && state.listStatus !== 'COMPLETED') {
+      loadMyList();
+    }
+  }
+
+  async function addToList(media) {
+    const mutation = `mutation ($mediaId: Int, $status: MediaListStatus) {
+      SaveMediaListEntry(mediaId: $mediaId, status: $status) { id status progress score }
+    }`;
+    const data = await anilist(mutation, { mediaId: media.id, status: 'PLANNING' });
+    if (data?.SaveMediaListEntry) {
+      // Refresh the detail to reflect the new entry
+      openMedia(media.id);
+    }
+  }
+
+  // ============ LIST EDIT SHEET ============
+  let editingEntry = null;
+  let editingMediaId = null;
+
+  function openListEditSheet(media, entry) {
+    editingEntry = entry;
+    editingMediaId = media.id;
+    document.getElementById('list-edit-title').textContent = pickTitle(media.title) || 'Edit Entry';
+    document.querySelectorAll('#list-edit-status .chip').forEach(c => {
+      c.classList.toggle('active', c.dataset.status === entry.status);
+    });
+    document.getElementById('list-edit-modal').classList.add('visible');
+  }
+  function closeListEditSheet() {
+    document.getElementById('list-edit-modal').classList.remove('visible');
+  }
+  window.closeListEditSheet = closeListEditSheet;
+
+  async function setListStatus(newStatus) {
+    if (!editingMediaId) return;
+    const mutation = `mutation ($mediaId: Int, $status: MediaListStatus) {
+      SaveMediaListEntry(mediaId: $mediaId, status: $status) { id status progress score }
+    }`;
+    const data = await anilist(mutation, { mediaId: editingMediaId, status: newStatus });
+    if (data?.SaveMediaListEntry) {
+      closeListEditSheet();
+      openMedia(editingMediaId);
+    }
+  }
+
+  async function removeFromList() {
+    if (!editingEntry?.id) return;
+    const mutation = `mutation ($id: Int) { DeleteMediaListEntry(id: $id) { deleted } }`;
+    const data = await anilist(mutation, { id: editingEntry.id });
+    if (data?.DeleteMediaListEntry?.deleted) {
+      const mid = editingMediaId;
+      closeListEditSheet();
+      openMedia(mid);
+    }
   }
 
   function skeletonFillRows(el, n) {
@@ -2545,6 +2781,10 @@
       </div>`;
     } else {
       grid.innerHTML = entries.map(renderListEntryRow).join('');
+      // Attach swipe + tap handlers
+      Array.from(grid.children).forEach((wrap, i) => {
+        if (entries[i]) attachListRowHandlers(wrap, entries[i]);
+      });
     }
   }
 
@@ -2879,7 +3119,23 @@
       </div>
       ${airing ? `<div style="margin: 0 20px 16px; padding: 12px 14px; background: var(--accent-soft); border-radius: var(--radius-sm); font-size: 13px; color: var(--accent); font-weight: 600;">Next episode ${airing}</div>` : ''}
       <div class="detail-actions">
-        <button class="btn-primary" onclick="alert('Adds to your AniList watching list — needs sign-in.')">+ Add to list</button>
+        ${(() => {
+          if (!state.accessToken) {
+            return `<button class="btn-primary" onclick="signIn()">Sign in to track</button>`;
+          }
+          const entry = m.mediaListEntry;
+          if (entry) {
+            const label = listStatusLabel(entry.status);
+            const prog = entry.progress != null && m.episodes
+              ? `<span class="list-btn-prog">${entry.progress}/${m.episodes}</span>`
+              : '';
+            return `<button class="btn-primary list-btn-on" id="detail-list-btn" data-media-id="${m.id}">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;"><path d="M20 6L9 17l-5-5"/></svg>
+              ${escapeHtml(label)}${prog}
+            </button>`;
+          }
+          return `<button class="btn-primary" id="detail-list-btn" data-media-id="${m.id}">+ Add to list</button>`;
+        })()}
         <button class="btn-secondary" onclick="alert('Share sheet opens in the real app.')">Share</button>
       </div>
       ${m.genres?.length ? `
@@ -2922,6 +3178,19 @@
         </div>
       ` : ''}
     `;
+
+    // Wire up the add/edit list button
+    const listBtn = body.querySelector('#detail-list-btn');
+    if (listBtn) {
+      listBtn.addEventListener('click', () => {
+        const entry = m.mediaListEntry;
+        if (entry) {
+          openListEditSheet(m, entry);
+        } else {
+          addToList(m);
+        }
+      });
+    }
 
     // Wire up the clickable studio in the subtitle
     const subStudio = body.querySelector('.sub-studio');
@@ -3034,6 +3303,14 @@
         openMedia(currentMedia.id);
       }
     });
+  });
+
+  // Wire the list-edit modal status chips and remove button
+  document.querySelectorAll('#list-edit-status .chip').forEach(c => {
+    c.addEventListener('click', () => setListStatus(c.dataset.status));
+  });
+  document.getElementById('list-edit-remove-btn').addEventListener('click', () => {
+    if (confirm('Remove this anime from your list?')) removeFromList();
   });
 
   document.querySelectorAll('.seg[data-notif]').forEach(seg => {
