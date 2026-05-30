@@ -1416,7 +1416,7 @@
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v1.0.1 · Powered by AniList
+        AniLog · v1.0.2 · Powered by AniList
       </div>
     </section>
 
@@ -1619,8 +1619,7 @@
   // ============ ANILIST OAUTH ============
   const ANILIST_CLIENT_ID = '42596';
   const ANILIST_REDIRECT_URI = 'https://na-mythic.github.io/AniLog/';
-  // AniList's implicit flow rejects redirect_uri as a query param — it just uses the URI you registered with the client.
-  const ANILIST_AUTH_URL = `https://anilist.co/api/v2/oauth/authorize?client_id=${ANILIST_CLIENT_ID}&response_type=token`;
+  const ANILIST_AUTH_URL = `https://anilist.co/api/v2/oauth/authorize?client_id=${ANILIST_CLIENT_ID}&redirect_uri=${encodeURIComponent(ANILIST_REDIRECT_URI)}&response_type=token`;
 
   // Catch the token if we just came back from AniList authorization
   if (window.location.hash && window.location.hash.includes('access_token=')) {
