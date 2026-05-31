@@ -161,6 +161,12 @@ html, body {
   /* Push content below the camera cutout / status bar since the topbar
      isn't reserving space for it anymore. */
   padding-top: env(safe-area-inset-top, 0px);
+  /* Paint the same bg as .app so the safe-area padding zone and the
+     rest of the content are visibly one continuous surface. Without
+     this the transparent .content lets .app's bg show through for the
+     padding zone, which can render as a hairline against the content
+     fill on some Android phones. */
+  background: var(--bg);
 }
 
 /* Search tab content side gap — matches Seasonal grid's 20px. The
