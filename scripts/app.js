@@ -966,9 +966,12 @@ async function openStudio(id, name) {
 async function loadStudio() {
   const grid = document.getElementById('studio-grid');
   skeletonFill(grid, 12);
+  // No isMain filter — return everything the studio has worked on so
+  // co-productions show up too. Otherwise studios that are usually
+  // supporting partners come back empty.
   const q = `query ($id: Int, $sort: [MediaSort]) {
     Studio(id: $id) {
-      media(sort: $sort, isMain: true, type: ANIME, perPage: 50) {
+      media(sort: $sort, type: ANIME, perPage: 50) {
         nodes { ${MEDIA_FRAGMENT} }
       }
     }
@@ -1221,13 +1224,6 @@ async function openMedia(id) {
       })()}
       <button class="btn-secondary" onclick="alert('Share sheet opens in the real app.')">Share</button>
     </div>
-    ${mainStudio ? `
-      <div class="detail-section">
-        <h4>Studio</h4>
-        <div class="genre-row">
-          <div class="genre-pill studio-pill" data-studio-id="${mainStudio.id}" data-studio-name="${escapeHtml(mainStudio.name)}">${escapeHtml(mainStudio.name)}</div>
-        </div>
-      </div>` : ''}
     ${m.genres?.length ? `
       <div class="detail-section">
         <h4>Genres</h4>
@@ -1281,8 +1277,8 @@ async function openMedia(id) {
     });
   }
 
-  // Wire up the clickable studio (both the inline subtitle link AND the prominent pill)
-  body.querySelectorAll('.sub-studio, .studio-pill').forEach(el => {
+  // Wire the inline subtitle studio link to open the studio overlay
+  body.querySelectorAll('.sub-studio').forEach(el => {
     el.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();

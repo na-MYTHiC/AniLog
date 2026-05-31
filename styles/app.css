@@ -600,17 +600,18 @@
 }
 .sub-studio:hover { opacity: 0.8; text-decoration: underline; }
 .detail-stats {
-  display: flex; gap: 10px;
+  display: flex; gap: 6px;
   padding: 16px 20px;
   flex-wrap: wrap;
 }
 .stat-pill {
   background: var(--surface);
   border: 1px solid var(--border);
-  padding: 6px 10px;
-  border-radius: 8px;
+  padding: 5px 9px;
+  border-radius: 7px;
   font-size: 11px;
   color: var(--text-dim);
+  white-space: nowrap;
 }
 .stat-pill.score-clickable {
   cursor: pointer;
@@ -777,19 +778,21 @@
 }
 .studio-chevron { color: var(--text-dim); flex-shrink: 0; }
 
-/* Character row on detail page */
+/* Character row on detail page — exactly 4 cards visible across the row.
+   Card width is calc'd from the carousel's content width so the math
+   stays right on any phone width. */
 .character-row {
-  display: flex; gap: 12px;
+  display: flex; gap: 10px;
   overflow-x: auto;
-  padding: 4px 20px 8px;
-  margin: 0 -20px;
+  padding: 4px 0 8px;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
 }
 .character-row::-webkit-scrollbar { display: none; }
 .character-card {
   flex-shrink: 0;
-  width: 76px;
+  /* (100% - 3 gaps of 10px) / 4 — exactly 4 cards fit, no 5th peeking */
+  width: calc((100% - 30px) / 4);
   cursor: pointer;
   text-align: center;
   scroll-snap-align: start;
@@ -797,7 +800,8 @@
 }
 .character-card:active { transform: scale(0.96); }
 .character-image {
-  width: 72px; height: 72px;
+  width: 100%;
+  aspect-ratio: 1 / 1;
   border-radius: 50%;
   background: var(--surface-2);
   background-size: cover; background-position: center;
