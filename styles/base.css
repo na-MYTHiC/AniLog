@@ -163,13 +163,12 @@ html, body {
   padding-top: env(safe-area-inset-top, 0px);
 }
 
-/* Search tab content was running too close to the screen edge on mobile.
-   Use !important so we beat the original .carousel padding shorthand,
-   which was winning at equal specificity. Side gap matches Seasonal grid. */
+/* Search tab content side gap — matches Seasonal grid's 20px. The
+   carousel itself uses margin (set globally in app.css) so cards stop
+   at the carousel boundary instead of running flush to the screen. */
 [data-view="mobile"] #tab-search .search-wrap,
 [data-view="mobile"] #tab-search .recent-searches,
 [data-view="mobile"] #tab-search .section-header,
-[data-view="mobile"] #tab-search .carousel,
 [data-view="mobile"] #tab-search .grid {
   padding-left: 20px !important;
   padding-right: 20px !important;
@@ -373,7 +372,10 @@ html, body {
 }
 
 /* Carousels get a bit more padding on desktop */
-[data-view="desktop"] .carousel { padding-left: 32px; padding-right: 32px; }
+/* Match the rest of desktop content's 32px side gap (carousel now uses
+   margin instead of padding — see app.css). */
+[data-view="desktop"] .carousel { margin-left: 32px; margin-right: 32px; }
+[data-view="desktop"] .detail-section .carousel { margin-left: 0; margin-right: 0; }
 
 /* Detail overlay — bigger banner, more side padding, larger title */
 [data-view="desktop"] .detail-banner { height: 300px; }

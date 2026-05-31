@@ -121,11 +121,20 @@
 }
 
 .carousel {
+  /* Margin instead of padding so the scroll viewport itself is inset
+     from the screen edges. With padding, scrolled-into-view cards
+     ran flush with the screen edge — they now stop at the margin. */
   display: flex; gap: var(--card-gap);
-  overflow-x: auto; padding: 0 20px 4px;
+  overflow-x: auto;
+  margin: 0 20px;
+  padding: 0 0 4px;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
 }
+/* When a carousel sits inside a detail-section, the section already
+   contributes its own 20px side padding — zero out the carousel's
+   margin so the inset doesn't double. */
+.detail-section .carousel { margin-left: 0; margin-right: 0; }
 .carousel::-webkit-scrollbar { display: none; }
 
 .card {
