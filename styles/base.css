@@ -163,15 +163,16 @@ html, body {
   padding-top: env(safe-area-inset-top, 0px);
 }
 
-/* Search tab content was running too close to the screen edge on mobile —
-   bump the side padding so it lines up with the Seasonal tab. */
+/* Search tab content was running too close to the screen edge on mobile.
+   Use !important so we beat the original .carousel padding shorthand,
+   which was winning at equal specificity. Side gap matches Seasonal grid. */
 [data-view="mobile"] #tab-search .search-wrap,
 [data-view="mobile"] #tab-search .recent-searches,
 [data-view="mobile"] #tab-search .section-header,
 [data-view="mobile"] #tab-search .carousel,
 [data-view="mobile"] #tab-search .grid {
-  padding-left: 24px;
-  padding-right: 24px;
+  padding-left: 20px !important;
+  padding-right: 20px !important;
 }
 
 /* Tablet — slightly wider mobile frame, more grid columns */
@@ -314,11 +315,9 @@ html, body {
 /* Cap inner content width so giant monitors don't make text run wide.
    1080px is roughly the sweet spot — wide enough for 5-6 cards per row,
    narrow enough that the content has clear margins from the screen edge. */
-[data-view="desktop"] .my-list-header,
 [data-view="desktop"] .seasonal-header,
 [data-view="desktop"] .social-header,
 [data-view="desktop"] .search-wrap,
-[data-view="desktop"] .list-controls,
 [data-view="desktop"] .sort-trigger-bar,
 [data-view="desktop"] .section,
 [data-view="desktop"] .social-feed,
@@ -333,11 +332,20 @@ html, body {
   margin-right: auto;
 }
 
-/* My List rows are centered with a tighter cap — text doesn't run wide */
+/* My List — header, controls, and rows all share the same 800px column so
+   the dropdowns and the rows below them line up edge-to-edge. */
+[data-view="desktop"] .my-list-header,
+[data-view="desktop"] .list-controls,
 [data-view="desktop"] .list-rows {
   max-width: 800px;
   margin-left: auto;
   margin-right: auto;
+}
+/* Make the two dropdowns stretch to fill the row equally */
+[data-view="desktop"] .list-controls .sort-trigger {
+  flex: 1;
+  justify-content: center;
+  height: 44px;
 }
 
 /* Slightly bigger score badge on desktop cards — tuned to sit between

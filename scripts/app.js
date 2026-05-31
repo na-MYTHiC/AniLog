@@ -15,33 +15,19 @@ function closeThemeModal() {
 function buildThemeList() {
   const list = document.getElementById('theme-list');
   const check = '<svg class="theme-option-check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
-  const presets = THEMES.map(t => `
+  list.innerHTML = THEMES.map(t => `
     <div class="theme-option" data-theme-id="${t.id}">
       <div class="theme-option-swatch" style="background:${t.color};"></div>
       <div class="theme-option-name">${t.name}</div>
       ${state.themeId === t.id ? check : ''}
     </div>
   `).join('');
-  const customBg = state.themeId === 'custom' ? `style="background:${state.customAccent};"` : '';
-  const custom = `
-    <div class="theme-option custom" data-theme-id="custom">
-      <div class="theme-option-swatch" ${customBg}></div>
-      <div class="theme-option-name">Custom</div>
-      ${state.themeId === 'custom' ? check : ''}
-    </div>
-  `;
-  list.innerHTML = presets + custom;
   list.querySelectorAll('.theme-option').forEach(opt => {
     opt.addEventListener('click', () => selectTheme(opt.dataset.themeId));
   });
 }
 
 function selectTheme(id) {
-  if (id === 'custom') {
-    closeThemeModal();
-    document.getElementById('accent-picker').click();
-    return;
-  }
   const theme = THEMES.find(t => t.id === id);
   if (!theme) return;
   state.themeId = id;
@@ -52,35 +38,22 @@ function selectTheme(id) {
   closeThemeModal();
 }
 
-// Keeps the function name so the color picker handler keeps working
+// Reflects the active preset on the settings row swatch + label
 function updateThemeStripUI() {
   const triggerSwatch = document.getElementById('theme-trigger-swatch');
-  if (triggerSwatch) {
-    const color = state.themeId === 'custom'
-      ? state.customAccent
-      : (THEMES.find(t => t.id === state.themeId)?.color || state.accent);
-    triggerSwatch.style.background = color;
-  }
-  const name = state.themeId === 'custom'
-    ? 'Custom'
-    : (THEMES.find(t => t.id === state.themeId)?.name || 'Custom');
-  document.getElementById('theme-name').textContent = name;
+  const active = THEMES.find(t => t.id === state.themeId);
+  if (triggerSwatch) triggerSwatch.style.background = active?.color || state.accent;
+  document.getElementById('theme-name').textContent = active?.name || 'Iris';
+}
+// If the saved themeId points at the removed 'custom' option, snap to Iris
+if (state.themeId === 'custom') {
+  state.themeId = 'iris';
+  state.accent = THEMES.find(t => t.id === 'iris').color;
+  applyTheme();
 }
 updateThemeStripUI();
 
 document.getElementById('theme-picker-row').addEventListener('click', openThemeModal);
-
-// Custom color picker
-const accentPicker = document.getElementById('accent-picker');
-accentPicker.value = state.themeId === 'custom' ? state.customAccent : state.accent;
-accentPicker.addEventListener('input', (e) => {
-  state.themeId = 'custom';
-  state.customAccent = e.target.value;
-  state.accent = e.target.value;
-  applyTheme();
-  updateThemeStripUI();
-  savePrefs();
-});
 
 // Sync other segmented controls to saved state
 syncSegState('theme-seg', 'theme', state.theme);
