@@ -1135,16 +1135,18 @@
 .social-feed {
   padding-bottom: 24px;
 }
+/* Activity card — compact 3-line layout, cover floats on the right */
 .activity-card {
   display: flex;
   gap: 12px;
-  padding: 14px 20px;
+  padding: 12px 20px;
   border-bottom: 1px solid var(--border);
+  align-items: flex-start;
 }
 .activity-card:last-child { border-bottom: none; }
 .activity-avatar {
-  width: 42px;
-  height: 42px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   background-size: cover;
   background-position: center;
@@ -1154,12 +1156,16 @@
 .activity-body {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
-.activity-header-row {
+.activity-meta-row {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  margin-bottom: 4px;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 1.2;
 }
 .activity-user {
   font-weight: 700;
@@ -1167,61 +1173,51 @@
   color: var(--text);
 }
 .activity-time {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-dim);
 }
-.activity-action {
+/* The action text is now inline with the anime title (no separate tile) */
+.activity-content {
   font-size: 13px;
   color: var(--text);
-  margin-bottom: 8px;
-}
-.activity-action strong {
-  color: var(--accent);
-  font-weight: 600;
-}
-.activity-anime {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  background: var(--surface);
-  padding: 8px 10px;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: background 0.15s ease;
-  border: 1px solid var(--border);
-}
-.activity-anime:hover { background: var(--surface-2); }
-.activity-anime-cover {
-  width: 38px;
-  height: 54px;
-  border-radius: 6px;
-  background-size: cover;
-  background-position: center;
-  flex-shrink: 0;
-}
-.activity-anime-title {
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.3;
+  line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+.activity-content strong {
+  color: var(--accent);
+  font-weight: 600;
+}
 .activity-text {
   font-size: 13px;
   color: var(--text);
-  line-height: 1.5;
-  background: var(--surface);
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
+  line-height: 1.4;
   white-space: pre-line;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
+/* Small anime cover thumbnail on the right of the card — taps to detail */
+.activity-thumb {
+  width: 44px;
+  height: 62px;
+  border-radius: 6px;
+  background-size: cover;
+  background-position: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  transition: transform 0.15s ease;
+  align-self: center;
+}
+.activity-thumb:hover { transform: scale(1.04); }
 .activity-footer {
   display: flex;
-  gap: 18px;
-  margin-top: 10px;
+  gap: 16px;
+  margin-top: 4px;
 }
 .activity-action-btn {
   display: flex;
@@ -1498,38 +1494,6 @@
 .signin-card-title { font-size: 14px; font-weight: 700; margin-bottom: 3px; }
 .signin-card-sub { font-size: 12px; color: var(--text-dim); }
 .signin-card .btn-primary { padding: 9px 14px; font-size: 13px; flex-shrink: 0; }
-
-/* Pull-to-refresh indicator — sits above the topbar, slides down as the user pulls */
-.pull-refresh {
-  position: absolute;
-  top: env(safe-area-inset-top, 0px);
-  left: 0; right: 0;
-  display: flex; justify-content: center;
-  pointer-events: none;
-  z-index: 9;
-  height: 0;
-}
-.pull-refresh-icon {
-  margin-top: -52px;
-  width: 38px; height: 38px;
-  border-radius: 50%;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: center;
-  color: var(--accent);
-  opacity: 0;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
-  transition: margin-top 0.28s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.2s ease;
-  will-change: margin-top, opacity, transform;
-}
-.pull-refresh.refreshing .pull-refresh-icon {
-  margin-top: 16px;
-  opacity: 1;
-  animation: pull-spin 0.85s linear infinite;
-}
-@keyframes pull-spin {
-  to { transform: rotate(360deg); }
-}
 
 /* Hidden native color input (the custom swatch triggers it) */
 .hidden-color-input {

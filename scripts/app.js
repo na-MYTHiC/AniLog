@@ -696,28 +696,28 @@ function renderActivity(act) {
   const liked = !!act.isLiked;
   const isText = act.type === 'TEXT';
   const m = act.media;
-
-  const body = isText
-    ? `<div class="activity-text">${escapeHtml(act.text || '').slice(0, 600)}</div>`
-    : m
-      ? `<div class="activity-action">${activityActionText(act)}</div>
-         <div class="activity-anime" data-media-id="${m.id}">
-           <div class="activity-anime-cover" style="background-image:url('${m.coverImage?.large || ''}'); background-color:${m.coverImage?.color || 'var(--surface-2)'};"></div>
-           <div class="activity-anime-title">${escapeHtml(pickTitle(m.title) || 'Unknown')}</div>
-         </div>`
-      : `<div class="activity-action">${activityActionText(act)}</div>`;
-
   const replyList = (act.replies || []).map(renderReply).join('');
+
+  // Compact two-line body: action + anime title inline, then reactions.
+  // Anime cover floats on the right as a small thumb so each card stays
+  // ~80px tall instead of the previous ~180px stacked layout.
+  const contentInner = isText
+    ? `<div class="activity-text">${escapeHtml(act.text || '').slice(0, 600)}</div>`
+    : `<div class="activity-content">${activityActionText(act)}${m ? ` <strong>${escapeHtml(pickTitle(m.title) || 'Unknown')}</strong>` : ''}</div>`;
+
+  const thumb = (!isText && m)
+    ? `<div class="activity-thumb" data-media-id="${m.id}" style="background-image:url('${m.coverImage?.large || ''}'); background-color:${m.coverImage?.color || 'var(--surface-2)'};"></div>`
+    : '';
 
   return `
     <div class="activity-card" data-activity-id="${act.id}">
       <div class="activity-avatar" style="background-image:url('${avatar}');"></div>
       <div class="activity-body">
-        <div class="activity-header-row">
+        <div class="activity-meta-row">
           <span class="activity-user">${escapeHtml(name)}</span>
-          <span class="activity-time">${time}</span>
+          <span class="activity-time">· ${time}</span>
         </div>
-        ${body}
+        ${contentInner}
         <div class="activity-footer">
           <button class="activity-action-btn like-btn${liked ? ' liked' : ''}" data-activity-id="${act.id}">
             <svg viewBox="0 0 24 24" fill="${liked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
@@ -736,6 +736,7 @@ function renderActivity(act) {
           </form>
         </div>
       </div>
+      ${thumb}
     </div>
   `;
 }
@@ -815,7 +816,7 @@ async function loadSocial() {
 
 // Wire taps, likes, reply expansion + submission for every activity card in the feed
 function attachActivityHandlers(feed) {
-  feed.querySelectorAll('.activity-anime').forEach(el => {
+  feed.querySelectorAll('.activity-thumb').forEach(el => {
     el.addEventListener('click', () => {
       const id = parseInt(el.dataset.mediaId, 10);
       if (!isNaN(id)) openMedia(id);
@@ -1557,69 +1558,6 @@ document.querySelectorAll('.seg[data-notif]').forEach(seg => {
     });
   });
 });
-
-// ============ PULL-TO-REFRESH (My List) ============
-// Touch-only gesture. Drag down from the top of the home tab to refresh.
-// On desktop / non-touch this does nothing — there's no mouse equivalent.
-(function setupPullToRefresh() {
-  const content = document.getElementById('content');
-  const pull = document.getElementById('pull-refresh');
-  const icon = document.getElementById('pull-refresh-icon');
-  if (!content || !pull || !icon) return;
-
-  const THRESHOLD = 72;   // px the user has to drag before we trigger
-  const MAX_PULL  = 110;  // hard cap so the indicator doesn't drift forever
-  let startY = null;
-  let dy = 0;
-  let refreshing = false;
-
-  function reset(immediate) {
-    if (!immediate) {
-      icon.style.transition = 'margin-top 0.28s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.2s ease';
-    }
-    icon.style.marginTop = '-52px';
-    icon.style.opacity = '0';
-    dy = 0;
-  }
-
-  content.addEventListener('touchstart', (e) => {
-    if (refreshing) return;
-    if (state.activeTab !== 'home') return;
-    if (!state.user) return;            // nothing to refresh when not signed in
-    if (content.scrollTop > 4) return;  // only when already at the top
-    startY = e.touches[0].clientY;
-    icon.style.transition = '';
-  }, { passive: true });
-
-  content.addEventListener('touchmove', (e) => {
-    if (startY === null || refreshing) return;
-    const delta = e.touches[0].clientY - startY;
-    if (delta <= 0) {
-      icon.style.opacity = '0';
-      icon.style.marginTop = '-52px';
-      return;
-    }
-    // Damped pull — feels rubbery instead of 1:1 drag
-    dy = Math.min(MAX_PULL, delta * 0.55);
-    icon.style.marginTop = `${dy - 52}px`;
-    icon.style.opacity = String(Math.min(1, delta / THRESHOLD));
-    if (e.cancelable) e.preventDefault();
-  }, { passive: false });
-
-  content.addEventListener('touchend', async () => {
-    if (startY === null || refreshing) { startY = null; return; }
-    const triggered = dy * (1 / 0.55) >= THRESHOLD;
-    startY = null;
-    if (!triggered) { reset(); return; }
-
-    refreshing = true;
-    pull.classList.add('refreshing');
-    try { await loadMyList(); } catch (e) { /* swallow */ }
-    pull.classList.remove('refreshing');
-    refreshing = false;
-    reset();
-  }, { passive: true });
-})();
 
 // Boot — always run switchTab so state.activeTab + DOM stay in sync regardless of localStorage
 switchTab(state.landing || 'home');
