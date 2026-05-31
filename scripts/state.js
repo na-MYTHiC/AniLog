@@ -3,6 +3,30 @@
 // `cache` keys AniList GraphQL responses in memory only.
 // Mutable runtime references (current overlay state, request IDs) live at the bottom.
 
+// ============ OAUTH POPUP COMPLETION ============
+// If this page is loaded as the OAuth popup target with a token in the URL
+// fragment, signal the opener via postMessage and close ourselves. Runs
+// BEFORE the rest of state initializes so we don't bother booting the full
+// app inside the popup window.
+(function popupOAuthBridge() {
+  if (!window.opener || window.opener === window) return;
+  const hash = window.location.hash || '';
+  if (!hash.includes('access_token=')) return;
+  try {
+    const token = new URLSearchParams(hash.substring(1)).get('access_token');
+    if (!token) return;
+    window.opener.postMessage(
+      { type: 'anilog-oauth-token', token },
+      window.location.origin
+    );
+  } catch (e) { /* opener closed or origin mismatch — fall through to close */ }
+  try { window.close(); } catch (e) {}
+  // Halt further script execution in the popup so the app doesn't render
+  // in the brief window before close() takes effect.
+  // eslint-disable-next-line no-throw-literal
+  throw 'AniLog: popup sign-in completed';
+})();
+
 // ============ STATE ============
 const state = {
   activeTab: 'home',

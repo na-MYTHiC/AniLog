@@ -117,11 +117,68 @@ async function anilist(query, variables = {}) {
 }
 
 // OAuth sign-in / sign-out
+//
+// Sign-in flow:
+//   1. Open AniList's authorize URL in a POPUP (so main app stays loaded
+//      and recoverable if AniList errors out).
+//   2. When the popup redirects back to our origin with #access_token=…,
+//      its early state.js code postMessages the token to us, then closes
+//      itself.
+//   3. We hear the postMessage, save the token, reload.
+//
+// If the popup closes WITHOUT posting a token (user cancelled, AniList
+// showed its own JSON error page, etc.), we pop the sign-in modal with
+// the manual paste panel pre-expanded so the user has an immediate
+// fallback — no refresh needed.
+//
+// If popups are blocked, we fall back to the old "redirect the current
+// tab" approach.
 function signIn() {
-  // Record the attempt so we can detect when AniList silently bounces us
-  // (closed tab, error JSON on AniList's domain, etc.) and offer a re-try
-  try { localStorage.setItem('anilog-signin-started', String(Date.now())); } catch (e) {}
-  window.location.href = ANILIST_AUTH_URL;
+  const popup = window.open(
+    ANILIST_AUTH_URL,
+    'anilog-oauth',
+    'width=520,height=720,scrollbars=yes,resizable=yes'
+  );
+
+  if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+    // Popup blocked — fall back to navigating the current tab
+    try { localStorage.setItem('anilog-signin-started', String(Date.now())); } catch (e) {}
+    window.location.href = ANILIST_AUTH_URL;
+    return;
+  }
+
+  let gotToken = false;
+
+  const onMessage = (e) => {
+    if (e.origin !== window.location.origin) return;
+    if (e.data?.type !== 'anilog-oauth-token' || !e.data.token) return;
+    gotToken = true;
+    window.removeEventListener('message', onMessage);
+    clearInterval(closedTimer);
+    state.accessToken = e.data.token;
+    savePrefs();
+    try { popup.close(); } catch (_) {}
+    window.location.reload();
+  };
+  window.addEventListener('message', onMessage);
+
+  // If the popup closes (user X'd out, AniList showed JSON error, etc.)
+  // without sending a token, offer the manual paste fallback immediately.
+  const closedTimer = setInterval(() => {
+    if (!popup.closed) return;
+    clearInterval(closedTimer);
+    window.removeEventListener('message', onMessage);
+    if (gotToken) return;
+    if (typeof openSignInModal === 'function') openSignInModal();
+    const panel = document.getElementById('signin-advanced');
+    if (panel) panel.hidden = false;
+    const banner = document.getElementById('signin-error');
+    if (banner) {
+      banner.hidden = false;
+      banner.innerHTML = "<strong>Sign-in didn't complete</strong>" +
+        "AniList's redirect didn't return a token. Paste one with the steps below — it works every time.";
+    }
+  }, 700);
 }
 function signOut() {
   state.accessToken = null;
