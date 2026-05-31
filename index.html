@@ -54,6 +54,16 @@
     </button>
   </header>
 
+  <!-- Pull-to-refresh indicator (visible only while pulling on My List) -->
+  <div class="pull-refresh" id="pull-refresh">
+    <div class="pull-refresh-icon" id="pull-refresh-icon">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 1 0 3-6.7"/>
+        <path d="M3 4v5h5"/>
+      </svg>
+    </div>
+  </div>
+
   <main class="content" id="content">
 
     <!-- HOME — My List -->
@@ -337,7 +347,7 @@
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v2.5 · Powered by AniList
+        AniLog · v2.6 · Powered by AniList
       </div>
     </section>
 

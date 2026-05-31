@@ -1558,6 +1558,69 @@ document.querySelectorAll('.seg[data-notif]').forEach(seg => {
   });
 });
 
+// ============ PULL-TO-REFRESH (My List) ============
+// Touch-only gesture. Drag down from the top of the home tab to refresh.
+// On desktop / non-touch this does nothing — there's no mouse equivalent.
+(function setupPullToRefresh() {
+  const content = document.getElementById('content');
+  const pull = document.getElementById('pull-refresh');
+  const icon = document.getElementById('pull-refresh-icon');
+  if (!content || !pull || !icon) return;
+
+  const THRESHOLD = 72;   // px the user has to drag before we trigger
+  const MAX_PULL  = 110;  // hard cap so the indicator doesn't drift forever
+  let startY = null;
+  let dy = 0;
+  let refreshing = false;
+
+  function reset(immediate) {
+    if (!immediate) {
+      icon.style.transition = 'margin-top 0.28s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.2s ease';
+    }
+    icon.style.marginTop = '-52px';
+    icon.style.opacity = '0';
+    dy = 0;
+  }
+
+  content.addEventListener('touchstart', (e) => {
+    if (refreshing) return;
+    if (state.activeTab !== 'home') return;
+    if (!state.user) return;            // nothing to refresh when not signed in
+    if (content.scrollTop > 4) return;  // only when already at the top
+    startY = e.touches[0].clientY;
+    icon.style.transition = '';
+  }, { passive: true });
+
+  content.addEventListener('touchmove', (e) => {
+    if (startY === null || refreshing) return;
+    const delta = e.touches[0].clientY - startY;
+    if (delta <= 0) {
+      icon.style.opacity = '0';
+      icon.style.marginTop = '-52px';
+      return;
+    }
+    // Damped pull — feels rubbery instead of 1:1 drag
+    dy = Math.min(MAX_PULL, delta * 0.55);
+    icon.style.marginTop = `${dy - 52}px`;
+    icon.style.opacity = String(Math.min(1, delta / THRESHOLD));
+    if (e.cancelable) e.preventDefault();
+  }, { passive: false });
+
+  content.addEventListener('touchend', async () => {
+    if (startY === null || refreshing) { startY = null; return; }
+    const triggered = dy * (1 / 0.55) >= THRESHOLD;
+    startY = null;
+    if (!triggered) { reset(); return; }
+
+    refreshing = true;
+    pull.classList.add('refreshing');
+    try { await loadMyList(); } catch (e) { /* swallow */ }
+    pull.classList.remove('refreshing');
+    refreshing = false;
+    reset();
+  }, { passive: true });
+})();
+
 // Boot — always run switchTab so state.activeTab + DOM stay in sync regardless of localStorage
 switchTab(state.landing || 'home');
 updateAuthUI();

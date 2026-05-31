@@ -180,6 +180,12 @@
   gap: var(--grid-gap);
   padding: var(--grid-pad-y) var(--grid-pad-x);
 }
+/* Seasonal feels too coarse with the default 2-column layout — bump up
+   the column count so tiles land closer to the carousel card size on
+   the Search tab. Each density gets +1 column. */
+#seasonal-grid { grid-template-columns: repeat(3, 1fr); }
+[data-density="compact"]  #seasonal-grid { grid-template-columns: repeat(4, 1fr); }
+[data-density="spacious"] #seasonal-grid { grid-template-columns: repeat(2, 1fr); }
 .grid .card { width: 100%; }
 .grid .card-image { width: 100%; height: 0; padding-bottom: 146%; }
 
@@ -1492,6 +1498,38 @@
 .signin-card-title { font-size: 14px; font-weight: 700; margin-bottom: 3px; }
 .signin-card-sub { font-size: 12px; color: var(--text-dim); }
 .signin-card .btn-primary { padding: 9px 14px; font-size: 13px; flex-shrink: 0; }
+
+/* Pull-to-refresh indicator — sits above the topbar, slides down as the user pulls */
+.pull-refresh {
+  position: absolute;
+  top: env(safe-area-inset-top, 0px);
+  left: 0; right: 0;
+  display: flex; justify-content: center;
+  pointer-events: none;
+  z-index: 9;
+  height: 0;
+}
+.pull-refresh-icon {
+  margin-top: -52px;
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--accent);
+  opacity: 0;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  transition: margin-top 0.28s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.2s ease;
+  will-change: margin-top, opacity, transform;
+}
+.pull-refresh.refreshing .pull-refresh-icon {
+  margin-top: 16px;
+  opacity: 1;
+  animation: pull-spin 0.85s linear infinite;
+}
+@keyframes pull-spin {
+  to { transform: rotate(360deg); }
+}
 
 /* Hidden native color input (the custom swatch triggers it) */
 .hidden-color-input {

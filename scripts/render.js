@@ -65,37 +65,8 @@ function applyTheme() {
   document.documentElement.style.setProperty('--accent-soft', `rgba(${r}, ${g}, ${b}, 0.15)`);
   const themeColor = state.theme === 'amoled' ? '#000000' : state.theme === 'light' ? '#f7f7fa' : '#0d0d12';
   document.querySelector('meta[name="theme-color"]').setAttribute('content', themeColor);
-  updateFavicon();
-}
-
-// Rebuilds the favicon SVG with the current accent color, base64-encodes it,
-// and points the favicon + apple-touch-icon at the result. Updates the
-// browser tab in real time and pre-themes the icon for any future installs.
-// NOTE: OS-level icons of already-installed PWAs are captured at install
-// time — they don't update from this. Uninstall + reinstall to refresh.
-function updateFavicon() {
-  const accent = state.accent || '#7c5cff';
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" fill="none">
-    <defs>
-      <linearGradient id="g" x1="2" y1="2" x2="34" y2="34" gradientUnits="userSpaceOnUse">
-        <stop offset="0%" stop-color="${accent}"/>
-        <stop offset="60%" stop-color="${accent}"/>
-        <stop offset="100%" stop-color="${accent}" stop-opacity="0.55"/>
-      </linearGradient>
-    </defs>
-    <rect width="36" height="36" rx="10" fill="url(#g)"/>
-    <rect x="0.5" y="0.5" width="35" height="35" rx="9.5" stroke="white" stroke-opacity="0.18" stroke-width="1" fill="none"/>
-    <rect x="9" y="11" width="18" height="3.4" rx="1.7" fill="white"/>
-    <rect x="9" y="17" width="14" height="3.4" rx="1.7" fill="white" fill-opacity="0.78"/>
-    <rect x="9" y="23" width="10" height="3.4" rx="1.7" fill="white" fill-opacity="0.56"/>
-    <circle cx="25" cy="24.7" r="1.6" fill="white" fill-opacity="0.92"/>
-  </svg>`;
-  // unescape -> encodeURIComponent handles non-Latin1 chars (safer btoa)
-  const dataUri = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
-  const fav = document.querySelector('link[rel="icon"]');
-  if (fav) fav.href = dataUri;
-  const apple = document.querySelector('link[rel="apple-touch-icon"]');
-  if (apple) apple.href = dataUri;
+  // Icon is now a static black & white SVG (see icon.svg) — no theme-driven
+  // override. The browser tab + apple-touch-icon point straight at the file.
 }
 function applyDensity() {
   document.documentElement.setAttribute('data-density', state.density);
