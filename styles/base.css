@@ -185,42 +185,52 @@ html, body {
   box-shadow: none;
   display: grid;
   grid-template-rows: 68px 1fr;
-  grid-template-columns: auto 1fr;
+  /* Side spacers flank the centered logo+tabs group so the whole header
+     reads as one unit centered on the page (instead of edge-pinned). */
+  grid-template-columns: minmax(0, 1fr) auto auto minmax(0, 1fr);
   grid-template-areas:
-    "topbar bottombar"
-    "content content";
+    ". topbar bottombar ."
+    "content content content content";
 }
 
-/* Top bar — logo + brand on the left, no right border (unified header) */
+/* Top bar — logo + brand. Sits to the left of the nav tabs in the centered group. */
 [data-view="desktop"] .topbar {
   grid-area: topbar;
   height: 68px;
-  padding: 0 28px;
+  padding: 0 16px 0 0;
   width: auto;
   background: var(--bg);
   border-right: none;
-  border-bottom: 1px solid var(--border);
+  border-bottom: none;
   z-index: 11;
+  gap: 16px;
 }
 [data-view="desktop"] .logo-mark { width: 36px; height: 36px; }
 [data-view="desktop"] .logo { font-size: 22px; }
 [data-view="desktop"] .topbar-action { display: none; }
 
-/* The "bottombar" is repurposed as the top-right nav tab strip */
+/* The "bottombar" is repurposed as the nav tab strip, sitting to the right of the logo */
 [data-view="desktop"] .bottombar {
   grid-area: bottombar;
   position: static;
   flex-direction: row;
   height: 68px;
   width: auto;
-  padding: 0 24px;
+  padding: 0;
   background: var(--bg);
   backdrop-filter: none; -webkit-backdrop-filter: none;
   border-top: none;
-  border-bottom: 1px solid var(--border);
-  justify-content: flex-end;
+  border-bottom: none;
+  justify-content: flex-start;
   gap: 2px;
   z-index: 11;
+}
+
+/* One continuous bottom border under the entire header row */
+[data-view="desktop"] .content {
+  grid-area: content;
+  padding: 24px 0 40px;
+  border-top: 1px solid var(--border);
 }
 [data-view="desktop"] .bottombar .nav-btn {
   flex: 0 0 auto;
@@ -258,11 +268,6 @@ html, body {
   border-radius: 2px 2px 0 0;
 }
 
-/* Content area — vertical padding, takes the rest of the height */
-[data-view="desktop"] .content {
-  grid-area: content;
-  padding: 24px 0 40px;
-}
 [data-view="desktop"] .tab { padding-bottom: 40px !important; }
 [data-view="desktop"] .tab.active { animation: none; }
 
@@ -295,7 +300,11 @@ html, body {
 [data-view="desktop"] .section,
 [data-view="desktop"] .social-feed,
 [data-view="desktop"] .recent-searches,
-[data-view="desktop"] .grid {
+[data-view="desktop"] .grid,
+[data-view="desktop"] #tab-profile .empty,
+[data-view="desktop"] #tab-profile .section-header,
+[data-view="desktop"] #tab-profile .settings-group,
+[data-view="desktop"] #tab-profile > div[style*="text-align:center"] {
   max-width: 1080px;
   margin-left: auto;
   margin-right: auto;
