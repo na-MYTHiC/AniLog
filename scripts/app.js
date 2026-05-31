@@ -965,12 +965,12 @@ async function openStudio(id, name) {
 async function loadStudio() {
   const grid = document.getElementById('studio-grid');
   skeletonFill(grid, 12);
-  // No isMain filter — return everything the studio has worked on so
-  // co-productions show up too. Otherwise studios that are usually
-  // supporting partners come back empty.
+  // AniList's Studio.media DOES NOT accept a `type` argument — including
+  // one returns a 400 error and the overlay shows "No works found".
+  // (Studios only produce anime so the filter was always redundant anyway.)
   const q = `query ($id: Int, $sort: [MediaSort]) {
     Studio(id: $id) {
-      media(sort: $sort, type: ANIME, perPage: 50) {
+      media(sort: $sort, perPage: 50) {
         nodes { ${MEDIA_FRAGMENT} }
       }
     }
