@@ -151,6 +151,29 @@ html, body {
   }
 }
 
+/* Mobile view doesn't need a top bar — the content can run straight up
+   to the notch / status bar. Desktop overrides this further down to
+   re-enable the bar as part of the website-style header. */
+[data-view="mobile"] .topbar {
+  display: none;
+}
+[data-view="mobile"] .content {
+  /* Push content below the camera cutout / status bar since the topbar
+     isn't reserving space for it anymore. */
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Search tab content was running too close to the screen edge on mobile —
+   bump the side padding so it lines up with the Seasonal tab. */
+[data-view="mobile"] #tab-search .search-wrap,
+[data-view="mobile"] #tab-search .recent-searches,
+[data-view="mobile"] #tab-search .section-header,
+[data-view="mobile"] #tab-search .carousel,
+[data-view="mobile"] #tab-search .grid {
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
 /* Tablet — slightly wider mobile frame, more grid columns */
 @media (min-width: 768px) {
   .app {
