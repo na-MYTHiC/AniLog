@@ -308,12 +308,13 @@ html, body {
   margin-right: auto;
 }
 
-/* Bigger score badge on desktop cards — the small text gets lost at this scale */
+/* Slightly bigger score badge on desktop cards — tuned to sit between
+   the mobile size and the noticeable-but-not-huge sweet spot. */
 [data-view="desktop"] .card-score {
-  font-size: 15px;
-  padding: 5px 10px;
-  border-radius: 7px;
-  top: 8px; right: 8px;
+  font-size: 13px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  top: 7px; right: 7px;
 }
 [data-view="desktop"] .list-row { cursor: pointer; }
 [data-view="desktop"] .list-row:hover {
