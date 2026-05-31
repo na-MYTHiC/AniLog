@@ -166,8 +166,12 @@ html, body {
   [data-density="spacious"] { --grid-cols: 3; }
 }
 
-/* DESKTOP VIEW — explicit setting in Profile. Spans the full window, puts the
-   nav tabs in the top bar next to the logo, no bottom dock, website-style. */
+/* =====================================================================
+   DESKTOP VIEW — set explicitly via Profile → Layout. Full-window
+   website-style layout with a top nav bar across the entire width.
+   Everything here is scoped to [data-view="desktop"] so mobile is
+   completely unaffected.
+   ===================================================================== */
 [data-view="desktop"] body {
   background: var(--bg);
   display: block;
@@ -180,34 +184,43 @@ html, body {
   border-radius: 0;
   box-shadow: none;
   display: grid;
-  grid-template-rows: 64px 1fr;
+  grid-template-rows: 68px 1fr;
   grid-template-columns: auto 1fr;
   grid-template-areas:
     "topbar bottombar"
     "content content";
 }
+
+/* Top bar — logo + brand on the left, no right border (unified header) */
 [data-view="desktop"] .topbar {
   grid-area: topbar;
-  height: 64px;
-  padding: 0 24px;
+  height: 68px;
+  padding: 0 28px;
   width: auto;
-  border-right: 1px solid var(--border);
+  background: var(--bg);
+  border-right: none;
+  border-bottom: 1px solid var(--border);
+  z-index: 11;
 }
-[data-view="desktop"] .content { grid-area: content; }
+[data-view="desktop"] .logo-mark { width: 36px; height: 36px; }
+[data-view="desktop"] .logo { font-size: 22px; }
+[data-view="desktop"] .topbar-action { display: none; }
 
+/* The "bottombar" is repurposed as the top-right nav tab strip */
 [data-view="desktop"] .bottombar {
   grid-area: bottombar;
   position: static;
   flex-direction: row;
-  height: 64px;
+  height: 68px;
   width: auto;
-  padding: 0 18px;
-  background: color-mix(in srgb, var(--bg) 80%, transparent);
-  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  padding: 0 24px;
+  background: var(--bg);
+  backdrop-filter: none; -webkit-backdrop-filter: none;
   border-top: none;
   border-bottom: 1px solid var(--border);
   justify-content: flex-end;
-  gap: 6px;
+  gap: 2px;
+  z-index: 11;
 }
 [data-view="desktop"] .bottombar .nav-btn {
   flex: 0 0 auto;
@@ -215,30 +228,62 @@ html, body {
   justify-content: center;
   align-items: center;
   gap: 8px;
-  padding: 0 16px;
+  padding: 0 18px;
   height: 100%;
   border-radius: 0;
+  position: relative;
+  transition: color 0.15s ease, background 0.15s ease;
 }
-[data-view="desktop"] .bottombar .nav-btn svg { width: 18px; height: 18px; }
-[data-view="desktop"] .bottombar .nav-btn span { font-size: 14px; }
-[data-view="desktop"] .bottombar .nav-btn.active::before { display: none; }
+[data-view="desktop"] .bottombar .nav-btn:hover {
+  color: var(--text);
+  background: var(--surface);
+}
+[data-view="desktop"] .bottombar .nav-btn svg { width: 18px; height: 18px; stroke-width: 2; }
+[data-view="desktop"] .bottombar .nav-btn span { font-size: 14px; font-weight: 600; }
 [data-view="desktop"] .bottombar .nav-btn.active {
   color: var(--accent);
-  box-shadow: inset 0 -2px 0 var(--accent);
+  background: transparent;
+  box-shadow: none;
+}
+/* Override the mobile pill-behind effect with a clean bottom underline */
+[data-view="desktop"] .bottombar .nav-btn.active::before {
+  content: '';
+  top: auto;
+  left: 12px;
+  right: 12px;
+  bottom: 0;
+  width: auto;
+  height: 3px;
+  background: var(--accent);
+  border-radius: 2px 2px 0 0;
 }
 
-/* Desktop content gets more breathing room and more grid columns */
-[data-view="desktop"] {
-  --grid-cols: 5;
-  --grid-pad-x: 32px;
+/* Content area — vertical padding, takes the rest of the height */
+[data-view="desktop"] .content {
+  grid-area: content;
+  padding: 24px 0 40px;
 }
-[data-view="desktop"][data-density="compact"]  { --grid-cols: 7; }
-[data-view="desktop"][data-density="spacious"] { --grid-cols: 4; }
-
-[data-view="desktop"] .tab { padding-bottom: 32px !important; }
+[data-view="desktop"] .tab { padding-bottom: 40px !important; }
 [data-view="desktop"] .tab.active { animation: none; }
 
-/* Cap inner content width so giant screens don't make text run wide */
+/* Density vars are overridden — grids use auto-fill so cards reflow on resize */
+[data-view="desktop"] {
+  --grid-pad-x: 32px;
+}
+[data-view="desktop"] .grid {
+  grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
+  gap: 20px;
+}
+[data-view="desktop"][data-density="compact"] .grid {
+  grid-template-columns: repeat(auto-fill, minmax(125px, 1fr));
+  gap: 12px;
+}
+[data-view="desktop"][data-density="spacious"] .grid {
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 26px;
+}
+
+/* Cap inner content width so giant monitors don't make text run wide */
 [data-view="desktop"] .my-list-header,
 [data-view="desktop"] .seasonal-header,
 [data-view="desktop"] .social-header,
@@ -246,17 +291,70 @@ html, body {
 [data-view="desktop"] .list-controls,
 [data-view="desktop"] .sort-trigger-bar,
 [data-view="desktop"] .section,
-[data-view="desktop"] .list-rows,
-[data-view="desktop"] .grid,
 [data-view="desktop"] .social-feed,
-[data-view="desktop"] .recent-searches {
-  max-width: 1200px;
+[data-view="desktop"] .recent-searches,
+[data-view="desktop"] .grid {
+  max-width: 1280px;
   margin-left: auto;
   margin-right: auto;
 }
 
-/* Hide topbar action on desktop — no need for the mobile burger */
-[data-view="desktop"] .topbar-action { display: none; }
+/* My List rows look better at a narrower max-width — text doesn't run wide */
+[data-view="desktop"] .list-rows {
+  max-width: 920px;
+  margin-left: auto;
+  margin-right: auto;
+}
+[data-view="desktop"] .list-row { cursor: pointer; }
+[data-view="desktop"] .list-row:hover {
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+
+/* Card hover lift — desktop loves this kind of feedback */
+[data-view="desktop"] .card {
+  transition: transform 0.18s cubic-bezier(0.32, 0.72, 0, 1);
+}
+[data-view="desktop"] .card:hover { transform: translateY(-4px); }
+[data-view="desktop"] .card:hover .card-image {
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
+}
+
+/* Carousels get a bit more padding on desktop */
+[data-view="desktop"] .carousel { padding-left: 32px; padding-right: 32px; }
+
+/* Detail overlay — bigger banner, more side padding, larger title */
+[data-view="desktop"] .detail-banner { height: 300px; }
+[data-view="desktop"] .detail-head {
+  max-width: 1100px;
+  margin: -100px auto 0;
+  padding: 0 32px;
+}
+[data-view="desktop"] .detail-cover {
+  width: 180px;
+  height: 252px;
+}
+[data-view="desktop"] .detail-title { font-size: 28px; }
+[data-view="desktop"] .detail-sub { font-size: 14px; }
+[data-view="desktop"] .detail-stats,
+[data-view="desktop"] .detail-actions,
+[data-view="desktop"] .detail-section {
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 32px;
+  padding-right: 32px;
+}
+[data-view="desktop"] .character-row { padding-left: 0; padding-right: 0; margin: 0; }
+
+/* Modals — same dialog look, but bounded to a reasonable width */
+[data-view="desktop"] .modal {
+  max-width: 460px;
+  margin: 0 auto;
+  border-radius: 16px;
+}
+[data-view="desktop"] .modal-backdrop {
+  align-items: center;
+}
 
 /* ============ Legacy auto-desktop sidebar removed ============
    The old @media (min-width: 1024px) sidebar layout conflicted with the
