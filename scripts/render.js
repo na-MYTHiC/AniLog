@@ -144,6 +144,92 @@ function filterRelations(edges) {
   return (edges || []).filter(e => e.node?.type === 'ANIME' && allowed.includes(e.relationType));
 }
 
+// Sort relation edges by start date (oldest first). Falls back to seasonYear.
+function sortRelationsByDate(edges) {
+  return edges.slice().sort((a, b) => {
+    const ay = a.node?.startDate?.year || a.node?.seasonYear || 9999;
+    const by = b.node?.startDate?.year || b.node?.seasonYear || 9999;
+    if (ay !== by) return ay - by;
+    const am = a.node?.startDate?.month || 1;
+    const bm = b.node?.startDate?.month || 1;
+    return am - bm;
+  });
+}
+
+// Walk PREQUEL/SEQUEL chains outward from the source media to surface every
+// season in the franchise. Each step costs one AniList call; capped by depth.
+// Returns a flat list of edges (with the same shape as direct relations).
+async function expandRelations(directEdges, sourceMediaId) {
+  const chainTypes = ['PREQUEL', 'SEQUEL'];
+  const broadTypes = state.strictRelations
+    ? chainTypes
+    : ['PREQUEL', 'SEQUEL', 'PARENT', 'SIDE_STORY', 'SPIN_OFF', 'ALTERNATIVE', 'OTHER'];
+
+  const collected = new Map();   // id → edge
+  const visited = new Set([sourceMediaId]);
+
+  // Seed: every direct relation that matches the broad filter goes in
+  (directEdges || []).forEach(e => {
+    const n = e.node;
+    if (n && n.type === 'ANIME' && broadTypes.includes(e.relationType) && !visited.has(n.id)) {
+      collected.set(n.id, e);
+    }
+  });
+
+  // BFS along PREQUEL/SEQUEL only (the actual season chain)
+  let frontier = (directEdges || [])
+    .filter(e => e.node?.type === 'ANIME' && chainTypes.includes(e.relationType) && !visited.has(e.node.id))
+    .map(e => e.node.id);
+
+  const MAX_DEPTH = 6;
+  let depth = 0;
+
+  while (frontier.length && depth < MAX_DEPTH) {
+    const toFetch = frontier.filter(id => !visited.has(id));
+    toFetch.forEach(id => visited.add(id));
+    const next = [];
+
+    const responses = await Promise.all(toFetch.map(async (id) => {
+      const q = `query ($id: Int) {
+        Media(id: $id) {
+          relations {
+            edges {
+              relationType
+              node {
+                id type
+                title { userPreferred english romaji }
+                coverImage { large color }
+                averageScore format episodes season seasonYear
+                startDate { year month day }
+              }
+            }
+          }
+        }
+      }`;
+      const data = await anilist(q, { id });
+      return data?.Media?.relations?.edges || [];
+    }));
+
+    for (const edges of responses) {
+      for (const edge of edges) {
+        const n = edge.node;
+        if (!n || n.type !== 'ANIME' || visited.has(n.id)) continue;
+        if (broadTypes.includes(edge.relationType) && !collected.has(n.id)) {
+          collected.set(n.id, edge);
+        }
+        // Only PREQUEL/SEQUEL continue the chain — side stories don't recurse
+        if (chainTypes.includes(edge.relationType)) {
+          next.push(n.id);
+        }
+      }
+    }
+    frontier = next;
+    depth++;
+  }
+
+  return sortRelationsByDate(Array.from(collected.values()));
+}
+
 // Card variant with a colored relation-type tag overlaid on the cover (no score — it overlapped)
 function renderRelationCard(edge) {
   const m = edge.node;

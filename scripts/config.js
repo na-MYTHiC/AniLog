@@ -85,6 +85,7 @@ const MEDIA_DETAIL_FRAGMENT = `
         episodes
         season
         seasonYear
+        startDate { year month day }
         type
       }
     }

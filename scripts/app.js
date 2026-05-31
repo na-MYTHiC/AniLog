@@ -1225,9 +1225,16 @@ async function openMedia(id) {
       })()}
       <button class="btn-secondary" onclick="alert('Share sheet opens in the real app.')">Share</button>
     </div>
+    ${mainStudio ? `
+      <div class="detail-section">
+        <h4>Studio</h4>
+        <div class="genre-row">
+          <div class="genre-pill studio-pill" data-studio-id="${mainStudio.id}" data-studio-name="${escapeHtml(mainStudio.name)}">${escapeHtml(mainStudio.name)}</div>
+        </div>
+      </div>` : ''}
     ${m.genres?.length ? `
       <div class="detail-section">
-        <h4>Genres · tap to browse</h4>
+        <h4>Genres</h4>
         <div class="genre-row">${m.genres.map(g => `<div class="genre-pill" data-genre="${escapeHtml(g)}">${escapeHtml(g)}</div>`).join('')}</div>
       </div>` : ''}
     ${desc ? `
@@ -1236,13 +1243,12 @@ async function openMedia(id) {
         <div class="detail-desc${descLong ? ' collapsed' : ''}">${escapeHtml(desc)}</div>
         ${descLong ? `<button class="desc-toggle">Read more</button>` : ''}
       </div>` : ''}
-    ${filteredRelations.length ? `
-      <div class="detail-section">
-        <h4>Relations</h4>
-        <div class="carousel">
-          ${filteredRelations.map(renderRelationCard).join('')}
-        </div>
-      </div>` : ''}
+    <div class="detail-section" data-relations-section ${filteredRelations.length ? '' : 'hidden'}>
+      <h4>Relations</h4>
+      <div class="carousel" data-relations-carousel>
+        ${filteredRelations.map(renderRelationCard).join('')}
+      </div>
+    </div>
     ${recs.length ? `
       <div class="detail-section">
         <h4>Recommendations</h4>
@@ -1252,7 +1258,7 @@ async function openMedia(id) {
       </div>` : ''}
     ${m.characters?.edges?.length ? `
       <div class="detail-section">
-        <h4>Characters · tap for voice actors</h4>
+        <h4>Characters</h4>
         <div class="character-row">
           ${m.characters.edges.map(e => `
             <div class="character-card" data-character-id="${e.node.id}">
@@ -1279,18 +1285,33 @@ async function openMedia(id) {
     });
   }
 
-  // Wire up the clickable studio in the subtitle
-  const subStudio = body.querySelector('.sub-studio');
-  if (subStudio) {
-    const studioHandler = (e) => {
+  // Wire up the clickable studio (both the inline subtitle link AND the prominent pill)
+  body.querySelectorAll('.sub-studio, .studio-pill').forEach(el => {
+    el.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      const id = parseInt(subStudio.dataset.studioId, 10);
-      const name = subStudio.dataset.studioName;
+      const id = parseInt(el.dataset.studioId, 10);
+      const name = el.dataset.studioName;
       if (!isNaN(id) && name) openStudio(id, name);
-    };
-    subStudio.addEventListener('click', studioHandler);
-    subStudio.onclick = studioHandler;
+    });
+  });
+
+  // Expand the season chain in the background — walk PREQUEL/SEQUEL outward
+  // so the user sees every season, not just the directly adjacent one.
+  const relSection = body.querySelector('[data-relations-section]');
+  const relCarousel = body.querySelector('[data-relations-carousel]');
+  if (relSection && relCarousel) {
+    const targetId = m.id;
+    expandRelations(m.relations?.edges, m.id).then(expanded => {
+      // Bail if the user opened a different anime in the meantime
+      if (!currentMedia || currentMedia.id !== targetId) return;
+      if (!expanded.length) {
+        relSection.hidden = true;
+        return;
+      }
+      relSection.hidden = false;
+      relCarousel.innerHTML = expanded.map(renderRelationCard).join('');
+    }).catch(() => { /* swallow — the directly-rendered list stays as fallback */ });
   }
   // Wire up genre pills → genre overlay
   body.querySelectorAll('.genre-pill').forEach(pill => {
