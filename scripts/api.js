@@ -61,7 +61,6 @@ async function fetchViewer() {
       statistics {
         anime {
           count
-          meanScore
           minutesWatched
           episodesWatched
         }

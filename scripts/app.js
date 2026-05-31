@@ -380,7 +380,6 @@ function updateAuthUI() {
     const u = state.user;
     const stats = u.statistics?.anime;
     const hours = stats?.minutesWatched ? Math.round(stats.minutesWatched / 60) : 0;
-    const meanScore = stats?.meanScore ? stats.meanScore.toFixed(1) : '—';
     card.innerHTML = `
       <div class="empty-icon" style="width: 72px; height: 72px; border-radius: 50%; padding: 0; overflow: hidden; background: var(--surface-2);">
         ${u.avatar?.large || u.avatar?.medium
@@ -389,7 +388,7 @@ function updateAuthUI() {
       </div>
       <div class="empty-title">${escapeHtml(u.name)}</div>
       <div class="empty-text">
-        <strong>${stats?.count || 0}</strong> anime · <strong>${meanScore}</strong> mean · <strong>${hours}h</strong> watched
+        <strong>${stats?.count || 0}</strong> anime · <strong>${hours}h</strong> watched
       </div>
       <button class="btn-secondary" onclick="signOut()">Sign out</button>
     `;
