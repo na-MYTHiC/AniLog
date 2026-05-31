@@ -956,6 +956,53 @@
   font-size: 14px; color: var(--text-dim);
   text-align: center; line-height: 1.5;
 }
+/* OAuth error banner inside the sign-in modal */
+.signin-error {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  background: rgba(255, 80, 80, 0.12);
+  border: 1px solid rgba(255, 80, 80, 0.35);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text);
+  text-align: left;
+}
+.signin-error strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #ff7a7a;
+  font-weight: 700;
+}
+.signin-error code {
+  background: var(--surface-2);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 11px;
+  word-break: break-all;
+}
+
+/* "Use a token" advanced panel */
+.signin-advanced {
+  margin-top: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.signin-token-input {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 10px 12px;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px;
+  resize: vertical;
+  outline: none;
+  margin: 8px 0 12px;
+}
+.signin-token-input:focus { border-color: var(--accent); }
+
 .modal-actions {
   display: flex; flex-direction: column; gap: 8px;
 }

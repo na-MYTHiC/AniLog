@@ -27,16 +27,43 @@ const state = {
 };
 const cache = {};
 
-// Catch the token if we just came back from AniList authorization
-if (window.location.hash && window.location.hash.includes('access_token=')) {
-  const params = new URLSearchParams(window.location.hash.substring(1));
-  const token = params.get('access_token');
-  if (token) {
-    state.accessToken = token;
-    history.replaceState(null, '', window.location.pathname);
-    try { localStorage.setItem('anilog-prefs', JSON.stringify(state)); } catch (e) {}
+// ============ OAUTH CALLBACK CAPTURE ============
+// AniList redirects back here after sign-in. Three possible shapes:
+//   1) #access_token=...                  — implicit grant success
+//   2) #error=...&error_description=...   — implicit grant failure (fragment)
+//   3) ?error=...&error_description=...   — auth-code grant failure (query)
+// We capture each so we can show a real error UI instead of silent dead ends.
+let pendingOAuthError = null;
+
+(function captureOAuthCallback() {
+  const hash = window.location.hash || '';
+  const query = window.location.search || '';
+  let captured = false;
+
+  if (hash.includes('access_token=')) {
+    const params = new URLSearchParams(hash.substring(1));
+    const token = params.get('access_token');
+    if (token) {
+      state.accessToken = token;
+      captured = true;
+      try { localStorage.setItem('anilog-prefs', JSON.stringify(state)); } catch (e) {}
+    }
   }
-}
+
+  if (!captured && (hash.includes('error=') || query.includes('error='))) {
+    const params = hash.includes('error=')
+      ? new URLSearchParams(hash.substring(1))
+      : new URLSearchParams(query.substring(1));
+    pendingOAuthError = {
+      code: params.get('error') || 'unknown_error',
+      desc: params.get('error_description') || params.get('message') || params.get('hint') || '',
+    };
+    captured = true;
+  }
+
+  // Wipe the hash/query so a refresh doesn't re-fire the same flow
+  if (captured) history.replaceState(null, '', window.location.pathname);
+})();
 
 try {
   const saved = JSON.parse(localStorage.getItem('anilog-prefs') || '{}');

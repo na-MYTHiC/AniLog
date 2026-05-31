@@ -326,7 +326,7 @@
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v1.7 · Powered by AniList
+        AniLog · v1.8 · Powered by AniList
       </div>
     </section>
 
@@ -513,10 +513,28 @@
     <div class="modal">
       <div class="modal-grip"></div>
       <h3>Sign in with AniList</h3>
-      <p>Connect your AniList account to track shows, sync progress across devices, comment on friends, and get notified when new episodes air.</p>
+      <p>Connect your AniList account to track shows, sync progress across devices, and interact with friends.</p>
+
+      <!-- Surfaces the last OAuth error from the callback URL — only visible when set -->
+      <div class="signin-error" id="signin-error" hidden></div>
+
       <div class="modal-actions">
         <button class="btn-primary" onclick="signIn()">Continue with AniList</button>
+        <button class="btn-secondary" id="signin-advanced-toggle">Use a token instead</button>
         <button class="btn-secondary" onclick="closeSignInModal()">Maybe later</button>
+      </div>
+
+      <!-- Manual access-token paste — escape hatch when the OAuth redirect fails -->
+      <div class="signin-advanced" id="signin-advanced" hidden>
+        <p style="text-align:left; font-size:12px; line-height:1.5;">
+          If the redirect keeps erroring, you can paste an AniList access token directly.
+          To get one, open <a href="https://anilist.co/api/v2/oauth/authorize?client_id=42596&amp;response_type=token" target="_blank" rel="noopener" style="color:var(--accent);">this AniList URL</a>
+          in a new tab, sign in, click <strong>Authorize</strong>, and copy the value of <code>access_token</code> from the URL bar that opens.
+        </p>
+        <textarea id="signin-token-input" class="signin-token-input" placeholder="Paste your access_token here" rows="3"></textarea>
+        <div class="modal-actions">
+          <button class="btn-primary" id="signin-token-submit">Use this token</button>
+        </div>
       </div>
     </div>
   </div>

@@ -1363,6 +1363,75 @@ document.getElementById('rate-clear-btn').addEventListener('click', () => saveSc
 function openSignInModal() { document.getElementById('signin-modal').classList.add('visible'); }
 function closeSignInModal() { document.getElementById('signin-modal').classList.remove('visible'); }
 
+// Surface any OAuth error we captured on the redirect callback so the user
+// actually sees what AniList returned (instead of a silent dead end).
+(function maybeShowOAuthError() {
+  if (typeof pendingOAuthError === 'undefined' || !pendingOAuthError) return;
+  const banner = document.getElementById('signin-error');
+  if (!banner) return;
+  const code = pendingOAuthError.code || 'unknown_error';
+  const desc = pendingOAuthError.desc || 'AniList did not return an access token. Most often this means the Redirect URL registered on your AniList client does not exactly match this site.';
+  banner.hidden = false;
+  banner.innerHTML = `<strong>Sign-in failed: <code>${escapeHtml(code)}</code></strong>${escapeHtml(desc)}`;
+  // Pop the modal so they see it immediately
+  openSignInModal();
+  pendingOAuthError = null;
+})();
+
+// "Use a token instead" toggles the manual paste panel
+const signinAdvancedToggle = document.getElementById('signin-advanced-toggle');
+if (signinAdvancedToggle) {
+  signinAdvancedToggle.addEventListener('click', () => {
+    const panel = document.getElementById('signin-advanced');
+    if (!panel) return;
+    panel.hidden = !panel.hidden;
+    if (!panel.hidden) {
+      const input = document.getElementById('signin-token-input');
+      if (input) setTimeout(() => input.focus(), 50);
+    }
+  });
+}
+
+// Validate a pasted token by calling Viewer with it; only persist if it works
+async function applyManualToken(token) {
+  const banner = document.getElementById('signin-error');
+  try {
+    const res = await fetch('https://graphql.anilist.co', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ query: '{ Viewer { id name } }' }),
+    });
+    const json = await res.json();
+    if (!json?.data?.Viewer) {
+      throw new Error(json?.errors?.[0]?.message || 'AniList rejected the token.');
+    }
+    state.accessToken = token;
+    savePrefs();
+    closeSignInModal();
+    // Reload so every cached/auth-aware module picks up the new auth header
+    window.location.reload();
+  } catch (e) {
+    if (banner) {
+      banner.hidden = false;
+      banner.innerHTML = `<strong>Token didn't work</strong>${escapeHtml(e.message || 'Could not validate the token with AniList.')}`;
+    }
+  }
+}
+
+const signinTokenSubmit = document.getElementById('signin-token-submit');
+if (signinTokenSubmit) {
+  signinTokenSubmit.addEventListener('click', () => {
+    const input = document.getElementById('signin-token-input');
+    const token = (input?.value || '').trim();
+    if (!token) return;
+    applyManualToken(token);
+  });
+}
+
 // ============ SETTINGS ============
 document.querySelectorAll('#theme-seg .seg-btn').forEach(b => {
   b.addEventListener('click', () => {
