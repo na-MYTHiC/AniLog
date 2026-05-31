@@ -283,7 +283,9 @@ html, body {
   gap: 26px;
 }
 
-/* Cap inner content width so giant monitors don't make text run wide */
+/* Cap inner content width so giant monitors don't make text run wide.
+   1080px is roughly the sweet spot — wide enough for 5-6 cards per row,
+   narrow enough that the content has clear margins from the screen edge. */
 [data-view="desktop"] .my-list-header,
 [data-view="desktop"] .seasonal-header,
 [data-view="desktop"] .social-header,
@@ -294,16 +296,24 @@ html, body {
 [data-view="desktop"] .social-feed,
 [data-view="desktop"] .recent-searches,
 [data-view="desktop"] .grid {
-  max-width: 1280px;
+  max-width: 1080px;
   margin-left: auto;
   margin-right: auto;
 }
 
-/* My List rows look better at a narrower max-width — text doesn't run wide */
+/* My List rows are centered with a tighter cap — text doesn't run wide */
 [data-view="desktop"] .list-rows {
-  max-width: 920px;
+  max-width: 800px;
   margin-left: auto;
   margin-right: auto;
+}
+
+/* Bigger score badge on desktop cards — the small text gets lost at this scale */
+[data-view="desktop"] .card-score {
+  font-size: 15px;
+  padding: 5px 10px;
+  border-radius: 7px;
+  top: 8px; right: 8px;
 }
 [data-view="desktop"] .list-row { cursor: pointer; }
 [data-view="desktop"] .list-row:hover {

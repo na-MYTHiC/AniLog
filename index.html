@@ -326,7 +326,7 @@
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v2.0 · Powered by AniList
+        AniLog · v2.1 · Powered by AniList
       </div>
     </section>
 
@@ -395,11 +395,12 @@
       <div class="overlay-title" id="genre-title">Genre</div>
     </header>
     <div class="overlay-body">
-      <div class="sort-row" id="genre-sort">
-        <div class="chip active" data-sort="POPULARITY_DESC">Popular</div>
-        <div class="chip" data-sort="SCORE_DESC">Top Rated</div>
-        <div class="chip" data-sort="TRENDING_DESC">Trending</div>
-        <div class="chip" data-sort="START_DATE_DESC">Newest</div>
+      <div class="sort-trigger-bar">
+        <button class="sort-trigger" id="genre-sort-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
+          <span>Sort: <strong id="genre-sort-label">Popular</strong></span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
       </div>
       <div class="grid" id="genre-grid"></div>
     </div>
@@ -414,12 +415,12 @@
       <div class="overlay-title" id="studio-title">Studio</div>
     </header>
     <div class="overlay-body">
-      <div class="sort-row" id="studio-sort">
-        <div class="chip active" data-sort="POPULARITY_DESC">Popular</div>
-        <div class="chip" data-sort="SCORE_DESC">Top Rated</div>
-        <div class="chip" data-sort="TRENDING_DESC">Trending</div>
-        <div class="chip" data-sort="START_DATE_DESC">Newest</div>
-        <div class="chip" data-sort="START_DATE">Oldest</div>
+      <div class="sort-trigger-bar">
+        <button class="sort-trigger" id="studio-sort-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
+          <span>Sort: <strong id="studio-sort-label">Popular</strong></span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
       </div>
       <div class="grid" id="studio-grid"></div>
     </div>
@@ -446,10 +447,12 @@
     </header>
     <div class="overlay-body">
       <div id="staff-hero"></div>
-      <div class="sort-row" id="staff-sort">
-        <div class="chip active" data-sort="FAVOURITES_DESC">Popular</div>
-        <div class="chip" data-sort="ROLE">Main Roles</div>
-        <div class="chip" data-sort="ID_DESC">Latest</div>
+      <div class="sort-trigger-bar">
+        <button class="sort-trigger" id="staff-sort-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
+          <span>Sort: <strong id="staff-sort-label">Popular</strong></span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
       </div>
       <div class="grid" id="staff-grid"></div>
     </div>

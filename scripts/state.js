@@ -63,6 +63,26 @@ let pendingOAuthError = null;
 
   // Wipe the hash/query so a refresh doesn't re-fire the same flow
   if (captured) history.replaceState(null, '', window.location.pathname);
+
+  // Clear the signin-started flag on a clean success or any captured error
+  if (captured) {
+    try { localStorage.removeItem('anilog-signin-started'); } catch (e) {}
+  } else if (!state.accessToken) {
+    // No token, no error captured — but we may have STARTED a sign-in that
+    // never finished (closed tab, AniList showed its own JSON error, etc.).
+    // Within 5 minutes of starting, surface a friendly retry prompt.
+    try {
+      const startedAt = parseInt(localStorage.getItem('anilog-signin-started') || '0', 10);
+      if (startedAt && Date.now() - startedAt < 5 * 60 * 1000) {
+        pendingOAuthError = {
+          code: 'no_token_received',
+          desc: "Sign-in didn't complete — the AniList tab may have been closed before it finished, or AniList showed an error before reaching us. Try again, or use the token-paste option below.",
+        };
+      }
+      // Whether we surfaced or not, clear so we don't keep nagging
+      localStorage.removeItem('anilog-signin-started');
+    } catch (e) {}
+  }
 })();
 
 try {

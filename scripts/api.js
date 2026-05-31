@@ -34,7 +34,12 @@ async function anilist(query, variables = {}) {
 }
 
 // OAuth sign-in / sign-out
-function signIn() { window.location.href = ANILIST_AUTH_URL; }
+function signIn() {
+  // Record the attempt so we can detect when AniList silently bounces us
+  // (closed tab, error JSON on AniList's domain, etc.) and offer a re-try
+  try { localStorage.setItem('anilog-signin-started', String(Date.now())); } catch (e) {}
+  window.location.href = ANILIST_AUTH_URL;
+}
 function signOut() {
   state.accessToken = null;
   state.user = null;

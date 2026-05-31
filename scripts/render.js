@@ -322,11 +322,3 @@ function renderVACharCard(edge) {
   `;
 }
 
-document.querySelectorAll('#staff-sort .chip').forEach(c => {
-  c.addEventListener('click', () => {
-    document.querySelectorAll('#staff-sort .chip').forEach(x => x.classList.remove('active'));
-    c.classList.add('active');
-    staffState.sort = c.dataset.sort;
-    loadStaff();
-  });
-});

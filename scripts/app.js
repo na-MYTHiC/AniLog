@@ -934,9 +934,7 @@ async function openGenre(genre, type) {
   genreState.type = type || 'ANIME';
   genreState.sort = 'POPULARITY_DESC';
   document.getElementById('genre-title').textContent = genre;
-  document.querySelectorAll('#genre-sort .chip').forEach(c => {
-    c.classList.toggle('active', c.dataset.sort === genreState.sort);
-  });
+  document.getElementById('genre-sort-label').textContent = labelForSort(genreState.sort);
   document.getElementById('genre-overlay').classList.add('visible');
   loadGenre();
 }
@@ -959,26 +957,34 @@ async function loadGenre() {
   }
 }
 
-document.querySelectorAll('#genre-sort .chip').forEach(c => {
-  c.addEventListener('click', () => {
-    document.querySelectorAll('#genre-sort .chip').forEach(x => x.classList.remove('active'));
-    c.classList.add('active');
-    genreState.sort = c.dataset.sort;
+document.getElementById('genre-sort-btn').addEventListener('click', () => {
+  openSortModal(genreState.sort, (newSort) => {
+    genreState.sort = newSort;
+    document.getElementById('genre-sort-label').textContent = labelForSort(newSort);
     loadGenre();
   });
 });
 
 // ============ STUDIO OVERLAY ============
 
+// Studio gets one extra sort option (Oldest) on top of the standard set
+const STUDIO_SORT_OPTIONS = [
+  { value: 'POPULARITY_DESC', label: 'Popular' },
+  { value: 'SCORE_DESC',      label: 'Top Rated' },
+  { value: 'TRENDING_DESC',   label: 'Trending' },
+  { value: 'START_DATE_DESC', label: 'Newest' },
+  { value: 'START_DATE',      label: 'Oldest' },
+];
+function studioSortLabel(v) {
+  return STUDIO_SORT_OPTIONS.find(o => o.value === v)?.label || 'Sort';
+}
+
 async function openStudio(id, name) {
   studioState.id = id;
   studioState.name = name;
   studioState.sort = 'POPULARITY_DESC';
   document.getElementById('studio-title').textContent = name;
-  // Reset sort chips to default
-  document.querySelectorAll('#studio-sort .chip').forEach(c => {
-    c.classList.toggle('active', c.dataset.sort === studioState.sort);
-  });
+  document.getElementById('studio-sort-label').textContent = studioSortLabel(studioState.sort);
   document.getElementById('studio-overlay').classList.add('visible');
   loadStudio();
 }
@@ -1002,14 +1008,14 @@ async function loadStudio() {
   }
 }
 
-document.querySelectorAll('#studio-sort .chip').forEach(c => {
-  c.addEventListener('click', () => {
-    document.querySelectorAll('#studio-sort .chip').forEach(x => x.classList.remove('active'));
-    c.classList.add('active');
-    studioState.sort = c.dataset.sort;
+document.getElementById('studio-sort-btn').addEventListener('click', () => {
+  openSortModal(studioState.sort, (newSort) => {
+    studioState.sort = newSort;
+    document.getElementById('studio-sort-label').textContent = studioSortLabel(newSort);
     loadStudio();
-  });
+  }, 'Sort Studio Works', STUDIO_SORT_OPTIONS);
 });
+
 
 // ============ CHARACTER OVERLAY ============
 let currentMedia = null;
@@ -1057,18 +1063,34 @@ function openCharacter(charId) {
 
 // ============ STAFF (VOICE ACTOR) OVERLAY ============
 
+// Staff (VA) uses CharacterSort — different enum from MediaSort
+const STAFF_SORT_OPTIONS = [
+  { value: 'FAVOURITES_DESC', label: 'Popular' },
+  { value: 'ROLE',            label: 'Main Roles' },
+  { value: 'ID_DESC',         label: 'Latest' },
+];
+function staffSortLabel(v) {
+  return STAFF_SORT_OPTIONS.find(o => o.value === v)?.label || 'Sort';
+}
+
 async function openVA(id, name) {
   staffState.id = id;
   staffState.name = name;
   staffState.sort = 'FAVOURITES_DESC';
   document.getElementById('staff-title').textContent = name;
-  document.querySelectorAll('#staff-sort .chip').forEach(c => {
-    c.classList.toggle('active', c.dataset.sort === staffState.sort);
-  });
+  document.getElementById('staff-sort-label').textContent = staffSortLabel(staffState.sort);
   loadStaffHero(id);
   document.getElementById('staff-overlay').classList.add('visible');
   loadStaff();
 }
+
+document.getElementById('staff-sort-btn').addEventListener('click', () => {
+  openSortModal(staffState.sort, (newSort) => {
+    staffState.sort = newSort;
+    document.getElementById('staff-sort-label').textContent = staffSortLabel(newSort);
+    loadStaff();
+  }, 'Sort by', STAFF_SORT_OPTIONS);
+});
 
 async function loadStaffHero(id) {
   const hero = document.getElementById('staff-hero');

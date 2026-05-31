@@ -144,11 +144,12 @@
 
 .card-score {
   position: absolute; top: 6px; right: 6px;
-  background: rgba(0, 0, 0, 0.75);
+  background: rgba(0, 0, 0, 0.78);
   backdrop-filter: blur(8px);
-  color: #fff; font-size: 10px; font-weight: 700;
-  padding: 2px 6px; border-radius: 5px;
-  display: flex; align-items: center; gap: 3px;
+  color: #fff; font-size: 12px; font-weight: 700;
+  padding: 3px 8px; border-radius: 6px;
+  display: flex; align-items: center; gap: 4px;
+  line-height: 1.1;
 }
 
 .card-title {
