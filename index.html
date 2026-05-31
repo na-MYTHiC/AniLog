@@ -7,6 +7,17 @@
 <title>AniLog</title>
 <link rel="stylesheet" href="styles/base.css">
 <link rel="stylesheet" href="styles/app.css">
+
+<!-- PWA install — manifest + favicon + iOS support so the app can be
+     installed from any modern browser and behave like a native app. -->
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AniLog">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="application-name" content="AniLog">
 </head>
 <body>
 <div class="app" id="app">
@@ -326,7 +337,7 @@
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v2.2 · Powered by AniList
+        AniLog · v2.3 · Powered by AniList
       </div>
     </section>
 
@@ -545,6 +556,15 @@
 </div>
 
 
+<script>
+// Register the service worker so AniLog can be installed as a PWA
+// and survive offline. Best-effort — silently ignored if unsupported.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+</script>
 <script src="scripts/config.js"></script>
 <script src="scripts/state.js"></script>
 <script src="scripts/api.js"></script>

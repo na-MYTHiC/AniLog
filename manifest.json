@@ -1,0 +1,22 @@
+{
+  "name": "AniLog",
+  "short_name": "AniLog",
+  "description": "Anime tracker built on the AniList GraphQL API",
+  "start_url": "./",
+  "scope": "./",
+  "id": "/AniLog/",
+  "display": "standalone",
+  "background_color": "#0d0d12",
+  "theme_color": "#7c5cff",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["entertainment", "lifestyle"],
+  "lang": "en-US"
+}

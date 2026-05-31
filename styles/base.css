@@ -326,8 +326,10 @@ html, body {
   top: 7px; right: 7px;
 }
 [data-view="desktop"] .list-row { cursor: pointer; }
+/* Solid color — a transparent value here would reveal the swipe +1/-1
+   action buttons sitting underneath the row. */
 [data-view="desktop"] .list-row:hover {
-  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  background: var(--surface);
 }
 
 /* Card hover lift — desktop loves this kind of feedback */
