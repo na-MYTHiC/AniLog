@@ -1,7 +1,12 @@
 .topbar {
-  height: var(--topbar-h);
+  /* Grow the bar by the device's top safe-area so content sits below
+     camera notches / dynamic islands instead of being clipped by them.
+     The bar's background still fills the notch area for a clean look. */
+  height: calc(var(--topbar-h) + env(safe-area-inset-top, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-left: max(20px, env(safe-area-inset-left, 0px));
+  padding-right: max(20px, env(safe-area-inset-right, 0px));
   flex-shrink: 0;
-  padding: 0 20px;
   display: flex; align-items: center; justify-content: space-between;
   background: color-mix(in srgb, var(--bg) 80%, transparent);
   backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
@@ -189,9 +194,14 @@
 }
 
 .bottombar {
-  height: var(--bottombar-h);
+  /* Grow the bar by the bottom safe-area so the gesture bar / home
+     indicator doesn't overlap our nav icons. Sides add insets in case
+     the device is in landscape with a side notch. */
+  height: calc(var(--bottombar-h) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
   flex-shrink: 0;
-  padding-bottom: env(safe-area-inset-bottom);
   background: color-mix(in srgb, var(--bg) 90%, transparent);
   backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
   border-top: 1px solid var(--border);
