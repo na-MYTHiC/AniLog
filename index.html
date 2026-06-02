@@ -11,8 +11,17 @@
 <!-- PWA install — manifest + favicon + iOS support so the app can be
      installed from any modern browser and behave like a native app. -->
 <link rel="manifest" href="manifest.json">
+<!-- Modern browsers prefer the SVG favicon (sharper at any zoom) -->
 <link rel="icon" type="image/svg+xml" href="icon.svg">
-<link rel="apple-touch-icon" href="icon.svg">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<!-- iOS reads apple-touch-icon. Pre-rendered PNG at every size iOS asks for
+     so the home-screen icon stays razor-sharp instead of being a lossy
+     SVG rasterization by Safari. -->
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+<link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
+<link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
+<link rel="apple-touch-icon" sizes="120x120" href="icon-120.png">
+<link rel="apple-touch-icon" sizes="76x76"   href="icon-76.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="AniLog">
@@ -336,7 +345,7 @@
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v3.8 · Powered by AniList
+        AniLog · v3.9 · Powered by AniList
       </div>
     </section>
 

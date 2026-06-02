@@ -9,7 +9,7 @@
 //   - For everything else (AniList GraphQL, AniList images), bypass —
 //     we don't want stale data or 1+ GB of cover-image storage.
 
-const VERSION = 'anilog-v12';
+const VERSION = 'anilog-v13';
 const SHELL = [
   './',
   './index.html',
@@ -22,6 +22,13 @@ const SHELL = [
   './scripts/app.js',
   './manifest.json',
   './icon.svg',
+  './icon-76.png',
+  './icon-120.png',
+  './icon-152.png',
+  './icon-167.png',
+  './icon-180.png',
+  './icon-192.png',
+  './icon-512.png',
 ];
 
 self.addEventListener('install', (event) => {
