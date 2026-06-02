@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AniLog — Icon Generator</title>
+<style>
+  body {
+    margin: 0; padding: 32px 24px;
+    background: #0d0d12; color: #f4f4f7;
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  h1 { font-size: 22px; margin: 0 0 8px; }
+  p  { color: #8a8a99; max-width: 640px; }
+  .row {
+    display: flex; flex-wrap: wrap; gap: 18px;
+    margin: 28px 0;
+  }
+  .tile {
+    background: #16161f; border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px; padding: 14px; text-align: center;
+    min-width: 200px;
+  }
+  .tile img { max-width: 100%; height: auto; border-radius: 12px; }
+  .tile h3 { margin: 12px 0 6px; font-size: 13px; color: #8a8a99; font-weight: 600; }
+  .dl {
+    display: inline-block; margin-top: 6px;
+    background: #7c5cff; color: white; text-decoration: none;
+    padding: 8px 14px; border-radius: 8px; font-weight: 600; font-size: 13px;
+  }
+  .dl:hover { filter: brightness(1.1); }
+  .dl-all {
+    display: inline-block;
+    background: white; color: #14141c;
+    padding: 12px 18px; border-radius: 10px;
+    text-decoration: none; font-weight: 700;
+    margin-top: 12px;
+  }
+  code {
+    background: #16161f; padding: 1px 6px; border-radius: 4px;
+    color: #7c5cff; font-size: 12px;
+  }
+</style>
+</head>
+<body>
+<h1>AniLog Icon Generator</h1>
+<p>
+  Renders <code>icon.svg</code> into PNG at the sizes iOS and Android expect.
+  Click each <strong>Download</strong> link to save the PNG, then drop the files
+  into the repo root and commit. Tell me when they're committed and I'll wire
+  them up in <code>index.html</code> and <code>manifest.json</code>.
+</p>
+
+<a id="dl-all" class="dl-all" download style="display:none;">Download all as a single .zip</a>
+
+<div class="row" id="row"></div>
+
+<script>
+// Pulled fresh from icon.svg so the generator stays in sync — no inline copy.
+const SVG_PATH = 'icon.svg';
+
+// Every size a modern device might ask for.
+//  180 — iPhone retina home screen (the big one)
+//  167 — iPad Pro
+//  152 — iPad
+//  120 — iPhone @2x
+//   76 — iPad mini
+//  192 / 512 — Android maskable + splash
+const SIZES = [180, 167, 152, 120, 76, 192, 512];
+
+async function loadSvgAsImage() {
+  const res = await fetch(SVG_PATH);
+  const text = await res.text();
+  const blob = new Blob([text], { type: 'image/svg+xml' });
+  const url  = URL.createObjectURL(blob);
+  const img  = new Image();
+  await new Promise((ok, fail) => { img.onload = ok; img.onerror = fail; img.src = url; });
+  // We don't revoke immediately — Safari sometimes needs the URL still live
+  // when the same image is drawn into multiple canvases. We revoke after all
+  // canvases have rendered.
+  return { img, revoke: () => URL.revokeObjectURL(url) };
+}
+
+function rasterize(img, size) {
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, 0, 0, size, size);
+  return canvas.toDataURL('image/png');
+}
+
+(async () => {
+  const row = document.getElementById('row');
+  const { img, revoke } = await loadSvgAsImage();
+
+  for (const size of SIZES) {
+    const dataUrl = rasterize(img, size);
+    const preview = Math.min(size, 200);
+    const tile = document.createElement('div');
+    tile.className = 'tile';
+    tile.innerHTML = `
+      <img src="${dataUrl}" width="${preview}" height="${preview}" alt="icon-${size}">
+      <h3>${size}×${size}</h3>
+      <a class="dl" href="${dataUrl}" download="icon-${size}.png">Download icon-${size}.png</a>
+    `;
+    row.appendChild(tile);
+  }
+  revoke();
+})();
+</script>
+</body>
+</html>
