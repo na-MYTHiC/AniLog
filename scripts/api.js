@@ -15,6 +15,54 @@ const cacheExpires = new Map();
 // query+vars key -> in-flight Promise, so two simultaneous calls share one fetch
 const inflight = new Map();
 
+// ============ PERSISTENT CACHE ============
+// Survives PWA cold-starts so the user sees content instantly the next time
+// they open the app. Capped so we never run out of localStorage quota.
+const PERSIST_KEY = 'anilog-cache-v1';
+const PERSIST_CAP = 60; // most recently used keys are persisted
+
+// Pull what we cached last session into memory at boot
+(function hydrateCache() {
+  try {
+    const raw = localStorage.getItem(PERSIST_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return;
+    Object.keys(parsed).forEach((k) => {
+      const entry = parsed[k];
+      if (!entry || entry.data === undefined) return;
+      cache[k] = entry.data;
+      cacheExpires.set(k, entry.exp || 0);
+    });
+  } catch (e) { /* corrupt cache — ignore, will rebuild */ }
+})();
+
+// Debounced write of the in-memory cache to localStorage. We don't write on
+// every successful fetch (that'd thrash the disk) — instead schedule a
+// single write 1s after the last update, capped to PERSIST_CAP most recent
+// entries by expiry time.
+let persistTimer = null;
+function schedulePersist() {
+  if (persistTimer) return;
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    try {
+      const keys = Object.keys(cache);
+      // Sort by expiry desc (most recently set first), keep top PERSIST_CAP
+      keys.sort((a, b) => (cacheExpires.get(b) || 0) - (cacheExpires.get(a) || 0));
+      const slim = {};
+      for (let i = 0; i < Math.min(keys.length, PERSIST_CAP); i++) {
+        const k = keys[i];
+        slim[k] = { data: cache[k], exp: cacheExpires.get(k) || 0 };
+      }
+      localStorage.setItem(PERSIST_KEY, JSON.stringify(slim));
+    } catch (e) {
+      // localStorage full or unavailable — drop persistent layer entirely
+      try { localStorage.removeItem(PERSIST_KEY); } catch (_) {}
+    }
+  }, 1000);
+}
+
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 function fetchWithTimeout(url, opts, ms) {
@@ -113,10 +161,12 @@ async function _executeRequest(key, query, variables, headers, isMutation) {
       if (!isMutation) {
         cache[key] = json.data;
         cacheExpires.set(key, Date.now() + CACHE_TTL_MS);
+        schedulePersist();
       } else {
         // Any successful write invalidates every cached read
         Object.keys(cache).forEach(k => delete cache[k]);
         cacheExpires.clear();
+        try { localStorage.removeItem(PERSIST_KEY); } catch (_) {}
       }
       return json.data;
     } catch (err) {
@@ -204,6 +254,8 @@ function signOut() {
   state.user = null;
   savePrefs();
   Object.keys(cache).forEach(k => delete cache[k]);
+  cacheExpires.clear();
+  try { localStorage.removeItem(PERSIST_KEY); } catch (_) {}
   window.location.reload();
 }
 window.signIn = signIn;

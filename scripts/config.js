@@ -52,6 +52,7 @@ const MEDIA_DETAIL_FRAGMENT = `
   seasonYear
   genres
   type
+  trailer { id site thumbnail }
   mediaListEntry { id status score progress }
   studios(isMain: true) { nodes { id name } }
   characters(sort: ROLE, perPage: 12) {

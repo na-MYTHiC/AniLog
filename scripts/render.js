@@ -155,8 +155,16 @@ function syncSegState(segId, key, value) {
 
 // ============ SKELETONS ============
 
+// Skeleton card that mirrors a real .card's layout — full-width cover with
+// the right aspect ratio, a title bar, and a meta line. Width values come
+// from the density CSS vars so it doesn't fight the surrounding grid.
 function skeletonCard() {
-  return `<div class="card"><div class="card-image skeleton"></div><div class="card-title skeleton" style="height:14px; border-radius:4px; margin-top:8px;"></div></div>`;
+  return `
+    <div class="card">
+      <div class="card-image skeleton"></div>
+      <div class="skeleton" style="height: var(--card-title-size); border-radius: 4px; margin-top: var(--card-title-mt); width: 88%;"></div>
+      <div class="skeleton" style="height: var(--card-meta-size); border-radius: 4px; margin-top: 4px; width: 55%;"></div>
+    </div>`;
 }
 
 

@@ -3,6 +3,42 @@
 // Depends on: config.js (constants), state.js (state, cache, runtime vars),
 //             api.js (anilist client, auth), render.js (helpers, renderers).
 
+// ============ TOAST ============
+// Lightweight transient banner. showToast('Link copied') or
+// showToast('Removed', { actionLabel: 'Undo', onAction: () => restore() }).
+function showToast(message, opts = {}) {
+  const stack = document.getElementById('toast-stack');
+  if (!stack) return;
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  const msg = document.createElement('span');
+  msg.className = 'toast-msg';
+  msg.textContent = message;
+  toast.appendChild(msg);
+  if (opts.actionLabel && typeof opts.onAction === 'function') {
+    const btn = document.createElement('button');
+    btn.className = 'toast-action';
+    btn.textContent = opts.actionLabel;
+    btn.addEventListener('click', () => {
+      opts.onAction();
+      hide();
+    });
+    toast.appendChild(btn);
+  }
+  stack.appendChild(toast);
+  // Trigger transition on next frame so the in-class actually animates
+  requestAnimationFrame(() => toast.classList.add('in'));
+  const duration = opts.duration ?? (opts.actionLabel ? 6000 : 2500);
+  const hideTimer = setTimeout(hide, duration);
+  function hide() {
+    clearTimeout(hideTimer);
+    toast.classList.remove('in');
+    toast.classList.add('out');
+    setTimeout(() => toast.remove(), 250);
+  }
+}
+window.showToast = showToast;
+
 // ============ SHARE ============
 // Opens the OS native share sheet with the AniList anime URL where available.
 // Falls back to copying the URL to the clipboard on desktop browsers that
@@ -20,7 +56,7 @@ function shareMedia(mediaId, title) {
   }
   if (navigator.clipboard?.writeText) {
     navigator.clipboard.writeText(url).then(
-      () => alert('Link copied to clipboard'),
+      () => showToast('Link copied to clipboard'),
       () => prompt('Copy this link:', url)
     );
     return;
@@ -28,6 +64,52 @@ function shareMedia(mediaId, title) {
   prompt('Copy this link:', url);
 }
 window.shareMedia = shareMedia;
+
+// ============ TRAILER ============
+// AniList returns one trailer per show with { id, site, thumbnail }. site is
+// typically "youtube" (most common) or "dailymotion". Render a clickable
+// thumbnail; tapping it loads the actual iframe (lazy-load keeps the page
+// snappy even when scrolling past the trailer section).
+function renderTrailerSection(trailer) {
+  if (!trailer?.id || !trailer?.site) return '';
+  const id = String(trailer.id);
+  const site = String(trailer.site).toLowerCase();
+  if (site !== 'youtube' && site !== 'dailymotion') return '';
+  const thumb = trailer.thumbnail
+    || (site === 'youtube' ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : '');
+  return `
+    <div class="detail-section">
+      <h4>Trailer</h4>
+      <div class="trailer-frame" data-trailer-site="${site}" data-trailer-id="${escapeHtml(id)}">
+        <div class="trailer-thumb" style="background-image:url('${thumb}');"></div>
+        <button class="trailer-play" aria-label="Play trailer">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+// Lazy-load the YouTube/Dailymotion iframe on first click so the page itself
+// doesn't drag in 100+ KB of player chrome just because the user opened a
+// detail page they may scroll past.
+function wireTrailerFrame(body) {
+  const frame = body.querySelector('.trailer-frame');
+  if (!frame) return;
+  const open = () => {
+    const site = frame.dataset.trailerSite;
+    const id = frame.dataset.trailerId;
+    let src = '';
+    if (site === 'youtube') {
+      src = `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&modestbranding=1&hl=en&cc_lang_pref=en&cc_load_policy=1`;
+    } else if (site === 'dailymotion') {
+      src = `https://www.dailymotion.com/embed/video/${id}?autoplay=1`;
+    }
+    if (!src) return;
+    frame.innerHTML = `<iframe src="${src}" frameborder="0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
+  };
+  frame.addEventListener('click', open, { once: true });
+}
 
 // ============ THEME PICKER (dropdown row + modal list) ============
 function openThemeModal() {
@@ -594,13 +676,39 @@ async function setListStatus(newStatus) {
 
 async function removeFromList() {
   if (!editingEntry?.id) return;
+  // Snapshot the entry first so we can re-create it on Undo
+  const snapshot = {
+    mediaId: editingMediaId,
+    status: editingEntry.status,
+    score: editingEntry.score || 0,
+    progress: editingEntry.progress || 0,
+  };
   const mutation = `mutation ($id: Int) { DeleteMediaListEntry(id: $id) { deleted } }`;
   const data = await anilist(mutation, { id: editingEntry.id });
-  if (data?.DeleteMediaListEntry?.deleted) {
-    const mid = editingMediaId;
-    closeListEditSheet();
-    openMedia(mid);
+  if (!data?.DeleteMediaListEntry?.deleted) {
+    showToast("Couldn't remove — try again");
+    return;
   }
+  const mid = editingMediaId;
+  closeListEditSheet();
+  if (state.activeTab === 'home') loadMyList();
+  openMedia(mid);
+  showToast('Removed from your list', {
+    actionLabel: 'Undo',
+    onAction: async () => {
+      const restoreM = `mutation ($mediaId: Int, $status: MediaListStatus, $score: Float, $progress: Int) {
+        SaveMediaListEntry(mediaId: $mediaId, status: $status, score: $score, progress: $progress) { id }
+      }`;
+      const restored = await anilist(restoreM, snapshot);
+      if (restored?.SaveMediaListEntry?.id) {
+        showToast('Restored');
+        if (state.activeTab === 'home') loadMyList();
+        openMedia(mid);
+      } else {
+        showToast("Couldn't restore — sorry");
+      }
+    },
+  });
 }
 
 let myListReqId = 0;
@@ -1360,6 +1468,7 @@ async function openMedia(id) {
         </div>
       </div>
     ` : ''}
+    ${renderTrailerSection(m.trailer)}
   `;
 
   // Wire up the add/edit list button
@@ -1374,6 +1483,9 @@ async function openMedia(id) {
       }
     });
   }
+
+  // Wire trailer click → swap thumbnail for actual iframe player
+  wireTrailerFrame(body);
 
   // Wire the share button — Web Share API on supported devices, clipboard fallback otherwise
   const shareBtn = body.querySelector('#detail-share-btn');
