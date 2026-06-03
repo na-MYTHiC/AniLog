@@ -3,6 +3,32 @@
 // Depends on: config.js (constants), state.js (state, cache, runtime vars),
 //             api.js (anilist client, auth), render.js (helpers, renderers).
 
+// ============ SHARE ============
+// Opens the OS native share sheet with the AniList anime URL where available.
+// Falls back to copying the URL to the clipboard on desktop browsers that
+// don't support Web Share.
+function shareMedia(mediaId, title) {
+  const url = `https://anilist.co/anime/${mediaId}`;
+  const label = title || 'this anime';
+  if (navigator.share) {
+    navigator.share({
+      title: label,
+      text: `Check out ${label} on AniList`,
+      url,
+    }).catch(() => { /* user cancelled / dismissed */ });
+    return;
+  }
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(url).then(
+      () => alert('Link copied to clipboard'),
+      () => prompt('Copy this link:', url)
+    );
+    return;
+  }
+  prompt('Copy this link:', url);
+}
+window.shareMedia = shareMedia;
+
 // ============ THEME PICKER (dropdown row + modal list) ============
 function openThemeModal() {
   buildThemeList();
@@ -286,17 +312,33 @@ function updateSeasonalHeader() {
   }
 }
 
+let seasonalScroller = null;
+
 async function loadSeasonal() {
   updateSeasonalHeader();
-  const grid = document.getElementById('seasonal-grid');
-  skeletonFill(grid, 8);
-  const q = `query ($season: MediaSeason, $year: Int, $sort: [MediaSort]) { Page(perPage: 24) { media(season: $season, seasonYear: $year, type: ANIME, sort: $sort, isAdult: false) { ${MEDIA_FRAGMENT} } } }`;
-  const data = await anilist(q, { season: seasonalView.season, year: seasonalView.year, sort: [state.seasonalSort] });
-  if (data?.Page?.media?.length) {
-    grid.innerHTML = data.Page.media.map(renderCard).join('');
-  } else {
-    grid.innerHTML = `<div style="padding:40px 20px; color:var(--text-dim); font-size:13px; grid-column: 1/-1; text-align:center;">No releases found for ${capitalize(seasonalView.season)} ${seasonalView.year}.</div>`;
+  if (!seasonalScroller) {
+    const grid = document.getElementById('seasonal-grid');
+    const scrollEl = document.getElementById('content');
+    seasonalScroller = setupInfiniteScroll(grid, scrollEl, async (page) => {
+      const q = `query ($page: Int, $season: MediaSeason, $year: Int, $sort: [MediaSort]) {
+        Page(page: $page, perPage: 25) {
+          pageInfo { hasNextPage }
+          media(season: $season, seasonYear: $year, type: ANIME, sort: $sort, isAdult: false) { ${MEDIA_FRAGMENT} }
+        }
+      }`;
+      const data = await anilist(q, {
+        page,
+        season: seasonalView.season,
+        year: seasonalView.year,
+        sort: [state.seasonalSort],
+      });
+      return {
+        items: data?.Page?.media || [],
+        hasMore: data?.Page?.pageInfo?.hasNextPage || false,
+      };
+    });
   }
+  await seasonalScroller.reload();
 }
 
 document.getElementById('season-prev').addEventListener('click', () => {
@@ -616,6 +658,8 @@ async function loadMyList() {
 
 // ============ SOCIAL TAB (friends-only activity feed) ============
 let socialReqId = 0;
+let socialScroller = null;
+let socialMode = null;
 
 function formatRelativeTime(unixSeconds) {
   if (!unixSeconds) return '';
@@ -755,35 +799,57 @@ async function loadSocial() {
       replies { id text createdAt user { id name avatar { large medium } } }
     }`;
 
-  // Try friends-only first
-  const friendsQ = `query { Page(perPage: 25) { activities(isFollowing: true, sort: ID_DESC) { ${activityBody} } } }`;
-  const friendsData = await anilist(friendsQ);
-  if (socialReqId !== myReq) return;
-  const friends = (friendsData?.Page?.activities || []).filter(a => a && (a.type === 'ANIME_LIST' || a.type === 'TEXT'));
+  // Page 1 picks the mode (friends-first, fall back to global). Pages 2+
+  // stick with whatever page 1 decided so the user doesn't see modes
+  // interleave as they scroll. socialMode lives at module scope so the
+  // scroller's captured closure stays in sync across reloads.
+  const filterActivities = (data) =>
+    (data?.Page?.activities || []).filter((a) => a && (a.type === 'ANIME_LIST' || a.type === 'TEXT'));
+  const friendsQ = (p) =>
+    `query ($page: Int) { Page(page: $page, perPage: 25) { pageInfo { hasNextPage } activities(isFollowing: true, sort: ID_DESC) { ${activityBody} } } }`;
+  const globalQ = (p) =>
+    `query ($page: Int) { Page(page: $page, perPage: 25) { pageInfo { hasNextPage } activities(hasRepliesOrTypeText: false, sort: ID_DESC) { ${activityBody} } } }`;
 
-  if (friends.length > 0) {
-    feed.innerHTML = friends.map(renderActivity).join('');
-    attachActivityHandlers(feed);
-    return;
+  if (!socialScroller) {
+    const scrollEl = document.getElementById('content');
+    socialScroller = setupInfiniteScroll(feed, scrollEl, async (page) => {
+      if (page === 1) {
+        socialMode = null;
+        const data = await anilist(friendsQ(page), { page });
+        const items = filterActivities(data);
+        if (items.length > 0) {
+          socialMode = 'friends';
+          return { items, hasMore: data?.Page?.pageInfo?.hasNextPage || false };
+        }
+        // Friends had nothing — fall back to everyone
+        socialMode = 'global';
+        const g = await anilist(globalQ(page), { page });
+        return {
+          items: filterActivities(g),
+          hasMore: g?.Page?.pageInfo?.hasNextPage || false,
+        };
+      }
+      const q = socialMode === 'friends' ? friendsQ(page) : globalQ(page);
+      const data = await anilist(q, { page });
+      return {
+        items: filterActivities(data),
+        hasMore: data?.Page?.pageInfo?.hasNextPage || false,
+      };
+    }, renderActivity, attachActivityHandlers);
   }
 
-  // No friend activity — fall back to everyone's feed with a clear notice on top
-  const globalQ = `query { Page(perPage: 25) { activities(hasRepliesOrTypeText: false, sort: ID_DESC) { ${activityBody} } } }`;
-  const globalData = await anilist(globalQ);
+  await socialScroller.reload();
   if (socialReqId !== myReq) return;
-  const everyone = (globalData?.Page?.activities || []).filter(a => a && (a.type === 'ANIME_LIST' || a.type === 'TEXT'));
 
-  const notice = `
-    <div class="social-fallback-notice">
-      <strong>You don't have any followed friends with recent activity.</strong>
-      Showing everyone's activity below — follow people on AniList to see them here first.
-    </div>`;
-  if (!everyone.length) {
-    feed.innerHTML = notice + `<div class="no-results" style="padding: 40px 20px;">No recent activity at all right now.</div>`;
-    return;
+  // If page 1 fell back to global, prepend a notice above the feed so the
+  // user knows why they're not seeing their friends
+  if (socialMode === 'global') {
+    feed.insertAdjacentHTML('afterbegin', `
+      <div class="social-fallback-notice">
+        <strong>You don't have any followed friends with recent activity.</strong>
+        Showing everyone's activity below — follow people on AniList to see them here first.
+      </div>`);
   }
-  feed.innerHTML = notice + everyone.map(renderActivity).join('');
-  attachActivityHandlers(feed);
 }
 
 // Wire taps, likes, reply expansion + submission for every activity card in the feed
@@ -878,14 +944,31 @@ async function openCategory(sort, type, title, opts = {}) {
   loadCategory();
 }
 
+// Lazily initialized infinite-scroll scroller for the See-All grid.
+// One scroller instance handles every category — `reload()` re-fetches
+// from page 1 whenever the user opens a new category or changes the sort.
+let categoryScroller = null;
+
 async function loadCategory() {
-  const grid = document.getElementById('category-grid');
-  skeletonFill(grid, 12);
-  const seasonClause = categoryState.isSeasonal ? `season: ${state.season}, seasonYear: ${state.seasonYear},` : '';
-  const q = `query { Page(perPage: 50) { media(${seasonClause} sort: ${categoryState.sort}, type: ${categoryState.type}, isAdult: false) { ${MEDIA_FRAGMENT} } } }`;
-  const data = await anilist(q);
-  if (data?.Page?.media) grid.innerHTML = data.Page.media.map(renderCard).join('');
-  else grid.innerHTML = `<div style="padding:20px; color:var(--text-dim); font-size:13px; grid-column: 1/-1;">Couldn't load.</div>`;
+  if (!categoryScroller) {
+    const grid = document.getElementById('category-grid');
+    const scrollEl = document.querySelector('#category-overlay .overlay-body');
+    categoryScroller = setupInfiniteScroll(grid, scrollEl, async (page) => {
+      const seasonClause = categoryState.isSeasonal ? `season: ${state.season}, seasonYear: ${state.seasonYear},` : '';
+      const q = `query ($page: Int) {
+        Page(page: $page, perPage: 25) {
+          pageInfo { hasNextPage }
+          media(${seasonClause} sort: ${categoryState.sort}, type: ${categoryState.type}, isAdult: false) { ${MEDIA_FRAGMENT} }
+        }
+      }`;
+      const data = await anilist(q, { page });
+      return {
+        items: data?.Page?.media || [],
+        hasMore: data?.Page?.pageInfo?.hasNextPage || false,
+      };
+    });
+  }
+  await categoryScroller.reload();
 }
 
 document.getElementById('category-sort-btn').addEventListener('click', () => {
@@ -976,8 +1059,15 @@ async function loadStudio() {
     }
   }`;
   const data = await anilist(q, { id: studioState.id, sort: [studioState.sort] });
-  const items = data?.Studio?.media?.nodes;
-  if (items?.length) {
+  // Dedup by media id — AniList occasionally returns the same media twice
+  // when the studio is credited for multiple roles on the same show.
+  const seen = new Set();
+  const items = (data?.Studio?.media?.nodes || []).filter((m) => {
+    if (!m || seen.has(m.id)) return false;
+    seen.add(m.id);
+    return true;
+  });
+  if (items.length) {
     grid.innerHTML = items.map(renderCard).join('');
   } else {
     grid.innerHTML = `<div class="no-results" style="grid-column: 1/-1;">No works found.</div>`;
@@ -1135,6 +1225,15 @@ async function loadStaff() {
 
 // ============ MEDIA DETAIL ============
 async function openMedia(id) {
+  // Tapping a card inside Studio / Character / Staff / Genre / Category
+  // would otherwise just update the detail overlay underneath — invisible
+  // to the user. Close those first so the detail comes to the front.
+  ['studio-overlay', 'character-overlay', 'staff-overlay', 'genre-overlay', 'category-overlay']
+    .forEach((overlayId) => {
+      const el = document.getElementById(overlayId);
+      if (el) el.classList.remove('visible');
+    });
+
   const overlay = document.getElementById('detail-overlay');
   const body = document.getElementById('detail-body');
   document.getElementById('detail-title').textContent = 'Loading…';
@@ -1221,7 +1320,7 @@ async function openMedia(id) {
         }
         return `<button class="btn-primary" id="detail-list-btn" data-media-id="${m.id}">+ Add to list</button>`;
       })()}
-      <button class="btn-secondary" onclick="alert('Share sheet opens in the real app.')">Share</button>
+      <button class="btn-secondary" id="detail-share-btn" data-share-id="${m.id}" data-share-title="${escapeHtml(titleText || 'this anime')}">Share</button>
     </div>
     ${m.genres?.length ? `
       <div class="detail-section">
@@ -1273,6 +1372,16 @@ async function openMedia(id) {
       } else {
         addToList(m);
       }
+    });
+  }
+
+  // Wire the share button — Web Share API on supported devices, clipboard fallback otherwise
+  const shareBtn = body.querySelector('#detail-share-btn');
+  if (shareBtn) {
+    shareBtn.addEventListener('click', () => {
+      const mediaId = parseInt(shareBtn.dataset.shareId, 10);
+      const title = shareBtn.dataset.shareTitle || 'this anime';
+      shareMedia(mediaId, title);
     });
   }
 

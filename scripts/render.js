@@ -4,6 +4,75 @@
 
 // ============ FORMATTERS / TEXT HELPERS ============
 
+// ============ INFINITE SCROLL HELPER ============
+// Watches a sentinel at the end of `grid` inside `scrollContainer` and calls
+// `fetchPage(page)` whenever the sentinel scrolls into view. fetchPage must
+// return `{ items, hasMore }`. Items are rendered via `renderer` (defaults
+// to renderCard). After each appended batch, `onAppend(grid)` runs (used by
+// the social feed to re-attach like/reply handlers).
+//
+// Returned object exposes `.reload()` to reset pagination and re-fetch from
+// page 1, and `.destroy()` to tear down the observer.
+function setupInfiniteScroll(grid, scrollContainer, fetchPage, renderer, onAppend) {
+  const render = renderer || renderCard;
+  const sentinel = document.createElement('div');
+  sentinel.className = 'scroll-sentinel';
+  sentinel.style.cssText = 'grid-column: 1/-1; padding: 18px; text-align: center; color: var(--text-dim); font-size: 12px;';
+
+  let page = 1;
+  let hasMore = true;
+  let loading = false;
+  let reqId = 0;
+  let observer = null;
+
+  async function loadNext() {
+    if (loading || !hasMore) return;
+    loading = true;
+    const myReq = reqId;
+    sentinel.textContent = 'Loading…';
+    try {
+      const result = await fetchPage(page);
+      if (myReq !== reqId) return;
+      const items = result?.items || [];
+      sentinel.insertAdjacentHTML('beforebegin', items.map(render).join(''));
+      if (typeof onAppend === 'function') onAppend(grid);
+      hasMore = !!result?.hasMore;
+      page += 1;
+      sentinel.textContent = hasMore ? '' : '— end of list —';
+    } catch (e) {
+      sentinel.textContent = "Couldn't load more.";
+    } finally {
+      loading = false;
+    }
+  }
+
+  function setupObserver() {
+    if (observer) observer.disconnect();
+    observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) loadNext();
+    }, { root: scrollContainer, rootMargin: '400px 0px' });
+    observer.observe(sentinel);
+  }
+
+  return {
+    async reload() {
+      reqId += 1;
+      page = 1;
+      hasMore = true;
+      loading = false;
+      grid.innerHTML = '';
+      grid.appendChild(sentinel);
+      sentinel.textContent = '';
+      setupObserver();
+      await loadNext();
+    },
+    destroy() {
+      if (observer) observer.disconnect();
+      sentinel.remove();
+    },
+  };
+}
+
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
