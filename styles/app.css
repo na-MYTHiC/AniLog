@@ -192,9 +192,15 @@
 /* Seasonal feels too coarse with the default 2-column layout — bump up
    the column count so tiles land closer to the carousel card size on
    the Search tab. Each density gets +1 column. */
-#seasonal-grid { grid-template-columns: repeat(3, 1fr); }
-[data-density="compact"]  #seasonal-grid { grid-template-columns: repeat(4, 1fr); }
-[data-density="spacious"] #seasonal-grid { grid-template-columns: repeat(2, 1fr); }
+/* Seasonal grid + Search 'See All' (category) grid share the same denser
+   column layout — 3 across on Cozy, 4 on Compact, 2 on Spacious — so the
+   tiles aren't huge compared to the carousels on the Search pre-search. */
+#seasonal-grid,
+#category-grid { grid-template-columns: repeat(3, 1fr); }
+[data-density="compact"]  #seasonal-grid,
+[data-density="compact"]  #category-grid { grid-template-columns: repeat(4, 1fr); }
+[data-density="spacious"] #seasonal-grid,
+[data-density="spacious"] #category-grid { grid-template-columns: repeat(2, 1fr); }
 .grid .card { width: 100%; }
 .grid .card-image { width: 100%; height: 0; padding-bottom: 146%; }
 
