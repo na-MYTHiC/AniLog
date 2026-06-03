@@ -28,92 +28,111 @@ async function anilist(query, variables = {}) {
   // Auth/pub split so we don't leak personal data across sign-in / sign-out
   const key = (state.accessToken ? 'auth:' : 'pub:') + query + JSON.stringify(variables);
 
-  // 1) Fresh cache hit — skip the network entirely
   if (!isMutation) {
     const exp = cacheExpires.get(key) || 0;
-    if (cache[key] !== undefined && exp > Date.now()) return cache[key];
-  }
+    const hasCached = cache[key] !== undefined;
 
-  // 2) Already in flight — return the in-progress promise instead of stacking
-  if (!isMutation && inflight.has(key)) return inflight.get(key);
+    // 1) Fresh cache hit — return immediately, no network at all
+    if (hasCached && exp > Date.now()) return cache[key];
 
-  const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
-  if (state.accessToken) headers['Authorization'] = `Bearer ${state.accessToken}`;
-
-  const exec = (async () => {
-    const MAX_ATTEMPTS = 3;
-    let lastErr = null;
-
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      try {
-        const res = await fetchWithTimeout(ANILIST, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ query, variables }),
-        }, REQUEST_TIMEOUT_MS);
-
-        // Auth expired or revoked — bail out, don't retry
-        if (res.status === 401) {
-          signOut();
-          return null;
-        }
-
-        // Rate limited — wait the requested time (capped at 10s), then retry
-        if (res.status === 429) {
-          const retryAfter = parseInt(res.headers.get('Retry-After') || '2', 10);
-          await sleep(Math.min(Math.max(retryAfter, 1), 10) * 1000);
-          continue;
-        }
-
-        // Server hiccup — exponential backoff and retry
-        if (res.status >= 500) {
-          lastErr = new Error(`AniList ${res.status}`);
-          if (attempt < MAX_ATTEMPTS) await sleep(400 * Math.pow(2, attempt - 1));
-          continue;
-        }
-
-        const json = await res.json().catch(() => null);
-        if (!json) {
-          lastErr = new Error('AniList: malformed JSON');
-          if (attempt < MAX_ATTEMPTS) await sleep(400 * Math.pow(2, attempt - 1));
-          continue;
-        }
-
-        // GraphQL-level errors don't have to fail the call — log and return
-        // whatever data the server still sent.
-        if (json.errors) console.warn('AniList GraphQL errors:', json.errors);
-
-        if (!isMutation) {
-          cache[key] = json.data;
-          cacheExpires.set(key, Date.now() + CACHE_TTL_MS);
-        } else {
-          // Any successful write invalidates every cached read
-          Object.keys(cache).forEach(k => delete cache[k]);
-          cacheExpires.clear();
-        }
-        return json.data;
-      } catch (err) {
-        // Network failure, timeout, or AbortError — retry with backoff
-        lastErr = err;
-        if (attempt < MAX_ATTEMPTS) await sleep(400 * Math.pow(2, attempt - 1));
-      }
-    }
-
-    // All attempts failed. Serve stale cache if we have one — better than blank.
-    if (!isMutation && cache[key] !== undefined) {
-      console.warn('AniList: serving stale cache after failure', lastErr);
+    // 2) Stale-while-revalidate: cache exists but TTL elapsed. Return it
+    //    instantly so the UI is snappy, and kick a background refresh so
+    //    the NEXT call serves fresher data. Only fire one background fetch
+    //    per key — re-uses the same promise if another caller hits during
+    //    the request window.
+    if (hasCached && !inflight.has(key)) {
+      const bg = runFetch().finally(() => inflight.delete(key));
+      inflight.set(key, bg);
       return cache[key];
     }
-    console.error('AniList: request failed after retries', lastErr);
-    return null;
-  })();
 
+    // 3) Already in flight — share the promise so we don't stack duplicates
+    if (inflight.has(key)) return inflight.get(key);
+  }
+
+  const exec = runFetch();
   if (!isMutation) inflight.set(key, exec);
   try {
     return await exec;
   } finally {
     inflight.delete(key);
   }
+
+  // Inner — does the actual network round-trip with retries and rate-limit
+  // handling. Closed over key/query/variables/isMutation from the outer call.
+  function runFetch() {
+    const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+    if (state.accessToken) headers['Authorization'] = `Bearer ${state.accessToken}`;
+    return _executeRequest(key, query, variables, headers, isMutation);
+  }
+}
+
+async function _executeRequest(key, query, variables, headers, isMutation) {
+  const MAX_ATTEMPTS = 3;
+  let lastErr = null;
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const res = await fetchWithTimeout(ANILIST, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ query, variables }),
+      }, REQUEST_TIMEOUT_MS);
+
+      // Auth expired or revoked — bail out, don't retry
+      if (res.status === 401) {
+        signOut();
+        return null;
+      }
+
+      // Rate limited — wait the requested time (capped at 10s), then retry
+      if (res.status === 429) {
+        const retryAfter = parseInt(res.headers.get('Retry-After') || '2', 10);
+        await sleep(Math.min(Math.max(retryAfter, 1), 10) * 1000);
+        continue;
+      }
+
+      // Server hiccup — exponential backoff and retry
+      if (res.status >= 500) {
+        lastErr = new Error(`AniList ${res.status}`);
+        if (attempt < MAX_ATTEMPTS) await sleep(400 * Math.pow(2, attempt - 1));
+        continue;
+      }
+
+      const json = await res.json().catch(() => null);
+      if (!json) {
+        lastErr = new Error('AniList: malformed JSON');
+        if (attempt < MAX_ATTEMPTS) await sleep(400 * Math.pow(2, attempt - 1));
+        continue;
+      }
+
+      // GraphQL-level errors don't have to fail the call — log and return
+      // whatever data the server still sent.
+      if (json.errors) console.warn('AniList GraphQL errors:', json.errors);
+
+      if (!isMutation) {
+        cache[key] = json.data;
+        cacheExpires.set(key, Date.now() + CACHE_TTL_MS);
+      } else {
+        // Any successful write invalidates every cached read
+        Object.keys(cache).forEach(k => delete cache[k]);
+        cacheExpires.clear();
+      }
+      return json.data;
+    } catch (err) {
+      // Network failure, timeout, or AbortError — retry with backoff
+      lastErr = err;
+      if (attempt < MAX_ATTEMPTS) await sleep(400 * Math.pow(2, attempt - 1));
+    }
+  }
+
+  // All attempts failed. Serve stale cache if we have one — better than blank.
+  if (!isMutation && cache[key] !== undefined) {
+    console.warn('AniList: serving stale cache after failure', lastErr);
+    return cache[key];
+  }
+  console.error('AniList: request failed after retries', lastErr);
+  return null;
 }
 
 // OAuth sign-in / sign-out

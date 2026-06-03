@@ -8,6 +8,12 @@
 <link rel="stylesheet" href="styles/base.css">
 <link rel="stylesheet" href="styles/app.css">
 
+<!-- Speed up the first GraphQL request by warming the connection at parse time.
+     Cover-image CDN (s4.anilist.co) gets a lighter dns-prefetch since we hit it
+     after content is already on screen. -->
+<link rel="preconnect" href="https://graphql.anilist.co" crossorigin>
+<link rel="dns-prefetch" href="https://s4.anilist.co">
+
 <!-- PWA install — manifest + favicon + iOS support so the app can be
      installed from any modern browser and behave like a native app. -->
 <link rel="manifest" href="manifest.json">
@@ -345,7 +351,7 @@
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v4.0.2 · Powered by AniList
+        AniLog · v4.1 · Powered by AniList
       </div>
     </section>
 

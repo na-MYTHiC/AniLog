@@ -32,7 +32,6 @@ const state = {
   activeTab: 'home',
   themeId: 'iris',
   accent: '#7c5cff',
-  customAccent: '#7c5cff',
   theme: 'dark',
   viewMode: 'mobile',           // 'mobile' or 'desktop' — toggled in Profile
   density: 'comfortable',
@@ -112,11 +111,13 @@ let pendingOAuthError = null;
 try {
   const saved = JSON.parse(localStorage.getItem('anilog-prefs') || '{}');
   Object.assign(state, saved);
-  // Backward compat: if themeId missing, infer from accent
-  if (!saved.themeId) {
+  // Backward compat: prefs stored before the preset-only theme picker had
+  // a themeId of 'custom'. Snap any legacy custom to Iris so we always
+  // resolve to one of the 10 presets.
+  if (!saved.themeId || saved.themeId === 'custom') {
     const match = THEMES.find(t => t.color.toLowerCase() === (state.accent || '').toLowerCase());
-    state.themeId = match ? match.id : 'custom';
-    if (!match) state.customAccent = state.accent;
+    state.themeId = match ? match.id : 'iris';
+    if (!match) state.accent = THEMES.find(t => t.id === 'iris').color;
   }
 } catch (e) {}
 
