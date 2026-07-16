@@ -1,6 +1,9 @@
 :root {
   --accent: #7c5cff;
   --accent-soft: rgba(124, 92, 255, 0.15);
+  /* Text color paired with accent backgrounds. White works for every colored
+     theme; applyTheme() flips this to near-black for pale accents (Snow). */
+  --accent-on: #ffffff;
   --bg: #0d0d12;
   --surface: #16161f;
   --surface-2: #1f1f2b;

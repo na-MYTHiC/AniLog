@@ -136,6 +136,11 @@ function applyTheme() {
   const g = parseInt(hex.substr(2, 2), 16);
   const b = parseInt(hex.substr(4, 2), 16);
   document.documentElement.style.setProperty('--accent-soft', `rgba(${r}, ${g}, ${b}, 0.15)`);
+  // Pick a legible foreground for accent-background surfaces. Pale accents
+  // (Snow) need dark text; everything else stays with white. Uses relative
+  // luminance so any future light-hued theme picks up the right color too.
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  document.documentElement.style.setProperty('--accent-on', lum > 0.7 ? '#0d0d12' : '#ffffff');
   const themeColor = state.theme === 'amoled' ? '#000000' : state.theme === 'light' ? '#f7f7fa' : '#0d0d12';
   document.querySelector('meta[name="theme-color"]').setAttribute('content', themeColor);
   // Icon is now a static black & white SVG (see icon.svg) — no theme-driven

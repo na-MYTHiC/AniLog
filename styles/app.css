@@ -284,7 +284,7 @@
   border-radius: 7px; cursor: pointer;
   transition: all 0.2s ease;
 }
-.toggle-btn.active { background: var(--accent); color: white; }
+.toggle-btn.active { background: var(--accent); color: var(--accent-on); }
 
 .empty {
   padding: 60px 20px;
@@ -305,7 +305,7 @@
   margin: 0 auto 20px;
 }
 .btn-primary {
-  background: var(--accent); color: white;
+  background: var(--accent); color: var(--accent-on);
   border: none;
   padding: 11px 22px; border-radius: 10px;
   font-size: 14px; font-weight: 600;
@@ -364,7 +364,7 @@
   border-radius: 6px; cursor: pointer;
   white-space: nowrap;
 }
-.seg-btn.active { background: var(--accent); color: white; }
+.seg-btn.active { background: var(--accent); color: var(--accent-on); }
 
 /* Theme picker — dropdown row + modal list */
 .theme-trigger {
@@ -529,7 +529,7 @@
 .chip.active {
   background: var(--accent);
   border-color: var(--accent);
-  color: white;
+  color: var(--accent-on);
 }
 
 /* Overlays */
@@ -812,7 +812,7 @@
 .rate-btn.current {
   background: var(--accent);
   border-color: var(--accent);
-  color: white;
+  color: var(--accent-on);
 }
 
 .stat-pill strong {
@@ -884,7 +884,7 @@
 .toast-msg { flex: 1; }
 .toast-action {
   background: var(--accent);
-  color: white;
+  color: var(--accent-on);
   border: none;
   padding: 6px 12px;
   border-radius: 8px;
@@ -1368,7 +1368,7 @@
   position: absolute;
   top: 6px; left: 6px;
   background: var(--accent);
-  color: white;
+  color: var(--accent-on);
   font-size: 9px;
   font-weight: 800;
   padding: 3px 7px;
@@ -1580,7 +1580,7 @@
 .activity-reply-input:focus { border-color: var(--accent); }
 .activity-reply-send {
   background: var(--accent);
-  color: white;
+  color: var(--accent-on);
   border: none;
   padding: 8px 14px;
   border-radius: 18px;
@@ -1635,7 +1635,7 @@
   width: 90px;
   font-weight: 800;
   font-size: 17px;
-  color: white;
+  color: var(--accent-on);
   pointer-events: none;
   user-select: none;
   transition: filter 0.15s ease;
