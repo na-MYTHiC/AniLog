@@ -65,6 +65,43 @@ function shareMedia(mediaId, title) {
 }
 window.shareMedia = shareMedia;
 
+// ============ IMAGE LIGHTBOX ============
+// Opens a fullscreen viewer for a cover / large image. Backdrop click,
+// X button, and Escape all dismiss.
+function openLightbox(src) {
+  if (!src) return;
+  const box = document.getElementById('lightbox');
+  const img = document.getElementById('lightbox-img');
+  if (!box || !img) return;
+  img.src = src;
+  box.classList.add('visible');
+  box.setAttribute('aria-hidden', 'false');
+}
+function closeLightbox() {
+  const box = document.getElementById('lightbox');
+  if (!box) return;
+  box.classList.remove('visible');
+  box.setAttribute('aria-hidden', 'true');
+  // Delay clearing the src so the shrink animation still shows the image
+  setTimeout(() => {
+    const img = document.getElementById('lightbox-img');
+    if (img && !box.classList.contains('visible')) img.src = '';
+  }, 250);
+}
+(function wireLightbox() {
+  const box = document.getElementById('lightbox');
+  const closeBtn = document.getElementById('lightbox-close');
+  if (!box || !closeBtn) return;
+  // Click the backdrop (but not the image) to dismiss
+  box.addEventListener('click', (e) => {
+    if (e.target === box) closeLightbox();
+  });
+  closeBtn.addEventListener('click', closeLightbox);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && box.classList.contains('visible')) closeLightbox();
+  });
+})();
+
 // ============ TRAILER ============
 // AniList returns one trailer per show with { id, site, thumbnail }. site is
 // typically "youtube" (most common) or "dailymotion". Render a clickable
@@ -1486,6 +1523,13 @@ async function openMedia(id) {
 
   // Wire trailer click → swap thumbnail for actual iframe player
   wireTrailerFrame(body);
+
+  // Wire the cover art → fullscreen lightbox with the biggest available image
+  const coverEl = body.querySelector('.detail-cover');
+  if (coverEl) {
+    const largeSrc = m.coverImage?.extraLarge || m.coverImage?.large || '';
+    if (largeSrc) coverEl.addEventListener('click', () => openLightbox(largeSrc));
+  }
 
   // Wire the share button — Web Share API on supported devices, clipboard fallback otherwise
   const shareBtn = body.querySelector('#detail-share-btn');

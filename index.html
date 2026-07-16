@@ -351,7 +351,7 @@
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v4.2 · Powered by AniList
+        AniLog · v4.3 · Powered by AniList
       </div>
     </section>
 
@@ -571,6 +571,14 @@
 
 <!-- Toast container — stacks transient messages above the bottom nav -->
 <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="true"></div>
+
+<!-- Fullscreen image viewer — opened when a cover on the detail page is tapped -->
+<div class="lightbox" id="lightbox" role="dialog" aria-label="Cover preview" aria-hidden="true">
+  <button class="lightbox-close" id="lightbox-close" aria-label="Close">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+  </button>
+  <img class="lightbox-img" id="lightbox-img" alt="">
+</div>
 
 <script>
 // Register the service worker so AniLog can be installed as a PWA

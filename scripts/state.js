@@ -121,6 +121,23 @@ try {
   }
 } catch (e) {}
 
+// Always compute the current anime season from today's date so the Seasonal
+// tab defaults to whatever's actually airing. Overrides whatever was in
+// localStorage (previously we shipped SPRING 2026 as a hardcoded default and
+// it stuck until the user manually navigated).
+(function setCurrentSeason() {
+  const now = new Date();
+  const month = now.getMonth(); // 0 = January
+  const year = now.getFullYear();
+  let season;
+  if (month <= 2)       season = 'WINTER';
+  else if (month <= 5)  season = 'SPRING';
+  else if (month <= 8)  season = 'SUMMER';
+  else                  season = 'FALL';
+  state.season = season;
+  state.seasonYear = year;
+})();
+
 function savePrefs() {
   localStorage.setItem('anilog-prefs', JSON.stringify(state));
 }

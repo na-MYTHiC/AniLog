@@ -586,6 +586,55 @@
   display: flex; gap: 14px;
   align-items: flex-end;
 }
+/* Cover images on the detail page are tappable — the pointer cursor cue
+   plus a subtle scale on hover signals they open a fullscreen viewer. */
+.detail-cover {
+  cursor: zoom-in;
+  transition: transform 0.15s ease;
+}
+.detail-cover:hover { transform: scale(1.02); }
+
+/* Fullscreen image viewer for cover art. Fades in over everything,
+   click backdrop or the X to dismiss. */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.92);
+  z-index: 10000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.lightbox.visible { opacity: 1; pointer-events: auto; }
+.lightbox-img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 12px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  object-fit: contain;
+  transform: scale(0.96);
+  transition: transform 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.lightbox.visible .lightbox-img { transform: scale(1); }
+.lightbox-close {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 16px);
+  right: 16px;
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(12px);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.lightbox-close:hover { background: rgba(255, 255, 255, 0.22); transform: scale(1.06); }
+
+/* Override — needs the actual .detail-cover rules to still apply below */
 .detail-cover {
   width: 110px; height: 160px;
   border-radius: var(--radius-sm);
