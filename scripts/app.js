@@ -65,6 +65,147 @@ function shareMedia(mediaId, title) {
 }
 window.shareMedia = shareMedia;
 
+// ============ USER PROFILE OVERLAY ============
+// Opened from Social when the user taps a friend's avatar or username.
+// Renders a profile card (avatar + name + stats) plus a Home-style list
+// view of that user's anime library with status filter chips.
+let userProfileState = { id: null, name: '', status: 'CURRENT', reqId: 0 };
+
+const USER_STATUS_OPTIONS = [
+  { value: 'CURRENT',   label: 'Watching' },
+  { value: 'PLANNING',  label: 'Planning' },
+  { value: 'COMPLETED', label: 'Completed' },
+  { value: 'PAUSED',    label: 'Paused' },
+  { value: 'DROPPED',   label: 'Dropped' },
+  { value: 'REPEATING', label: 'Rewatching' },
+  { value: 'ALL',       label: 'All' },
+];
+
+async function openUser(userId, userName) {
+  userProfileState.id = userId;
+  userProfileState.name = userName;
+  userProfileState.status = 'CURRENT';
+  const body = document.getElementById('user-body');
+  document.getElementById('user-title').textContent = userName;
+  document.getElementById('user-overlay').classList.add('visible');
+
+  // Skeleton
+  body.innerHTML = `
+    <div class="user-hero">
+      <div class="user-hero-avatar skeleton"></div>
+      <div class="user-hero-info">
+        <div class="skeleton" style="height: 20px; width: 60%; border-radius: 6px; margin-bottom: 8px;"></div>
+        <div class="skeleton" style="height: 12px; width: 80%; border-radius: 4px;"></div>
+      </div>
+    </div>
+    <div class="user-status-row" id="user-status-row"></div>
+    <div class="user-list-rows" id="user-list-rows"></div>
+  `;
+
+  await loadUserProfile();
+}
+
+async function loadUserProfile() {
+  const myReq = ++userProfileState.reqId;
+  const q = `query ($id: Int) {
+    User(id: $id) {
+      id name
+      avatar { large medium }
+      siteUrl
+      statistics { anime { count minutesWatched episodesWatched } }
+    }
+  }`;
+  const data = await anilist(q, { id: userProfileState.id });
+  if (myReq !== userProfileState.reqId) return;
+  const u = data?.User;
+  const body = document.getElementById('user-body');
+  if (!u) {
+    body.innerHTML = `<div class="user-list-empty">Couldn't load this profile.</div>`;
+    return;
+  }
+  const stats = u.statistics?.anime;
+  const hours = stats?.minutesWatched ? Math.round(stats.minutesWatched / 60) : 0;
+  const avatar = u.avatar?.large || u.avatar?.medium || '';
+  body.innerHTML = `
+    <div class="user-hero">
+      <div class="user-hero-avatar" style="background-image:url('${avatar}');"></div>
+      <div class="user-hero-info">
+        <div class="user-hero-name">${escapeHtml(u.name)}</div>
+        <div class="user-hero-stats">
+          <strong>${stats?.count || 0}</strong> anime · <strong>${hours}h</strong> watched
+        </div>
+      </div>
+    </div>
+    <div class="user-status-row" id="user-status-row">
+      ${USER_STATUS_OPTIONS.map(o => `
+        <div class="chip ${o.value === userProfileState.status ? 'active' : ''}" data-status="${o.value}">${o.label}</div>
+      `).join('')}
+    </div>
+    <div class="user-list-rows list-rows" id="user-list-rows"></div>
+  `;
+  // Wire chip taps → refetch list with new status
+  document.querySelectorAll('#user-status-row .chip').forEach(c => {
+    c.addEventListener('click', () => {
+      document.querySelectorAll('#user-status-row .chip').forEach(x => x.classList.remove('active'));
+      c.classList.add('active');
+      userProfileState.status = c.dataset.status;
+      loadUserList();
+    });
+  });
+  loadUserList();
+}
+
+async function loadUserList() {
+  const myReq = ++userProfileState.reqId;
+  const rows = document.getElementById('user-list-rows');
+  if (!rows) return;
+  skeletonFillRows(rows, 5);
+
+  const mediaShape = `
+    id
+    title { userPreferred english romaji }
+    coverImage { large color }
+    averageScore
+    format
+    episodes
+    status
+    nextAiringEpisode { airingAt episode timeUntilAiring }
+  `;
+  const isAll = userProfileState.status === 'ALL';
+  const q = isAll
+    ? `query ($userId: Int) {
+        MediaListCollection(userId: $userId, type: ANIME, sort: UPDATED_TIME_DESC) {
+          lists { entries { id status score progress media { ${mediaShape} } } }
+        }
+      }`
+    : `query ($userId: Int, $status: MediaListStatus) {
+        MediaListCollection(userId: $userId, type: ANIME, status: $status, sort: UPDATED_TIME_DESC) {
+          lists { entries { id status score progress media { ${mediaShape} } } }
+        }
+      }`;
+  const vars = isAll
+    ? { userId: userProfileState.id }
+    : { userId: userProfileState.id, status: userProfileState.status };
+
+  const data = await anilist(q, vars);
+  if (myReq !== userProfileState.reqId) return;
+  const entries = (data?.MediaListCollection?.lists || []).flatMap(l => l.entries || []);
+  if (!entries.length) {
+    rows.innerHTML = `<div class="user-list-empty">
+      ${escapeHtml(userProfileState.name)}'s <strong>${escapeHtml(USER_STATUS_OPTIONS.find(o => o.value === userProfileState.status)?.label || '')}</strong> list is empty.
+    </div>`;
+    return;
+  }
+  rows.innerHTML = entries.map(renderListEntryRow).join('');
+  // Tap a row → open that anime's detail
+  Array.from(rows.children).forEach((wrap) => {
+    const mediaId = parseInt(wrap.dataset.mediaId, 10);
+    if (!isNaN(mediaId)) {
+      wrap.addEventListener('click', () => openMedia(mediaId));
+    }
+  });
+}
+
 // ============ IMAGE LIGHTBOX ============
 // Opens a fullscreen viewer for a cover / large image. Backdrop click,
 // X button, and Escape all dismiss.
@@ -870,12 +1011,13 @@ function renderActivity(act) {
     ? `<div class="activity-thumb" data-media-id="${m.id}" style="background-image:url('${m.coverImage?.large || ''}'); background-color:${m.coverImage?.color || 'var(--surface-2)'};"></div>`
     : '';
 
+  const uid = u?.id || 0;
   return `
     <div class="activity-card" data-activity-id="${act.id}">
-      <div class="activity-avatar" style="background-image:url('${avatar}');"></div>
+      <div class="activity-avatar user-tap" data-user-id="${uid}" data-user-name="${escapeHtml(name)}" style="background-image:url('${avatar}');"></div>
       <div class="activity-body">
         <div class="activity-meta-row">
-          <span class="activity-user">${escapeHtml(name)}</span>
+          <span class="activity-user user-tap" data-user-id="${uid}" data-user-name="${escapeHtml(name)}">${escapeHtml(name)}</span>
           <span class="activity-time">· ${time}</span>
         </div>
         ${contentInner}
@@ -1003,6 +1145,16 @@ function attachActivityHandlers(feed) {
     el.addEventListener('click', () => {
       const id = parseInt(el.dataset.mediaId, 10);
       if (!isNaN(id)) openMedia(id);
+    });
+  });
+
+  // Avatar / username → their profile
+  feed.querySelectorAll('.user-tap').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = parseInt(el.dataset.userId, 10);
+      const name = el.dataset.userName;
+      if (id > 0 && name) openUser(id, name);
     });
   });
 

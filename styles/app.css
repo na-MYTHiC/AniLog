@@ -198,11 +198,22 @@
    Using !important because desktop's auto-fill grid rules + the base
    .grid rule both want to set grid-template-columns. */
 #seasonal-grid,
-#category-grid { grid-template-columns: repeat(3, 1fr) !important; }
+#category-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
 [data-density="compact"]  #seasonal-grid,
-[data-density="compact"]  #category-grid { grid-template-columns: repeat(4, 1fr) !important; }
+[data-density="compact"]  #category-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
 [data-density="spacious"] #seasonal-grid,
-[data-density="spacious"] #category-grid { grid-template-columns: repeat(2, 1fr) !important; }
+[data-density="spacious"] #category-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+
+/* Belt and suspenders: force every direct child of these grids to stay
+   inside its column no matter what intrinsic width it advertises. Without
+   this, a card whose title/meta reports a wider min-content will silently
+   push its column past 1fr — which is why some columns visibly grew after
+   scrolling into batches with longer titles. */
+#seasonal-grid > *,
+#category-grid > * {
+  min-width: 0;
+  max-width: 100%;
+}
 .grid .card { width: 100%; }
 .grid .card-image { width: 100%; height: 0; padding-bottom: 146%; }
 
@@ -586,6 +597,62 @@
   display: flex; gap: 14px;
   align-items: flex-end;
 }
+/* User profile overlay — friend's list view opened from Social. Uses the
+   existing overlay chrome; only the inner card + status filters are new. */
+.user-hero {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 24px 20px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.user-hero-avatar {
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  background-size: cover; background-position: center;
+  background-color: var(--surface-2);
+  flex-shrink: 0;
+  border: 2px solid var(--accent-soft);
+}
+.user-hero-info { flex: 1; min-width: 0; }
+.user-hero-name {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.2;
+  margin-bottom: 4px;
+}
+.user-hero-stats {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+.user-hero-stats strong { color: var(--text); font-weight: 700; }
+.user-hero-actions {
+  display: flex;
+  gap: 8px;
+  padding: 12px 20px 0;
+  flex-wrap: wrap;
+}
+.user-status-row {
+  display: flex;
+  gap: 8px;
+  padding: 14px 20px 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.user-status-row::-webkit-scrollbar { display: none; }
+.user-list-rows { padding-bottom: 24px; }
+.user-list-empty {
+  padding: 60px 20px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+/* Anything with .user-tap is a click target — small hover cue on desktop */
+.user-tap { cursor: pointer; }
+.user-tap:hover { opacity: 0.9; }
+
 /* Cover images on the detail page are tappable — the pointer cursor cue
    plus a subtle scale on hover signals they open a fullscreen viewer. */
 .detail-cover {

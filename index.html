@@ -351,7 +351,7 @@
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v4.3 · Powered by AniList
+        AniLog · v4.4 · Powered by AniList
       </div>
     </section>
 
@@ -578,6 +578,18 @@
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
   </button>
   <img class="lightbox-img" id="lightbox-img" alt="">
+</div>
+
+<!-- User profile overlay — opens from Social when tapping a username / avatar.
+     Shows their profile card + a status-filtered list view (like Home). -->
+<div class="overlay" id="user-overlay" style="z-index: 104;">
+  <header class="overlay-header">
+    <button class="back-btn" onclick="closeOverlay('user-overlay')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    </button>
+    <div class="overlay-title" id="user-title">Profile</div>
+  </header>
+  <div class="overlay-body" id="user-body"></div>
 </div>
 
 <script>
