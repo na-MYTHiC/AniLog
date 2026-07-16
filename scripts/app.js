@@ -1049,20 +1049,6 @@ async function loadSocial() {
   if (!feed) return;
   const myReq = ++socialReqId;
 
-  // Friends-only — sign-in is required (AniList's isFollowing filter needs auth)
-  if (!state.user) {
-    feed.innerHTML = `
-      <div class="empty" style="padding: 50px 20px;">
-        <div class="empty-icon">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11l-3-3-3 3"/><path d="M19 8v6"/></svg>
-        </div>
-        <div class="empty-title">Sign in to see your friends</div>
-        <div class="empty-text">When you sign in we'll show updates from everyone you follow on AniList.</div>
-        <button class="btn-primary" onclick="signIn()">Sign in with AniList</button>
-      </div>`;
-    return;
-  }
-
   feed.innerHTML = Array(5).fill(`
     <div class="activity-card">
       <div class="activity-avatar skeleton"></div>
@@ -1090,36 +1076,49 @@ async function loadSocial() {
   // stick with whatever page 1 decided so the user doesn't see modes
   // interleave as they scroll. socialMode lives at module scope so the
   // scroller's captured closure stays in sync across reloads.
-  const filterActivities = (data) =>
-    (data?.Page?.activities || []).filter((a) => a && (a.type === 'ANIME_LIST' || a.type === 'TEXT'));
-  const friendsQ = (p) =>
-    `query ($page: Int) { Page(page: $page, perPage: 25) { pageInfo { hasNextPage } activities(isFollowing: true, sort: ID_DESC) { ${activityBody} } } }`;
-  const globalQ = (p) =>
-    `query ($page: Int) { Page(page: $page, perPage: 25) { pageInfo { hasNextPage } activities(hasRepliesOrTypeText: false, sort: ID_DESC) { ${activityBody} } } }`;
+  //
+  // Filter to anime + text at the API level with type_in. Previously we
+  // pulled every activity type (manga, message, etc.) and threw away most
+  // of them client-side, which frequently left the feed looking empty.
+  const rawItems = (data) => data?.Page?.activities || [];
+  const friendsQ = () =>
+    `query ($page: Int) { Page(page: $page, perPage: 25) { pageInfo { hasNextPage } activities(isFollowing: true, type_in: [ANIME_LIST, TEXT], sort: ID_DESC) { ${activityBody} } } }`;
+  const globalQ = () =>
+    `query ($page: Int) { Page(page: $page, perPage: 25) { pageInfo { hasNextPage } activities(type_in: [ANIME_LIST, TEXT], sort: ID_DESC) { ${activityBody} } } }`;
 
   if (!socialScroller) {
     const scrollEl = document.getElementById('content');
     socialScroller = setupInfiniteScroll(feed, scrollEl, async (page) => {
       if (page === 1) {
+        // isFollowing needs a valid token — signed-out users skip straight
+        // to the global feed so they see something instead of an error.
+        if (!state.user) {
+          socialMode = 'global';
+          const g = await anilist(globalQ(), { page });
+          return {
+            items: rawItems(g),
+            hasMore: g?.Page?.pageInfo?.hasNextPage || false,
+          };
+        }
         socialMode = null;
-        const data = await anilist(friendsQ(page), { page });
-        const items = filterActivities(data);
+        const data = await anilist(friendsQ(), { page });
+        const items = rawItems(data);
         if (items.length > 0) {
           socialMode = 'friends';
           return { items, hasMore: data?.Page?.pageInfo?.hasNextPage || false };
         }
         // Friends had nothing — fall back to everyone
         socialMode = 'global';
-        const g = await anilist(globalQ(page), { page });
+        const g = await anilist(globalQ(), { page });
         return {
-          items: filterActivities(g),
+          items: rawItems(g),
           hasMore: g?.Page?.pageInfo?.hasNextPage || false,
         };
       }
-      const q = socialMode === 'friends' ? friendsQ(page) : globalQ(page);
+      const q = socialMode === 'friends' ? friendsQ() : globalQ();
       const data = await anilist(q, { page });
       return {
-        items: filterActivities(data),
+        items: rawItems(data),
         hasMore: data?.Page?.pageInfo?.hasNextPage || false,
       };
     }, renderActivity, attachActivityHandlers);
@@ -1128,14 +1127,14 @@ async function loadSocial() {
   await socialScroller.reload();
   if (socialReqId !== myReq) return;
 
-  // If page 1 fell back to global, prepend a notice above the feed so the
-  // user knows why they're not seeing their friends
+  // Different explanations for "signed out → global" vs "signed in but no
+  // followed friends → global". Both prepend a notice so the user knows
+  // what feed they're looking at.
   if (socialMode === 'global') {
-    feed.insertAdjacentHTML('afterbegin', `
-      <div class="social-fallback-notice">
-        <strong>You don't have any followed friends with recent activity.</strong>
-        Showing everyone's activity below — follow people on AniList to see them here first.
-      </div>`);
+    const notice = !state.user
+      ? `<strong>Showing everyone's activity.</strong> Sign in to see updates from people you follow on AniList.`
+      : `<strong>You don't have any followed friends with recent activity.</strong> Showing everyone's activity below — follow people on AniList to see them here first.`;
+    feed.insertAdjacentHTML('afterbegin', `<div class="social-fallback-notice">${notice}</div>`);
   }
 }
 

@@ -2,6 +2,9 @@
 // Everything here is read-only configuration; no app state lives in this file.
 
 // ============ THEMES ============
+// Themes list — `color` is the accent used in dark / AMOLED modes. A few
+// bright themes (Snow) need a darker swap for light mode so the accent
+// doesn't disappear on a white surface — those specify `lightColor`.
 const THEMES = [
   { id: 'iris',     name: 'Iris',     color: '#7c5cff' },
   { id: 'sakura',   name: 'Sakura',   color: '#ff6b9d' },
@@ -13,6 +16,7 @@ const THEMES = [
   { id: 'lavender', name: 'Lavender', color: '#a78bfa' },
   { id: 'ocean',    name: 'Ocean',    color: '#06b6d4' },
   { id: 'crimson',  name: 'Crimson',  color: '#e11d48' },
+  { id: 'snow',     name: 'Snow',     color: '#eef2ff', lightColor: '#6b7280' },
 ];
 
 

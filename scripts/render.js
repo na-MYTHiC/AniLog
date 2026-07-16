@@ -126,8 +126,12 @@ function listSortLabel(v) { return LIST_SORT_OPTIONS.find(o => o.value === v)?.l
 
 function applyTheme() {
   document.documentElement.setAttribute('data-theme', state.theme);
-  document.documentElement.style.setProperty('--accent', state.accent);
-  const hex = state.accent.replace('#', '');
+  // Resolve the effective accent. Bright themes (Snow) become invisible on a
+  // white surface, so they carry a `lightColor` we swap in for the light theme.
+  const themeDef = (typeof THEMES !== 'undefined' ? THEMES : []).find(t => t.id === state.themeId);
+  const effectiveAccent = (state.theme === 'light' && themeDef?.lightColor) || state.accent;
+  document.documentElement.style.setProperty('--accent', effectiveAccent);
+  const hex = effectiveAccent.replace('#', '');
   const r = parseInt(hex.substr(0, 2), 16);
   const g = parseInt(hex.substr(2, 2), 16);
   const b = parseInt(hex.substr(4, 2), 16);
