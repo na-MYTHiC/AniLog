@@ -633,15 +633,9 @@
   padding: 12px 20px 0;
   flex-wrap: wrap;
 }
-.user-status-row {
-  display: flex;
-  gap: 8px;
-  padding: 14px 20px 6px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.user-status-row::-webkit-scrollbar { display: none; }
 .user-list-rows { padding-bottom: 24px; }
+/* Reuse the Home tab's list-controls layout inside the user overlay. */
+#user-list-controls { margin-top: 4px; }
 .user-list-empty {
   padding: 60px 20px;
   text-align: center;
@@ -652,6 +646,52 @@
 /* Anything with .user-tap is a click target — small hover cue on desktop */
 .user-tap { cursor: pointer; }
 .user-tap:hover { opacity: 0.9; }
+
+/* "Friends" row on the anime detail page — horizontal-scrolling strip of
+   avatars from people the signed-in user follows who have this show on
+   their list. Each avatar's ring color hints at their watch status. */
+.friends-section h4 { margin-bottom: 10px; }
+.friends-avatars {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 4px 0 8px;
+}
+.friends-avatars::-webkit-scrollbar { display: none; }
+.friend-avatar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 0 0 auto;
+  width: 60px;
+  gap: 4px;
+}
+.friend-avatar-img {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-size: cover;
+  background-position: center;
+  background-color: var(--surface-2);
+  border: 2px solid var(--surface-2);
+  box-sizing: border-box;
+}
+.friend-avatar[data-status="CURRENT"]   .friend-avatar-img { border-color: var(--accent); }
+.friend-avatar[data-status="COMPLETED"] .friend-avatar-img { border-color: #10b981; }
+.friend-avatar[data-status="PLANNING"]  .friend-avatar-img { border-color: #6b7280; }
+.friend-avatar[data-status="PAUSED"]    .friend-avatar-img { border-color: #f59e0b; }
+.friend-avatar[data-status="DROPPED"]   .friend-avatar-img { border-color: #ef4444; }
+.friend-avatar[data-status="REPEATING"] .friend-avatar-img { border-color: #a78bfa; }
+.friend-avatar-name {
+  font-size: 11px;
+  color: var(--text-dim);
+  max-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
 
 /* Cover images on the detail page are tappable — the pointer cursor cue
    plus a subtle scale on hover signals they open a fullscreen viewer. */

@@ -69,22 +69,20 @@ window.shareMedia = shareMedia;
 // Opened from Social when the user taps a friend's avatar or username.
 // Renders a profile card (avatar + name + stats) plus a Home-style list
 // view of that user's anime library with status filter chips.
-let userProfileState = { id: null, name: '', status: 'CURRENT', reqId: 0 };
-
-const USER_STATUS_OPTIONS = [
-  { value: 'CURRENT',   label: 'Watching' },
-  { value: 'PLANNING',  label: 'Planning' },
-  { value: 'COMPLETED', label: 'Completed' },
-  { value: 'PAUSED',    label: 'Paused' },
-  { value: 'DROPPED',   label: 'Dropped' },
-  { value: 'REPEATING', label: 'Rewatching' },
-  { value: 'ALL',       label: 'All' },
-];
+// Mirrors My List: status + sort selection, plus a reqId to cancel stale renders.
+let userProfileState = {
+  id: null,
+  name: '',
+  status: 'CURRENT',
+  sort: 'SCORE_DESC',
+  reqId: 0,
+};
 
 async function openUser(userId, userName) {
   userProfileState.id = userId;
   userProfileState.name = userName;
   userProfileState.status = 'CURRENT';
+  userProfileState.sort = 'SCORE_DESC';
   const body = document.getElementById('user-body');
   document.getElementById('user-title').textContent = userName;
   document.getElementById('user-overlay').classList.add('visible');
@@ -98,7 +96,7 @@ async function openUser(userId, userName) {
         <div class="skeleton" style="height: 12px; width: 80%; border-radius: 4px;"></div>
       </div>
     </div>
-    <div class="user-status-row" id="user-status-row"></div>
+    <div class="list-controls" id="user-list-controls"></div>
     <div class="user-list-rows" id="user-list-rows"></div>
   `;
 
@@ -126,6 +124,8 @@ async function loadUserProfile() {
   const stats = u.statistics?.anime;
   const hours = stats?.minutesWatched ? Math.round(stats.minutesWatched / 60) : 0;
   const avatar = u.avatar?.large || u.avatar?.medium || '';
+  const statusLabel = listStatusLabel(userProfileState.status);
+  const sortLabel = listSortLabel(userProfileState.sort);
   body.innerHTML = `
     <div class="user-hero">
       <div class="user-hero-avatar" style="background-image:url('${avatar}');"></div>
@@ -136,22 +136,38 @@ async function loadUserProfile() {
         </div>
       </div>
     </div>
-    <div class="user-status-row" id="user-status-row">
-      ${USER_STATUS_OPTIONS.map(o => `
-        <div class="chip ${o.value === userProfileState.status ? 'active' : ''}" data-status="${o.value}">${o.label}</div>
-      `).join('')}
+    <div class="list-controls" id="user-list-controls">
+      <button class="sort-trigger" id="user-list-status-btn">
+        <strong id="user-list-status-label">${escapeHtml(statusLabel)}</strong>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <button class="sort-trigger" id="user-list-sort-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
+        <span>Sort: <strong id="user-list-sort-label">${escapeHtml(sortLabel)}</strong></span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
     </div>
     <div class="user-list-rows list-rows" id="user-list-rows"></div>
   `;
-  // Wire chip taps → refetch list with new status
-  document.querySelectorAll('#user-status-row .chip').forEach(c => {
-    c.addEventListener('click', () => {
-      document.querySelectorAll('#user-status-row .chip').forEach(x => x.classList.remove('active'));
-      c.classList.add('active');
-      userProfileState.status = c.dataset.status;
+
+  // Wire status + sort dropdowns to the shared sort modal, same as Home.
+  document.getElementById('user-list-status-btn').addEventListener('click', () => {
+    openSortModal(userProfileState.status, (v) => {
+      userProfileState.status = v;
+      const label = document.getElementById('user-list-status-label');
+      if (label) label.textContent = listStatusLabel(v);
       loadUserList();
-    });
+    }, `${u.name}'s List`, LIST_STATUS_OPTIONS);
   });
+  document.getElementById('user-list-sort-btn').addEventListener('click', () => {
+    openSortModal(userProfileState.sort, (v) => {
+      userProfileState.sort = v;
+      const label = document.getElementById('user-list-sort-label');
+      if (label) label.textContent = listSortLabel(v);
+      loadUserList();
+    }, `Sort ${u.name}'s List`, LIST_SORT_OPTIONS);
+  });
+
   loadUserList();
 }
 
@@ -173,26 +189,26 @@ async function loadUserList() {
   `;
   const isAll = userProfileState.status === 'ALL';
   const q = isAll
-    ? `query ($userId: Int) {
-        MediaListCollection(userId: $userId, type: ANIME, sort: UPDATED_TIME_DESC) {
+    ? `query ($userId: Int, $sort: [MediaListSort]) {
+        MediaListCollection(userId: $userId, type: ANIME, sort: $sort) {
           lists { entries { id status score progress media { ${mediaShape} } } }
         }
       }`
-    : `query ($userId: Int, $status: MediaListStatus) {
-        MediaListCollection(userId: $userId, type: ANIME, status: $status, sort: UPDATED_TIME_DESC) {
+    : `query ($userId: Int, $status: MediaListStatus, $sort: [MediaListSort]) {
+        MediaListCollection(userId: $userId, type: ANIME, status: $status, sort: $sort) {
           lists { entries { id status score progress media { ${mediaShape} } } }
         }
       }`;
   const vars = isAll
-    ? { userId: userProfileState.id }
-    : { userId: userProfileState.id, status: userProfileState.status };
+    ? { userId: userProfileState.id, sort: [userProfileState.sort] }
+    : { userId: userProfileState.id, status: userProfileState.status, sort: [userProfileState.sort] };
 
   const data = await anilist(q, vars);
   if (myReq !== userProfileState.reqId) return;
   const entries = (data?.MediaListCollection?.lists || []).flatMap(l => l.entries || []);
   if (!entries.length) {
     rows.innerHTML = `<div class="user-list-empty">
-      ${escapeHtml(userProfileState.name)}'s <strong>${escapeHtml(USER_STATUS_OPTIONS.find(o => o.value === userProfileState.status)?.label || '')}</strong> list is empty.
+      ${escapeHtml(userProfileState.name)}'s <strong>${escapeHtml(listStatusLabel(userProfileState.status))}</strong> list is empty.
     </div>`;
     return;
   }
@@ -1520,6 +1536,64 @@ async function loadStaff() {
 
 
 // ============ MEDIA DETAIL ============
+// Fetches list entries from people you follow who have this anime, then
+// renders a horizontal row of their avatars above the Genres section.
+// Signed-in only — `isFollowing: true` needs auth to know who "you" are.
+async function loadDetailFriends(mediaId) {
+  const section = document.getElementById('detail-friends');
+  if (!section) return;
+  const q = `query ($mediaId: Int) {
+    Page(page: 1, perPage: 30) {
+      mediaList(mediaId: $mediaId, isFollowing: true, sort: UPDATED_TIME_DESC) {
+        userId status score progress
+        user { id name avatar { medium large } }
+      }
+    }
+  }`;
+  let entries;
+  try {
+    const data = await anilist(q, { mediaId });
+    entries = data?.Page?.mediaList || [];
+  } catch (e) {
+    return; // silently fail — this is a nice-to-have, not core content
+  }
+  // Bail if the user opened a different anime while we were fetching
+  if (!currentMedia || currentMedia.id !== mediaId) return;
+  if (!entries.length) return; // leave section hidden
+
+  const STATUS_TITLES = {
+    CURRENT: 'Watching', PLANNING: 'Planning', COMPLETED: 'Completed',
+    PAUSED: 'Paused', DROPPED: 'Dropped', REPEATING: 'Rewatching',
+  };
+  const avatars = entries
+    .filter(e => e?.user?.id && e?.user?.name)
+    .map((e) => {
+      const src = e.user.avatar?.medium || e.user.avatar?.large || '';
+      const status = e.status || '';
+      const title = `${e.user.name} · ${STATUS_TITLES[status] || 'On list'}${e.score ? ` · ${e.score}★` : ''}`;
+      return `
+        <div class="friend-avatar user-tap" data-user-id="${e.user.id}" data-user-name="${escapeHtml(e.user.name)}" data-status="${escapeHtml(status)}" title="${escapeHtml(title)}">
+          <div class="friend-avatar-img" style="background-image:url('${src}');"></div>
+          <div class="friend-avatar-name">${escapeHtml(e.user.name)}</div>
+        </div>`;
+    }).join('');
+
+  section.innerHTML = `
+    <h4>Friends</h4>
+    <div class="friends-avatars">${avatars}</div>
+  `;
+  section.hidden = false;
+
+  section.querySelectorAll('.user-tap').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const uid = parseInt(el.dataset.userId, 10);
+      const uname = el.dataset.userName;
+      if (uid > 0 && uname) openUser(uid, uname);
+    });
+  });
+}
+
 async function openMedia(id) {
   // Tapping a card inside Studio / Character / Staff / Genre / Category
   // would otherwise just update the detail overlay underneath — invisible
@@ -1618,6 +1692,7 @@ async function openMedia(id) {
       })()}
       <button class="btn-secondary" id="detail-share-btn" data-share-id="${m.id}" data-share-title="${escapeHtml(titleText || 'this anime')}">Share</button>
     </div>
+    <div class="detail-section friends-section" id="detail-friends" hidden></div>
     ${m.genres?.length ? `
       <div class="detail-section">
         <h4>Genres</h4>
@@ -1674,6 +1749,11 @@ async function openMedia(id) {
 
   // Wire trailer click → swap thumbnail for actual iframe player
   wireTrailerFrame(body);
+
+  // Fire the friends-watching lookup in the background so the main render
+  // isn't blocked on it. Only signed-in users get meaningful results —
+  // AniList's isFollowing filter needs a token to know who "you" are.
+  if (state.user) loadDetailFriends(m.id);
 
   // Wire the cover art → fullscreen lightbox with the biggest available image
   const coverEl = body.querySelector('.detail-cover');
