@@ -978,6 +978,36 @@
 .genre-pill:hover { filter: brightness(1.15); }
 .genre-pill:active { transform: scale(0.96); }
 
+/* Streaming service links — each button uses the service's brand color as an
+   accent stripe on the left. Falls back to the app accent when AniList
+   doesn't ship a color for the entry. */
+.stream-row {
+  display: flex; flex-wrap: wrap; gap: 8px;
+}
+.stream-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 12px 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--stream-color, var(--accent));
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 13px; font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.stream-btn:hover { background: var(--surface-2); }
+.stream-btn:active { transform: scale(0.97); }
+.stream-btn .stream-icon {
+  width: 18px; height: 18px;
+  border-radius: 4px;
+  object-fit: contain;
+  background: rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+[data-theme="light"] .stream-btn .stream-icon { background: rgba(0, 0, 0, 0.04); }
+
 /* The Studio pill is rendered with .genre-pill but deserves more presence */
 .genre-pill.studio-pill {
   padding: 8px 16px;

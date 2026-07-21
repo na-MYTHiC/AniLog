@@ -260,6 +260,36 @@ function closeLightbox() {
 })();
 
 // ============ TRAILER ============
+// AniList's externalLinks includes STREAMING, INFO, and SOCIAL entries.
+// Only surface STREAMING here — the user asked for "click to pull the show
+// up" and INFO/SOCIAL links (Twitter, official site, AniDB) aren't that.
+// De-dupe by site so a service listed twice (Crunchyroll for sub + dub)
+// doesn't produce two identical buttons.
+function renderStreamingSection(links) {
+  const streaming = (links || []).filter((l) => l && l.type === 'STREAMING' && l.url);
+  if (streaming.length === 0) return '';
+  const seen = new Set();
+  const unique = streaming.filter((l) => {
+    const key = (l.site || l.url).toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const buttons = unique.map((l) => {
+    const site = escapeHtml(l.site || 'Watch');
+    const color = l.color && /^#[0-9a-fA-F]{3,8}$/.test(l.color) ? l.color : '';
+    const icon = l.icon ? `<img class="stream-icon" src="${escapeHtml(l.icon)}" alt="" loading="lazy" onerror="this.style.display='none'"/>` : '';
+    const style = color ? ` style="--stream-color: ${color};"` : '';
+    return `<a class="stream-btn" href="${escapeHtml(l.url)}" target="_blank" rel="noopener noreferrer"${style}>${icon}<span>${site}</span></a>`;
+  }).join('');
+  return `
+    <div class="detail-section">
+      <h4>Watch on</h4>
+      <div class="stream-row">${buttons}</div>
+    </div>
+  `;
+}
+
 // AniList returns one trailer per show with { id, site, thumbnail }. site is
 // typically "youtube" (most common) or "dailymotion". Render a clickable
 // thumbnail; tapping it loads the actual iframe (lazy-load keeps the page
@@ -1731,6 +1761,7 @@ async function openMedia(id) {
         </div>
       </div>
     ` : ''}
+    ${renderStreamingSection(m.externalLinks)}
     ${renderTrailerSection(m.trailer)}
   `;
 

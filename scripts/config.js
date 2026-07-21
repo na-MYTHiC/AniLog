@@ -57,6 +57,7 @@ const MEDIA_DETAIL_FRAGMENT = `
   genres
   type
   trailer { id site thumbnail }
+  externalLinks { id url site icon color type language }
   mediaListEntry { id status score progress }
   studios(isMain: true) { nodes { id name } }
   characters(sort: ROLE, perPage: 12) {
