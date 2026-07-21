@@ -261,12 +261,37 @@ function closeLightbox() {
 
 // ============ TRAILER ============
 // AniList's externalLinks includes STREAMING, INFO, and SOCIAL entries.
-// Only surface STREAMING here — the user asked for "click to pull the show
-// up" and INFO/SOCIAL links (Twitter, official site, AniDB) aren't that.
-// De-dupe by site so a service listed twice (Crunchyroll for sub + dub)
-// doesn't produce two identical buttons.
+// We only surface STREAMING here — INFO/SOCIAL links (Twitter, official
+// site, AniDB) aren't "watch it here" links. Additionally we whitelist to
+// services that legally stream anime in the US: shows also list Wakanim
+// (EU), Bilibili (Asia), ADN (France), etc. that would 404 or block a US
+// visitor. De-dupe by service so Crunchyroll sub + dub only shows once.
+const US_STREAMING_SITES = new Set([
+  'crunchyroll',
+  'netflix',
+  'hulu',
+  'amazon prime video',
+  'amazon',
+  'prime video',
+  'disney plus',
+  'disney+',
+  'hidive',
+  'max',
+  'hbo max',
+  'tubi',
+  'apple tv',
+  'apple tv+',
+  'peacock',
+  'youtube',
+  'retrocrush',
+  'midnight pulp',
+]);
 function renderStreamingSection(links) {
-  const streaming = (links || []).filter((l) => l && l.type === 'STREAMING' && l.url);
+  const streaming = (links || []).filter((l) => {
+    if (!l || l.type !== 'STREAMING' || !l.url) return false;
+    const key = (l.site || '').toLowerCase().trim();
+    return US_STREAMING_SITES.has(key);
+  });
   if (streaming.length === 0) return '';
   const seen = new Set();
   const unique = streaming.filter((l) => {
