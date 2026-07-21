@@ -282,9 +282,6 @@ const US_STREAMING_SITES = new Set([
   'apple tv',
   'apple tv+',
   'peacock',
-  'youtube',
-  'retrocrush',
-  'midnight pulp',
 ]);
 function renderStreamingSection(links) {
   const streaming = (links || []).filter((l) => {
