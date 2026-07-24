@@ -133,13 +133,18 @@ const LIST_STATUS_OPTIONS = [
   { value: 'REPEATING', label: 'Rewatching' },
   { value: 'ALL',       label: 'All' },
 ];
-// AniList's MediaListSort enum values
+// AniList's MediaListSort enum values, plus one local sentinel.
+// SCORE_DESC in MediaListSort means the VIEWER'S personal score, not the
+// AniList community average — since users expect "Score" to reflect the
+// AniList rating, we use a sentinel here and translate it in loadMyList /
+// loadUserList (fetch by a real sort, then re-sort client-side by
+// media.averageScore).
 const LIST_SORT_OPTIONS = [
-  { value: 'SCORE_DESC',            label: 'Score' },
-  { value: 'MEDIA_TITLE_ROMAJI',    label: 'Title' },
-  { value: 'PROGRESS_DESC',         label: 'Progress' },
-  { value: 'UPDATED_TIME_DESC',     label: 'Last Updated' },
-  { value: 'STARTED_ON_DESC',       label: 'Date Started' },
-  { value: 'MEDIA_POPULARITY_DESC', label: 'Popularity' },
-  { value: 'ADDED_TIME_DESC',       label: 'Recently Added' },
+  { value: 'MEDIA_AVERAGE_SCORE_DESC', label: 'Score' },
+  { value: 'MEDIA_TITLE_ROMAJI',       label: 'Title' },
+  { value: 'PROGRESS_DESC',            label: 'Progress' },
+  { value: 'UPDATED_TIME_DESC',        label: 'Last Updated' },
+  { value: 'STARTED_ON_DESC',          label: 'Date Started' },
+  { value: 'MEDIA_POPULARITY_DESC',    label: 'Popularity' },
+  { value: 'ADDED_TIME_DESC',          label: 'Recently Added' },
 ];

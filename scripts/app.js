@@ -74,7 +74,7 @@ let userProfileState = {
   id: null,
   name: '',
   status: 'CURRENT',
-  sort: 'SCORE_DESC',
+  sort: 'MEDIA_AVERAGE_SCORE_DESC',
   reqId: 0,
 };
 
@@ -82,7 +82,7 @@ async function openUser(userId, userName) {
   userProfileState.id = userId;
   userProfileState.name = userName;
   userProfileState.status = 'CURRENT';
-  userProfileState.sort = 'SCORE_DESC';
+  userProfileState.sort = 'MEDIA_AVERAGE_SCORE_DESC';
   const body = document.getElementById('user-body');
   document.getElementById('user-title').textContent = userName;
   document.getElementById('user-overlay').classList.add('visible');
@@ -199,13 +199,18 @@ async function loadUserList() {
           lists { entries { id status score progress media { ${mediaShape} } } }
         }
       }`;
+  const isClientScoreSort = userProfileState.sort === 'MEDIA_AVERAGE_SCORE_DESC';
+  const apiSort = isClientScoreSort ? 'UPDATED_TIME_DESC' : userProfileState.sort;
   const vars = isAll
-    ? { userId: userProfileState.id, sort: [userProfileState.sort] }
-    : { userId: userProfileState.id, status: userProfileState.status, sort: [userProfileState.sort] };
+    ? { userId: userProfileState.id, sort: [apiSort] }
+    : { userId: userProfileState.id, status: userProfileState.status, sort: [apiSort] };
 
   const data = await anilist(q, vars);
   if (myReq !== userProfileState.reqId) return;
-  const entries = (data?.MediaListCollection?.lists || []).flatMap(l => l.entries || []);
+  let entries = (data?.MediaListCollection?.lists || []).flatMap(l => l.entries || []);
+  if (isClientScoreSort) {
+    entries = entries.slice().sort((a, b) => (b.media?.averageScore || 0) - (a.media?.averageScore || 0));
+  }
   if (!entries.length) {
     rows.innerHTML = `<div class="user-list-empty">
       ${escapeHtml(userProfileState.name)}'s <strong>${escapeHtml(listStatusLabel(userProfileState.status))}</strong> list is empty.
@@ -990,13 +995,20 @@ async function loadMyList() {
         }
       }`;
 
+  // MEDIA_AVERAGE_SCORE_DESC is our sentinel — swap in a real MediaListSort
+  // for the API call, then re-sort client-side by community score below.
+  const isClientScoreSort = state.listSort === 'MEDIA_AVERAGE_SCORE_DESC';
+  const apiSort = isClientScoreSort ? 'UPDATED_TIME_DESC' : state.listSort;
   const vars = isAll
-    ? { userId: state.user.id, sort: [state.listSort] }
-    : { userId: state.user.id, status: state.listStatus, sort: [state.listSort] };
+    ? { userId: state.user.id, sort: [apiSort] }
+    : { userId: state.user.id, status: state.listStatus, sort: [apiSort] };
 
   const data = await anilist(q, vars);
   if (myListReqId !== myReq) return;
-  const entries = (data?.MediaListCollection?.lists || []).flatMap(l => l.entries || []);
+  let entries = (data?.MediaListCollection?.lists || []).flatMap(l => l.entries || []);
+  if (isClientScoreSort) {
+    entries = entries.slice().sort((a, b) => (b.media?.averageScore || 0) - (a.media?.averageScore || 0));
+  }
   if (entries.length === 0) {
     grid.innerHTML = `<div class="no-results" style="padding: 50px 20px;">
       Your <strong>${escapeHtml(listStatusLabel(state.listStatus))}</strong> list is empty.

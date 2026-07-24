@@ -43,7 +43,7 @@ const state = {
   preferEnglish: true,
   strictRelations: true,
   listStatus: 'CURRENT',
-  listSort: 'SCORE_DESC',
+  listSort: 'MEDIA_AVERAGE_SCORE_DESC',
   recentSearches: [],
   accessToken: null,
   user: null,
@@ -111,6 +111,11 @@ let pendingOAuthError = null;
 try {
   const saved = JSON.parse(localStorage.getItem('anilog-prefs') || '{}');
   Object.assign(state, saved);
+  // Migration: the "Score" list sort used to be SCORE_DESC (user's personal
+  // score, per AniList's MediaListSort). We now sort by community score via
+  // a client-side sentinel. Upgrade any existing pref so users don't stay
+  // stuck on personal-score ordering.
+  if (state.listSort === 'SCORE_DESC') state.listSort = 'MEDIA_AVERAGE_SCORE_DESC';
   // Backward compat: prefs stored before the preset-only theme picker had
   // a themeId of 'custom'. Snap any legacy custom to Iris so we always
   // resolve to one of the 10 presets.
