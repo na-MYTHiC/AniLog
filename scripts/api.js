@@ -22,7 +22,7 @@ const inflight = new Map();
 // Survives PWA cold-starts so the user sees content instantly the next time
 // they open the app. Capped so we never run out of localStorage quota.
 const PERSIST_KEY = 'anilog-cache-v1';
-const PERSIST_CAP = 60; // most recently used keys are persisted
+const PERSIST_CAP = 120; // most recently used keys are persisted
 
 // Pull what we cached last session into memory at boot
 (function hydrateCache() {

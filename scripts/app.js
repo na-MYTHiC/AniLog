@@ -1019,6 +1019,12 @@ async function loadMyList() {
     Array.from(grid.children).forEach((wrap, i) => {
       if (entries[i]) attachListRowHandlers(wrap, entries[i]);
     });
+    // Warm the top few rows — tapping a top-of-list show is the most
+    // common action from Home, and touch has no hover to trigger the
+    // usual prefetch path. Fires on idle so it never delays the render.
+    _idle(() => {
+      entries.slice(0, 4).forEach((e) => e?.media?.id && prefetchMedia(e.media.id));
+    });
   }
 }
 
@@ -2348,8 +2354,23 @@ function wireNotifOverlay(body, items) {
 // and renders instantly. Cheap idempotent op — the Set dedupes so we
 // don't spam the API on desktop as the mouse moves across a grid.
 const _prefetchedMediaIds = new Set();
+// Respect the browser's Save-Data hint (Android Data Saver, some carriers,
+// low-battery mode). If the user's actively conserving bandwidth we skip
+// speculative prefetches — the click still works, it just takes the normal
+// path instead of arriving warm.
+function _prefetchAllowed() {
+  const c = navigator.connection;
+  return !c || !c.saveData;
+}
+// Hoisted wrapper around requestIdleCallback with a setTimeout fallback for
+// (older) Safari. Function declaration so callers earlier in the file can
+// reference it during boot before any const at file bottom would be reached.
+function _idle(cb, opts) {
+  if (typeof requestIdleCallback === 'function') return requestIdleCallback(cb, opts || { timeout: 2000 });
+  return setTimeout(cb, 500);
+}
 function prefetchMedia(id) {
-  if (!id || _prefetchedMediaIds.has(id)) return;
+  if (!id || _prefetchedMediaIds.has(id) || !_prefetchAllowed()) return;
   _prefetchedMediaIds.add(id);
   const q = `query ($id: Int) { Media(id: $id) { ${MEDIA_DETAIL_FRAGMENT} } }`;
   anilist(q, { id }).catch(() => {});
@@ -2386,3 +2407,17 @@ if (state.accessToken) {
 // calls this too (see api.js), but calling here handles the signed-out case
 // on cold boot cleanly.
 initNotifications();
+
+// ============ IDLE PRELOAD ============
+// After boot settles, silently warm the Seasonal tab (the most-visited
+// second destination). loadSeasonal() renders into the hidden tab
+// container — display:none skips layout & paint so the only cost is the
+// JS work of building the HTML string, which is fractional-millisecond
+// stuff on any modern phone. Tab switch is then instant on first press.
+// Skips if Save-Data is on (no speculative bandwidth) or if the user
+// already landed on the Seasonal tab as their entry point.
+_idle(() => {
+  if (state.activeTab === 'seasonal') return;
+  if (!_prefetchAllowed()) return;
+  try { loadSeasonal(); } catch (e) {}
+}, { timeout: 2000 });
