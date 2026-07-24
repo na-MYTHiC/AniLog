@@ -64,9 +64,15 @@
       </svg>
       <div class="logo">AniLog</div>
     </div>
-    <button class="topbar-action hidden" id="topbar-action" aria-label="Action">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 4H8M21 12H8M21 20H8M4 4h.01M4 12h.01M4 20h.01"/></svg>
-    </button>
+    <div class="topbar-right">
+      <button class="topbar-action notif-bell hidden" id="notif-bell" aria-label="Notifications" onclick="openNotifications()">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span class="notif-count-badge" id="notif-count-badge" hidden>0</span>
+      </button>
+      <button class="topbar-action hidden" id="topbar-action" aria-label="Action">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 4H8M21 12H8M21 20H8M4 4h.01M4 12h.01M4 20h.01"/></svg>
+      </button>
+    </div>
   </header>
 
   <main class="content" id="content">
@@ -351,7 +357,7 @@
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v4.11 · Powered by AniList
+        AniLog · v4.12 · Powered by AniList
       </div>
     </section>
 
@@ -582,6 +588,16 @@
 
 <!-- User profile overlay — opens from Social when tapping a username / avatar.
      Shows their profile card + a status-filtered list view (like Home). -->
+<div class="overlay" id="notif-overlay" style="z-index: 105;">
+  <header class="overlay-header">
+    <button class="back-btn" onclick="closeOverlay('notif-overlay')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    </button>
+    <div class="overlay-title">Notifications</div>
+  </header>
+  <div class="overlay-body" id="notif-body"></div>
+</div>
+
 <div class="overlay" id="user-overlay" style="z-index: 104;">
   <header class="overlay-header">
     <button class="back-btn" onclick="closeOverlay('user-overlay')">

@@ -285,5 +285,7 @@ async function fetchViewer() {
     // Always populate the home list — the grid sits inside the home tab whether
     // it's visible or not, so when the user reaches home it's already ready.
     loadMyList();
+    // Show the notification bell + start polling for unread count.
+    if (typeof initNotifications === 'function') initNotifications();
   }
 }

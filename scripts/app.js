@@ -2088,9 +2088,264 @@ document.querySelectorAll('.seg[data-notif]').forEach(seg => {
   });
 });
 
-// Boot — always run switchTab so state.activeTab + DOM stay in sync regardless of localStorage
+// ============ NOTIFICATIONS ============
+// AniList exposes Viewer.unreadNotificationCount for the badge and
+// Page.notifications for the list. We poll the count every 90 seconds while
+// the tab is visible, refresh the full list on overlay open, and (if the
+// user grants permission) fire OS-level notifications for new items using
+// the browser's Notification API. Real background push would require a
+// backend and VAPID keys we don't have — this delivers ~90% of that value
+// as long as the app is open in a tab or as an installed PWA.
+
+let notifState = { unread: 0, pollTimer: null, shownIds: null };
+// AniList resets its server-side unread count when we open the overlay, so
+// we snapshot the pre-reset count to decide which rows to render as unread.
+let notifUnreadCutoff = 0;
+
+function loadShownNotifIds() {
+  try {
+    const raw = localStorage.getItem('anilog-shown-notif-ids');
+    const arr = raw ? JSON.parse(raw) : [];
+    notifState.shownIds = new Set(arr.slice(-200));
+  } catch (e) { notifState.shownIds = new Set(); }
+}
+function saveShownNotifIds() {
+  try {
+    localStorage.setItem(
+      'anilog-shown-notif-ids',
+      JSON.stringify(Array.from(notifState.shownIds).slice(-200))
+    );
+  } catch (e) {}
+}
+
+function setNotifBadge(n) {
+  notifState.unread = n;
+  const badge = document.getElementById('notif-count-badge');
+  if (!badge) return;
+  if (n > 0) {
+    badge.textContent = n > 99 ? '99+' : String(n);
+    badge.hidden = false;
+  } else {
+    badge.hidden = true;
+  }
+}
+
+async function initNotifications() {
+  const bell = document.getElementById('notif-bell');
+  if (!bell) return;
+  if (!state.user) {
+    bell.classList.add('hidden');
+    stopNotifPolling();
+    setNotifBadge(0);
+    return;
+  }
+  bell.classList.remove('hidden');
+  if (!notifState.shownIds) loadShownNotifIds();
+  try { await refreshUnreadCount(); } catch (e) {}
+  startNotifPolling();
+}
+
+function startNotifPolling() {
+  if (notifState.pollTimer) return;
+  notifState.pollTimer = setInterval(() => {
+    if (document.visibilityState === 'visible' && state.user) {
+      refreshUnreadCount().catch(() => {});
+    }
+  }, 90 * 1000);
+}
+function stopNotifPolling() {
+  if (notifState.pollTimer) {
+    clearInterval(notifState.pollTimer);
+    notifState.pollTimer = null;
+  }
+}
+
+async function refreshUnreadCount() {
+  const q = `query { Viewer { unreadNotificationCount } }`;
+  const data = await anilist(q);
+  const prev = notifState.unread;
+  const now = data?.Viewer?.unreadNotificationCount || 0;
+  setNotifBadge(now);
+  if (now > prev && 'Notification' in window && Notification.permission === 'granted') {
+    fetchAndSurfaceNewNotifs().catch(() => {});
+  }
+}
+
+async function fetchAndSurfaceNewNotifs() {
+  const items = await fetchNotifications(false);
+  const fresh = items.filter((n) => n && n.id && !notifState.shownIds.has(n.id));
+  for (const n of fresh.slice(0, 5)) {
+    try {
+      const { title, body, icon, tag } = notifOsPayload(n);
+      const osNotif = new Notification(title, { body, icon, tag });
+      osNotif.onclick = () => { window.focus(); handleNotifTap(n); osNotif.close(); };
+    } catch (e) {}
+    notifState.shownIds.add(n.id);
+  }
+  saveShownNotifIds();
+}
+
+const NOTIF_QUERY_BODY = `
+  ... on AiringNotification { id type createdAt episode contexts media { id title { userPreferred english romaji } coverImage { large } } }
+  ... on FollowingNotification { id type createdAt context user { id name avatar { large } } }
+  ... on ActivityLikeNotification { id type createdAt context user { id name avatar { large } } activityId }
+  ... on ActivityReplyNotification { id type createdAt context user { id name avatar { large } } activityId }
+  ... on ActivityMentionNotification { id type createdAt context user { id name avatar { large } } activityId }
+  ... on ActivityMessageNotification { id type createdAt context user { id name avatar { large } } activityId }
+  ... on ActivityReplyLikeNotification { id type createdAt context user { id name avatar { large } } activityId }
+  ... on ActivityReplySubscribedNotification { id type createdAt context user { id name avatar { large } } activityId }
+  ... on RelatedMediaAdditionNotification { id type createdAt context media { id title { userPreferred english romaji } coverImage { large } } }
+  ... on MediaDataChangeNotification { id type createdAt context media { id title { userPreferred english romaji } coverImage { large } } }
+`;
+
+async function fetchNotifications(reset) {
+  const q = `query ($reset: Boolean) {
+    Page(page: 1, perPage: 25) {
+      notifications(resetNotificationCount: $reset) {
+        __typename
+        ${NOTIF_QUERY_BODY}
+      }
+    }
+  }`;
+  const data = await anilist(q, { reset: !!reset });
+  return data?.Page?.notifications || [];
+}
+
+async function openNotifications() {
+  const overlay = document.getElementById('notif-overlay');
+  const body = document.getElementById('notif-body');
+  if (!overlay || !body) return;
+  notifUnreadCutoff = notifState.unread;
+  overlay.classList.add('visible');
+  body.innerHTML = `<div style="padding: 40px 20px; text-align:center; color:var(--text-dim);">Loading…</div>`;
+  try {
+    const items = await fetchNotifications(true);
+    setNotifBadge(0);
+    // Mark every returned item as "seen" so the OS layer doesn't fire again
+    // for items the user just visually reviewed.
+    if (!notifState.shownIds) loadShownNotifIds();
+    items.forEach((n) => n?.id && notifState.shownIds.add(n.id));
+    saveShownNotifIds();
+    body.innerHTML = renderNotifOverlay(items);
+    wireNotifOverlay(body, items);
+  } catch (e) {
+    body.innerHTML = `<div class="notif-empty">Couldn't load notifications.</div>`;
+  }
+}
+window.openNotifications = openNotifications;
+
+function renderNotifOverlay(items) {
+  const canPrompt = ('Notification' in window) && Notification.permission === 'default';
+  const prompt = canPrompt
+    ? `<div class="notif-perm-prompt">
+         Get an alert when new episodes air.
+         <button id="notif-perm-btn">Enable</button>
+       </div>`
+    : '';
+  if (!items.length) {
+    return prompt + `<div class="notif-empty">You're all caught up.</div>`;
+  }
+  const rows = items.map((n, i) => renderNotifRow(n, i)).join('');
+  return prompt + `<div class="notif-list">${rows}</div>`;
+}
+
+function renderNotifRow(n, idx) {
+  const unread = idx < notifUnreadCutoff ? ' unread' : '';
+  const { text, avatar, cover, timeText } = notifRowContent(n);
+  const thumb = cover
+    ? `<div class="notif-cover" style="background-image:url('${cover}');"></div>`
+    : `<div class="notif-avatar" style="background-image:url('${avatar || ''}');"></div>`;
+  return `<div class="notif-item${unread}" data-notif-index="${idx}">
+    ${thumb}
+    <div class="notif-body-col">
+      <div class="notif-text">${text}</div>
+      <div class="notif-time">${escapeHtml(timeText)}</div>
+    </div>
+    <div class="notif-dot"></div>
+  </div>`;
+}
+
+function notifRowContent(n) {
+  const timeText = formatRelativeTime(n.createdAt);
+  const media = n.media;
+  const user = n.user;
+  const title = media ? escapeHtml(pickTitle(media.title) || 'Unknown') : '';
+  const uname = user ? escapeHtml(user.name) : '';
+  switch (n.__typename || n.type) {
+    case 'AiringNotification':
+      return {
+        text: `Episode <strong>${n.episode}</strong> of <strong>${title}</strong> aired.`,
+        cover: media?.coverImage?.large,
+        timeText,
+      };
+    case 'RelatedMediaAdditionNotification':
+      return { text: `<strong>${title}</strong> was added to AniList.`, cover: media?.coverImage?.large, timeText };
+    case 'MediaDataChangeNotification':
+      return { text: `Details updated for <strong>${title}</strong>.`, cover: media?.coverImage?.large, timeText };
+    case 'FollowingNotification':
+      return { text: `<strong>${uname}</strong> ${escapeHtml(n.context || 'followed you')}`, avatar: user?.avatar?.large, timeText };
+    case 'ActivityLikeNotification':
+    case 'ActivityReplyLikeNotification':
+      return { text: `<strong>${uname}</strong> liked your activity.`, avatar: user?.avatar?.large, timeText };
+    case 'ActivityReplyNotification':
+    case 'ActivityReplySubscribedNotification':
+      return { text: `<strong>${uname}</strong> replied to your activity.`, avatar: user?.avatar?.large, timeText };
+    case 'ActivityMentionNotification':
+      return { text: `<strong>${uname}</strong> mentioned you.`, avatar: user?.avatar?.large, timeText };
+    case 'ActivityMessageNotification':
+      return { text: `<strong>${uname}</strong> sent you a message.`, avatar: user?.avatar?.large, timeText };
+    default:
+      return { text: `New AniList notification.`, timeText };
+  }
+}
+
+function notifOsPayload(n) {
+  const { text } = notifRowContent(n);
+  const strip = text.replace(/<[^>]+>/g, '');
+  return {
+    title: 'AniLog',
+    body: strip,
+    icon: n.media?.coverImage?.large || n.user?.avatar?.large || 'icon-192.png',
+    tag: `anilog-${n.id}`,
+  };
+}
+
+function handleNotifTap(n) {
+  closeOverlay('notif-overlay');
+  if (n.media?.id) return openMedia(n.media.id);
+  if (n.user?.id && n.user?.name) return openUser(n.user.id, n.user.name);
+}
+
+function wireNotifOverlay(body, items) {
+  body.querySelectorAll('.notif-item').forEach((el) => {
+    el.addEventListener('click', () => {
+      const idx = parseInt(el.dataset.notifIndex, 10);
+      const n = items[idx];
+      if (n) handleNotifTap(n);
+    });
+  });
+  const permBtn = body.querySelector('#notif-perm-btn');
+  if (permBtn) {
+    permBtn.addEventListener('click', async () => {
+      try {
+        const p = await Notification.requestPermission();
+        if (p === 'granted') {
+          const wrap = permBtn.closest('.notif-perm-prompt');
+          if (wrap) wrap.remove();
+          if (typeof toast === 'function') toast('Notifications enabled');
+        }
+      } catch (e) {}
+    });
+  }
+}
+
+// ============ BOOT ============
 switchTab(state.landing || 'home');
 updateAuthUI();
 if (state.accessToken) {
   fetchViewer();
 }
+// Also fires when fetchViewer resolves and toggles state.user — updateAuthUI
+// calls this too (see api.js), but calling here handles the signed-out case
+// on cold boot cleanly.
+initNotifications();

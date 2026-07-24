@@ -80,13 +80,101 @@
   flex-shrink: 0;
 }
 
+.topbar-right {
+  display: flex; align-items: center; gap: 4px;
+}
 .topbar-action {
   background: none; border: none; color: var(--text);
   padding: 8px; border-radius: 8px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
+  position: relative;
 }
 .topbar-action:hover { background: var(--surface-2); }
 .topbar-action.hidden { visibility: hidden; }
+
+/* Bell badge — small pill anchored to the top-right of the bell icon */
+.notif-count-badge {
+  position: absolute;
+  top: 3px; right: 3px;
+  min-width: 16px; height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px; font-weight: 700;
+  line-height: 16px; text-align: center;
+  pointer-events: none;
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+/* Notifications list */
+.notif-list { padding: 8px 0 24px; }
+.notif-empty {
+  padding: 60px 30px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+.notif-item {
+  display: flex; gap: 12px;
+  padding: 12px 20px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s ease;
+  align-items: center;
+}
+.notif-item:hover { background: var(--surface); }
+.notif-item.unread { background: var(--accent-soft); }
+.notif-item.unread:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.notif-avatar {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: var(--surface-2) center/cover no-repeat;
+  flex-shrink: 0;
+}
+.notif-cover {
+  width: 40px; height: 56px;
+  border-radius: 6px;
+  background: var(--surface-2) center/cover no-repeat;
+  flex-shrink: 0;
+}
+.notif-body-col { flex: 1; min-width: 0; }
+.notif-text {
+  font-size: 13.5px;
+  color: var(--text);
+  line-height: 1.4;
+}
+.notif-text strong { font-weight: 700; }
+.notif-time {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.notif-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  visibility: hidden;
+}
+.notif-item.unread .notif-dot { visibility: visible; }
+
+/* Permission-prompt row at the top of the notifications overlay */
+.notif-perm-prompt {
+  margin: 8px 20px 12px;
+  padding: 12px 14px;
+  background: var(--accent-soft);
+  border-radius: 10px;
+  font-size: 12.5px;
+  color: var(--text);
+  display: flex; gap: 10px; align-items: center;
+}
+.notif-perm-prompt button {
+  margin-left: auto;
+  background: var(--accent); color: var(--accent-on);
+  border: none; padding: 6px 12px; border-radius: 8px;
+  font-size: 12px; font-weight: 700; cursor: pointer;
+}
 
 .content {
   flex: 1;
