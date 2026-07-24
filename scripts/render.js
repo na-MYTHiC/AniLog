@@ -214,7 +214,7 @@ function renderCard(m) {
   const count = m.episodes ? ` · ${m.episodes} ep` : '';
   const meta = m.format ? `<div class="card-meta">${m.format.replace(/_/g, ' ')}${count}</div>` : '';
   return `
-    <div class="card" onclick="openMedia(${m.id})">
+    <div class="card" data-media-id="${m.id}" onclick="openMedia(${m.id})">
       <div class="card-image" style="background-image:url('${m.coverImage?.large || ''}'); background-color:${m.coverImage?.color || 'var(--surface-2)'};">
         ${score}
       </div>
@@ -326,7 +326,7 @@ function renderRelationCard(edge) {
   const count = m.episodes ? ` · ${m.episodes} ep` : '';
   const meta = m.format ? `<div class="card-meta">${m.format.replace(/_/g, ' ')}${count}</div>` : '';
   return `
-    <div class="card" onclick="openMedia(${m.id})">
+    <div class="card" data-media-id="${m.id}" onclick="openMedia(${m.id})">
       <div class="card-image" style="background-image:url('${m.coverImage?.large || ''}'); background-color:${m.coverImage?.color || 'var(--surface-2)'};">
         <div class="relation-tag">${escapeHtml(relationLabel)}</div>
       </div>

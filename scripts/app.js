@@ -2340,6 +2340,37 @@ function wireNotifOverlay(body, items) {
   }
 }
 
+// ============ HOVER / TOUCH PREFETCH ============
+// When the user's finger touches down or their mouse hovers over a card,
+// we fire the same media-detail query openMedia() will make. On modern
+// hardware that lands ~150–300ms before the click event, so by the time
+// the detail overlay opens the response is already in the anilist() cache
+// and renders instantly. Cheap idempotent op — the Set dedupes so we
+// don't spam the API on desktop as the mouse moves across a grid.
+const _prefetchedMediaIds = new Set();
+function prefetchMedia(id) {
+  if (!id || _prefetchedMediaIds.has(id)) return;
+  _prefetchedMediaIds.add(id);
+  const q = `query ($id: Int) { Media(id: $id) { ${MEDIA_DETAIL_FRAGMENT} } }`;
+  anilist(q, { id }).catch(() => {});
+}
+function _mediaIdFromEvent(e) {
+  const el = e.target?.closest?.('[data-media-id]');
+  if (!el) return 0;
+  return parseInt(el.dataset.mediaId, 10) || 0;
+}
+document.addEventListener('pointerdown', (e) => {
+  const id = _mediaIdFromEvent(e);
+  if (id) prefetchMedia(id);
+}, { passive: true });
+// pointerover handles desktop hover — pointerdown catches touch taps.
+// Together they give both platforms a head-start on the detail fetch.
+document.addEventListener('pointerover', (e) => {
+  if (e.pointerType !== 'mouse') return;
+  const id = _mediaIdFromEvent(e);
+  if (id) prefetchMedia(id);
+}, { passive: true });
+
 // ============ BOOT ============
 switchTab(state.landing || 'home');
 updateAuthUI();

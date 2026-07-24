@@ -231,6 +231,14 @@
   scroll-snap-align: start;
   cursor: pointer;
   transition: transform 0.2s ease;
+  /* Let the browser skip rendering offscreen cards entirely. Reserves the
+     card-height footprint so the scrollbar doesn't jump as items enter
+     and leave the viewport. `contain: layout style paint` keeps the card
+     as a self-contained painting unit so a hover doesn't invalidate the
+     rest of the grid. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--card-h);
+  contain: layout style paint;
 }
 .card:active { transform: scale(0.96); }
 
@@ -1743,6 +1751,12 @@
   overflow: hidden;
   border-bottom: 1px solid var(--border);
   background: var(--surface-2);
+  /* Long My List views (100+ shows) become jank-prone if every row lays
+     out on every scroll frame. content-visibility skips the offscreen
+     ones. Intrinsic height covers the standard row footprint. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 96px;
+  contain: layout style paint;
 }
 .list-row-action {
   position: absolute;
