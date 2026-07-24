@@ -156,4 +156,3 @@ let studioState    = { id: null, name: '', sort: 'POPULARITY_DESC' };
 let staffState     = { id: null, name: '', sort: 'FAVOURITES_DESC' };
 let editingEntry   = null;
 let editingMediaId = null;
-let homeReqId      = 0;

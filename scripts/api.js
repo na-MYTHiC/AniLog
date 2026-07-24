@@ -5,8 +5,11 @@
 
 // How long a cached response is considered fresh (network skipped). After
 // this we still keep the entry — if the network later fails, we'll serve
-// the stale copy rather than nothing.
-const CACHE_TTL_MS = 5 * 60 * 1000;
+// the stale copy rather than nothing. Stale-while-revalidate below means a
+// long TTL still shows the latest data on the NEXT paint (background
+// refresh fires as soon as the user opens the app), so we err on the long
+// side to keep the UI snappy.
+const CACHE_TTL_MS = 15 * 60 * 1000;
 // Hard request timeout — AniList sometimes just hangs.
 const REQUEST_TIMEOUT_MS = 12000;
 // Per-key fresh-until timestamps. cache[key] stays raw data so existing
@@ -261,7 +264,9 @@ function signOut() {
 window.signIn = signIn;
 window.signOut = signOut;
 
-// Fetch the signed-in viewer's profile + stats.
+// Fetch the signed-in viewer's profile + stats, plus the unread notification
+// count so the bell badge can render on the first paint without a second
+// round-trip.
 async function fetchViewer() {
   if (!state.accessToken) return;
   const q = `query {
@@ -269,6 +274,7 @@ async function fetchViewer() {
       id
       name
       avatar { large medium }
+      unreadNotificationCount
       statistics {
         anime {
           count
@@ -282,10 +288,9 @@ async function fetchViewer() {
   if (data?.Viewer) {
     state.user = data.Viewer;
     updateAuthUI();
-    // Always populate the home list — the grid sits inside the home tab whether
-    // it's visible or not, so when the user reaches home it's already ready.
+    // Home list + bell badge in parallel — both need state.user in place.
     loadMyList();
-    // Show the notification bell + start polling for unread count.
+    if (typeof setNotifBadge === 'function') setNotifBadge(data.Viewer.unreadNotificationCount || 0);
     if (typeof initNotifications === 'function') initNotifications();
   }
 }

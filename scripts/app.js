@@ -2141,7 +2141,8 @@ async function initNotifications() {
   }
   bell.classList.remove('hidden');
   if (!notifState.shownIds) loadShownNotifIds();
-  try { await refreshUnreadCount(); } catch (e) {}
+  // The badge was already set from fetchViewer's unreadNotificationCount —
+  // no need to re-request it here. The polling loop keeps it fresh.
   startNotifPolling();
 }
 
@@ -2343,6 +2344,11 @@ function wireNotifOverlay(body, items) {
 switchTab(state.landing || 'home');
 updateAuthUI();
 if (state.accessToken) {
+  // With a cached user in localStorage, we know our own userId and can
+  // start the list fetch immediately, in parallel with the Viewer refresh.
+  // anilist() dedupes the second loadMyList call inside fetchViewer via
+  // its in-flight/cache maps, so the double dispatch is free.
+  if (state.user?.id) loadMyList();
   fetchViewer();
 }
 // Also fires when fetchViewer resolves and toggles state.user — updateAuthUI
