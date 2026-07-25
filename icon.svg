@@ -1,20 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" aria-label="AniLog">
   <!-- Big viewBox so iOS rasterizes from a high-res source instead of upscaling
-       a tiny canvas. Solid filled polygons only — no strokes, no gradients —
-       so edges stay perfectly sharp through any rasterization. -->
+       a tiny canvas. No gradients, no opacity tricks — solid shapes only, which
+       survive Safari's lossy icon rasterization much better. -->
   <rect width="512" height="512" rx="112" fill="#1e1e28"/>
-
-  <!-- Interconnected A + L monogram:
-       - Left diagonal of the A is a constant-width stroke that fuses with
-         the vertical near the top (real letterform construction — the
-         overlap forms the peak, no separate miter math needed).
-       - The A's right leg IS the L's vertical stroke (shared geometry, one
-         hexagon) and its base extends right into the L's foot.
-       - The crossbar is two segments meeting a deliberate gap in the
-         middle — each one fused into its own leg, so it still reads as
-         "one crossbar," not a stray mark. -->
-  <polygon fill="white" points="65,411 231,87 281,113 115,437"/>
-  <polygon fill="white" points="228,88 284,88 284,368 420,368 420,424 228,424"/>
-  <polygon fill="white" points="150,318 195,318 195,362 150,362"/>
-  <polygon fill="white" points="210,318 228,318 228,362 210,362"/>
+  <rect x="112" y="148" width="288" height="40" rx="20" fill="white"/>
+  <rect x="112" y="236" width="224" height="40" rx="20" fill="white"/>
+  <rect x="112" y="324" width="160" height="40" rx="20" fill="white"/>
+  <circle cx="368" cy="344" r="22" fill="white"/>
 </svg>
