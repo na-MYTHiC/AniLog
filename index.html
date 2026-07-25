@@ -59,14 +59,15 @@
         <rect width="512" height="512" rx="112" fill="url(#lm-grad)"/>
         <rect width="512" height="280" rx="112" fill="url(#lm-shine)"/>
         <rect x="7" y="7" width="498" height="498" rx="105" stroke="white" stroke-opacity="0.18" stroke-width="14" fill="none"/>
-        <!-- A + L monogram — matches the home-screen icon so the mark is
-             consistent whether the user sees the topbar or the PWA icon. -->
-        <path d="M 108 380 L 196 108 L 284 380 M 140 268 L 252 268"
-              stroke="white" stroke-width="56"
-              stroke-linecap="butt" stroke-linejoin="round" fill="none"/>
-        <path d="M 336 108 L 336 380 L 452 380"
-              stroke="white" stroke-width="56"
-              stroke-linecap="butt" stroke-linejoin="round" fill="none"/>
+        <!-- AL monogram — filled triangular silhouette with the A's
+             interior negative-space cut out via evenodd. Right leg's
+             baseline extends into an L foot. Matches icon.svg exactly
+             so the mark is consistent across topbar + PWA icon. -->
+        <path fill="white" fill-rule="evenodd" d="
+          M 88 428 L 256 88 L 348 388 L 440 388 L 440 428 Z
+          M 256 200 L 218 292 L 294 292 Z
+          M 210 322 L 302 322 L 271 428 L 168 428 Z
+        "/>
       </svg>
       <div class="logo">AniLog</div>
     </div>
@@ -363,7 +364,7 @@
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v4.18 · Powered by AniList
+        AniLog · v4.19 · Powered by AniList
       </div>
     </section>
 

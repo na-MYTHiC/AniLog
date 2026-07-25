@@ -8,7 +8,7 @@
 #   powershell -File tools/gen-icons.ps1
 #
 # Writes icon-{76,120,152,167,180,192,512}.png in the repo root.
-# Tile color + letter geometry are kept in sync with icon.svg — update
+# Tile color + monogram geometry are kept in sync with icon.svg — update
 # both when tweaking.
 
 Add-Type -AssemblyName System.Drawing
@@ -51,33 +51,40 @@ foreach ($s in $sizes) {
   $tileBrush.Dispose()
   $tilePath.Dispose()
 
-  # AL monogram in white — stroke width 56 at 512 canvas, scaled per icon.
-  # Butt caps + round joins match the SVG rendering.
-  $pen = New-Object System.Drawing.Pen([System.Drawing.Color]::White, [single](56 * $scale))
-  $pen.StartCap = [System.Drawing.Drawing2D.LineCap]::Flat
-  $pen.EndCap   = [System.Drawing.Drawing2D.LineCap]::Flat
-  $pen.LineJoin = [System.Drawing.Drawing2D.LineJoin]::Round
+  # AL monogram — one GraphicsPath with three sub-polygons. Default fill
+  # mode (Alternate) is equivalent to SVG's evenodd, so the two inner
+  # polygons carve holes out of the outer.
+  $mono = New-Object System.Drawing.Drawing2D.GraphicsPath
 
-  # A — main outline (bottom-left → peak → bottom-right)
-  $aOuter = New-Object 'System.Drawing.PointF[]' 3
-  $aOuter[0] = New-PointF (108 * $scale) (380 * $scale)
-  $aOuter[1] = New-PointF (196 * $scale) (108 * $scale)
-  $aOuter[2] = New-PointF (284 * $scale) (380 * $scale)
-  $g.DrawLines($pen, $aOuter)
+  # Outer silhouette: A triangle + L-foot extension
+  $outer = New-Object 'System.Drawing.PointF[]' 5
+  $outer[0] = New-PointF ( 88 * $scale) (428 * $scale)
+  $outer[1] = New-PointF (256 * $scale) ( 88 * $scale)
+  $outer[2] = New-PointF (348 * $scale) (388 * $scale)
+  $outer[3] = New-PointF (440 * $scale) (388 * $scale)
+  $outer[4] = New-PointF (440 * $scale) (428 * $scale)
+  $mono.AddPolygon($outer)
 
-  # A — crossbar
-  $g.DrawLine($pen,
-    [single](140 * $scale), [single](268 * $scale),
-    [single](252 * $scale), [single](268 * $scale))
+  # Upper triangle cut — A's negative space above the crossbar
+  $tri = New-Object 'System.Drawing.PointF[]' 3
+  $tri[0] = New-PointF (256 * $scale) (200 * $scale)
+  $tri[1] = New-PointF (218 * $scale) (292 * $scale)
+  $tri[2] = New-PointF (294 * $scale) (292 * $scale)
+  $mono.AddPolygon($tri)
 
-  # L — vertical + baseline
-  $lPts = New-Object 'System.Drawing.PointF[]' 3
-  $lPts[0] = New-PointF (336 * $scale) (108 * $scale)
-  $lPts[1] = New-PointF (336 * $scale) (380 * $scale)
-  $lPts[2] = New-PointF (452 * $scale) (380 * $scale)
-  $g.DrawLines($pen, $lPts)
+  # Trapezoid cut — A's negative space below the crossbar, opens to base
+  $trap = New-Object 'System.Drawing.PointF[]' 4
+  $trap[0] = New-PointF (210 * $scale) (322 * $scale)
+  $trap[1] = New-PointF (302 * $scale) (322 * $scale)
+  $trap[2] = New-PointF (271 * $scale) (428 * $scale)
+  $trap[3] = New-PointF (168 * $scale) (428 * $scale)
+  $mono.AddPolygon($trap)
 
-  $pen.Dispose()
+  $whiteBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
+  $g.FillPath($whiteBrush, $mono)
+  $whiteBrush.Dispose()
+  $mono.Dispose()
+
   $g.Dispose()
   $out = Join-Path $root "icon-$s.png"
   $bmp.Save($out, [System.Drawing.Imaging.ImageFormat]::Png)

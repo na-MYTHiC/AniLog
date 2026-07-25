@@ -1,14 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" aria-label="AniLog">
-  <!-- Solid tile — no gradients or opacity so iOS home-screen rasterizer
-       has the cleanest possible source. -->
+  <!-- Solid tile — no gradients so iOS home-screen rasterizer has the
+       cleanest possible source. -->
   <rect width="512" height="512" rx="112" fill="#1e1e28"/>
-  <!-- A: two diagonals into a peak, plus a mid crossbar. Butt caps + round
-       joins give a bold geometric sans look that reads clearly even at 76px. -->
-  <path d="M 108 380 L 196 108 L 284 380 M 140 268 L 252 268"
-        stroke="white" stroke-width="56"
-        stroke-linecap="butt" stroke-linejoin="round" fill="none"/>
-  <!-- L: vertical stroke + baseline -->
-  <path d="M 336 108 L 336 380 L 452 380"
-        stroke="white" stroke-width="56"
-        stroke-linecap="butt" stroke-linejoin="round" fill="none"/>
+  <!-- AL monogram — one filled path with the letter negative-space cut
+       out via evenodd. Outer silhouette is a triangular A with the right
+       leg's baseline extending horizontally into an L foot. The two cuts
+       carve out the A's interior above and below the crossbar. -->
+  <path fill="white" fill-rule="evenodd" d="
+    M 88 428 L 256 88 L 348 388 L 440 388 L 440 428 Z
+    M 256 200 L 218 292 L 294 292 Z
+    M 210 322 L 302 322 L 271 428 L 168 428 Z
+  "/>
 </svg>
