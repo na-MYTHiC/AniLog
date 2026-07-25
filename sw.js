@@ -9,7 +9,7 @@
 //   - For everything else (AniList GraphQL, AniList images), bypass —
 //     we don't want stale data or 1+ GB of cover-image storage.
 
-const VERSION = 'anilog-v33';
+const VERSION = 'anilog-v34';
 const SHELL = [
   './',
   './index.html',

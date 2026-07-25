@@ -1,10 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" aria-label="AniLog">
-  <!-- Big viewBox so iOS rasterizes from a high-res source instead of upscaling
-       a tiny canvas. No gradients, no opacity tricks — solid shapes only, which
-       survive Safari's lossy icon rasterization much better. -->
+  <!-- Solid tile — no gradients or opacity so iOS home-screen rasterizer
+       has the cleanest possible source. -->
   <rect width="512" height="512" rx="112" fill="#1e1e28"/>
-  <rect x="112" y="148" width="288" height="40" rx="20" fill="white"/>
-  <rect x="112" y="236" width="224" height="40" rx="20" fill="white"/>
-  <rect x="112" y="324" width="160" height="40" rx="20" fill="white"/>
-  <circle cx="368" cy="344" r="22" fill="white"/>
+  <!-- A: two diagonals into a peak, plus a mid crossbar. Butt caps + round
+       joins give a bold geometric sans look that reads clearly even at 76px. -->
+  <path d="M 108 380 L 196 108 L 284 380 M 140 268 L 252 268"
+        stroke="white" stroke-width="56"
+        stroke-linecap="butt" stroke-linejoin="round" fill="none"/>
+  <!-- L: vertical stroke + baseline -->
+  <path d="M 336 108 L 336 380 L 452 380"
+        stroke="white" stroke-width="56"
+        stroke-linecap="butt" stroke-linejoin="round" fill="none"/>
 </svg>
