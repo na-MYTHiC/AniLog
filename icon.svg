@@ -2,7 +2,7 @@
   <!-- Big viewBox so iOS rasterizes from a high-res source instead of upscaling
        a tiny canvas. No gradients, no opacity tricks — solid shapes only, which
        survive Safari's lossy icon rasterization much better. -->
-  <rect width="512" height="512" rx="112" fill="#14141c"/>
+  <rect width="512" height="512" rx="112" fill="#1e1e28"/>
   <rect x="112" y="148" width="288" height="40" rx="20" fill="white"/>
   <rect x="112" y="236" width="224" height="40" rx="20" fill="white"/>
   <rect x="112" y="324" width="160" height="40" rx="20" fill="white"/>
