@@ -252,7 +252,20 @@ html, body {
 }
 [data-view="desktop"] .logo-mark { width: 36px; height: 36px; }
 [data-view="desktop"] .logo { font-size: 22px; }
-[data-view="desktop"] .topbar-action { display: none; }
+/* The plain topbar-action button (unused, always carries .hidden) has no
+   place in desktop's narrow auto-width topbar column — hide it there too.
+   The notif bell is exempted: desktop's topbar column shrink-wraps its
+   content (grid-template-columns: ... auto auto ...), so there's no
+   "far right" for justify-content: space-between to push it to. Instead
+   it's pulled out of flow and fixed to the true top-right of the viewport,
+   just like the mobile layout puts it at the top-right of the screen. */
+[data-view="desktop"] .topbar-action:not(.notif-bell) { display: none; }
+[data-view="desktop"] .notif-bell {
+  position: fixed;
+  top: 16px;
+  right: 20px;
+  z-index: 20;
+}
 
 /* The "bottombar" is repurposed as the nav tab strip, sitting to the right of the logo */
 [data-view="desktop"] .bottombar {
