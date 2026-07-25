@@ -41,43 +41,14 @@
 <body>
 <div class="app" id="app">
 
-  <header class="topbar">
-    <div class="logo-wrap">
-      <svg class="logo-mark" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="AniLog logo">
-        <defs>
-          <linearGradient id="lm-grad" x1="2" y1="2" x2="34" y2="34" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stop-color="currentColor"/>
-            <stop offset="60%" stop-color="currentColor"/>
-            <stop offset="100%" stop-color="currentColor" stop-opacity="0.55"/>
-          </linearGradient>
-          <linearGradient id="lm-shine" x1="0" y1="0" x2="0" y2="20" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stop-color="white" stop-opacity="0.22"/>
-            <stop offset="100%" stop-color="white" stop-opacity="0"/>
-          </linearGradient>
-        </defs>
-        <!-- Tile + gradient sheen + inner highlight ring -->
-        <rect width="36" height="36" rx="10" fill="url(#lm-grad)"/>
-        <rect width="36" height="20" rx="10" fill="url(#lm-shine)"/>
-        <rect x="0.5" y="0.5" width="35" height="35" rx="9.5" stroke="white" stroke-opacity="0.18" stroke-width="1" fill="none"/>
-        <!-- Three stacked bars (a "log/list" mark) with depth via length + opacity -->
-        <rect x="9"  y="11" width="18" height="3.4" rx="1.7" fill="white"/>
-        <rect x="9"  y="17" width="14" height="3.4" rx="1.7" fill="white" fill-opacity="0.78"/>
-        <rect x="9"  y="23" width="10" height="3.4" rx="1.7" fill="white" fill-opacity="0.56"/>
-        <!-- Accent dot — a "next up" indicator -->
-        <circle cx="25" cy="24.7" r="1.6" fill="white" fill-opacity="0.92"/>
-      </svg>
-      <div class="logo">AniLog</div>
-    </div>
-    <div class="topbar-right">
-      <button class="topbar-action notif-bell" id="notif-bell" aria-label="Notifications" onclick="onNotifBellTap()">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-        <span class="notif-count-badge" id="notif-count-badge" hidden>0</span>
-      </button>
-      <button class="topbar-action hidden" id="topbar-action" aria-label="Action">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 4H8M21 12H8M21 20H8M4 4h.01M4 12h.01M4 20h.01"/></svg>
-      </button>
-    </div>
-  </header>
+  <!-- Floats at the top-right of the app frame (absolute, anchored to
+       .app — not viewport-fixed, so it stays pinned to the phone frame's
+       corner even when centered on a wide desktop browser window).
+       Independent of tab content, so it's visible on every tab. -->
+  <button class="notif-bell" id="notif-bell" aria-label="Notifications" onclick="onNotifBellTap()">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+    <span class="notif-count-badge" id="notif-count-badge" hidden>0</span>
+  </button>
 
   <main class="content" id="content">
 
@@ -275,16 +246,6 @@
         </div>
         <div class="settings-row">
           <div>
-            <div class="settings-label">Layout</div>
-            <div class="settings-sub">Native mobile feel or full-width website</div>
-          </div>
-          <div class="seg" id="view-seg">
-            <button class="seg-btn active" data-view="mobile">Mobile</button>
-            <button class="seg-btn" data-view="desktop">Desktop</button>
-          </div>
-        </div>
-        <div class="settings-row">
-          <div>
             <div class="settings-label">Card Density</div>
             <div class="settings-sub">How tightly grids are packed</div>
           </div>
@@ -361,7 +322,7 @@
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v4.24 · Powered by AniList
+        AniLog · v4.25 · Powered by AniList
       </div>
     </section>
 

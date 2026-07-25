@@ -33,7 +33,6 @@ const state = {
   themeId: 'iris',
   accent: '#7c5cff',
   theme: 'dark',
-  viewMode: 'mobile',           // 'mobile' or 'desktop' — toggled in Profile
   density: 'comfortable',
   landing: 'home',
   season: 'SPRING',

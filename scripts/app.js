@@ -416,7 +416,6 @@ document.getElementById('theme-picker-row').addEventListener('click', openThemeM
 
 // Sync other segmented controls to saved state
 syncSegState('theme-seg', 'theme', state.theme);
-syncSegState('view-seg', 'view', state.viewMode || 'mobile');
 syncSegState('density-seg', 'density', state.density);
 syncSegState('landing-seg', 'landing', state.landing);
 syncSegState('lang-seg', 'lang', state.preferEnglish ? 'english' : 'default');
@@ -2026,15 +2025,6 @@ document.querySelectorAll('#density-seg .seg-btn').forEach(b => {
     syncSegState('density-seg', 'density', b.dataset.density);
     state.density = b.dataset.density;
     applyDensity();
-    savePrefs();
-  });
-});
-
-document.querySelectorAll('#view-seg .seg-btn').forEach(b => {
-  b.addEventListener('click', () => {
-    syncSegState('view-seg', 'view', b.dataset.view);
-    state.viewMode = b.dataset.view;
-    applyViewMode();
     savePrefs();
   });
 });

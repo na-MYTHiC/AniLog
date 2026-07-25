@@ -154,15 +154,9 @@ html, body {
   }
 }
 
-/* Mobile view doesn't need a top bar — the content can run straight up
-   to the notch / status bar. Desktop overrides this further down to
-   re-enable the bar as part of the website-style header. */
-[data-view="mobile"] .topbar {
-  display: none;
-}
-[data-view="mobile"] .content {
-  /* Push content below the camera cutout / status bar since the topbar
-     isn't reserving space for it anymore. */
+.content {
+  /* Push content below the camera cutout / status bar since there's no
+     topbar reserving space for it. */
   padding-top: env(safe-area-inset-top, 0px);
   /* Paint the same bg as .app so the safe-area padding zone and the
      rest of the content are visibly one continuous surface. Without
@@ -175,10 +169,10 @@ html, body {
 /* Search tab content side gap — matches Seasonal grid's 20px. The
    carousel itself uses margin (set globally in app.css) so cards stop
    at the carousel boundary instead of running flush to the screen. */
-[data-view="mobile"] #tab-search .search-wrap,
-[data-view="mobile"] #tab-search .recent-searches,
-[data-view="mobile"] #tab-search .section-header,
-[data-view="mobile"] #tab-search .grid {
+#tab-search .search-wrap,
+#tab-search .recent-searches,
+#tab-search .section-header,
+#tab-search .grid {
   padding-left: 20px !important;
   padding-right: 20px !important;
 }
@@ -186,7 +180,7 @@ html, body {
 /* Search tab carousels — show ~4 cards per row at a time, like the
    character row on the detail page. Override the density-driven --card-w
    inside the carousel scope so we don't affect grids or other carousels. */
-[data-view="mobile"] #tab-search .carousel {
+#tab-search .carousel {
   --card-w: 76px;
   --card-h: 108px;
   --card-gap: 12px;
@@ -209,250 +203,6 @@ html, body {
   }
   [data-density="compact"] { --grid-cols: 4; }
   [data-density="spacious"] { --grid-cols: 3; }
-}
-
-/* =====================================================================
-   DESKTOP VIEW — set explicitly via Profile → Layout. Full-window
-   website-style layout with a top nav bar across the entire width.
-   Everything here is scoped to [data-view="desktop"] so mobile is
-   completely unaffected.
-   ===================================================================== */
-[data-view="desktop"] body {
-  background: var(--bg);
-  display: block;
-  overflow: auto;
-}
-[data-view="desktop"] .app {
-  max-width: 100%;
-  height: 100vh;
-  max-height: none;
-  border-radius: 0;
-  box-shadow: none;
-  display: grid;
-  grid-template-rows: 68px 1fr;
-  /* Side spacers flank the centered logo+tabs group so the whole header
-     reads as one unit centered on the page (instead of edge-pinned). */
-  grid-template-columns: minmax(0, 1fr) auto auto minmax(0, 1fr);
-  grid-template-areas:
-    ". topbar bottombar ."
-    "content content content content";
-}
-
-/* Top bar — logo + brand. Sits to the left of the nav tabs in the centered group. */
-[data-view="desktop"] .topbar {
-  grid-area: topbar;
-  height: 68px;
-  padding: 0 16px 0 0;
-  width: auto;
-  background: var(--bg);
-  border-right: none;
-  border-bottom: none;
-  z-index: 11;
-  gap: 16px;
-}
-[data-view="desktop"] .logo-mark { width: 36px; height: 36px; }
-[data-view="desktop"] .logo { font-size: 22px; }
-/* The plain topbar-action button (unused, always carries .hidden) has no
-   place in desktop's narrow auto-width topbar column — hide it there too.
-   The notif bell is exempted: desktop's topbar column shrink-wraps its
-   content (grid-template-columns: ... auto auto ...), so there's no
-   "far right" for justify-content: space-between to push it to. Instead
-   it's pulled out of flow and fixed to the true top-right of the viewport,
-   just like the mobile layout puts it at the top-right of the screen. */
-[data-view="desktop"] .topbar-action:not(.notif-bell) { display: none; }
-[data-view="desktop"] .notif-bell {
-  position: fixed;
-  top: 16px;
-  right: 20px;
-  z-index: 20;
-}
-
-/* The "bottombar" is repurposed as the nav tab strip, sitting to the right of the logo */
-[data-view="desktop"] .bottombar {
-  grid-area: bottombar;
-  position: static;
-  flex-direction: row;
-  height: 68px;
-  width: auto;
-  padding: 0;
-  background: var(--bg);
-  backdrop-filter: none; -webkit-backdrop-filter: none;
-  border-top: none;
-  border-bottom: none;
-  justify-content: flex-start;
-  gap: 2px;
-  z-index: 11;
-}
-
-/* One continuous bottom border under the entire header row */
-[data-view="desktop"] .content {
-  grid-area: content;
-  padding: 24px 0 40px;
-  border-top: 1px solid var(--border);
-}
-[data-view="desktop"] .bottombar .nav-btn {
-  flex: 0 0 auto;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  padding: 0 18px;
-  height: 100%;
-  border-radius: 0;
-  position: relative;
-  transition: color 0.15s ease, background 0.15s ease;
-}
-[data-view="desktop"] .bottombar .nav-btn:hover {
-  color: var(--text);
-  background: var(--surface);
-}
-[data-view="desktop"] .bottombar .nav-btn svg { width: 18px; height: 18px; stroke-width: 2; }
-[data-view="desktop"] .bottombar .nav-btn span { font-size: 14px; font-weight: 600; }
-[data-view="desktop"] .bottombar .nav-btn.active {
-  color: var(--accent);
-  background: transparent;
-  box-shadow: none;
-}
-/* Override the mobile pill-behind effect with a clean bottom underline */
-[data-view="desktop"] .bottombar .nav-btn.active::before {
-  content: '';
-  top: auto;
-  left: 12px;
-  right: 12px;
-  bottom: 0;
-  width: auto;
-  height: 3px;
-  background: var(--accent);
-  border-radius: 2px 2px 0 0;
-}
-
-[data-view="desktop"] .tab { padding-bottom: 40px !important; }
-[data-view="desktop"] .tab.active { animation: none; }
-
-/* Density vars are overridden — grids use auto-fill so cards reflow on resize */
-[data-view="desktop"] {
-  --grid-pad-x: 32px;
-}
-[data-view="desktop"] .grid {
-  grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
-  gap: 20px;
-}
-[data-view="desktop"][data-density="compact"] .grid {
-  grid-template-columns: repeat(auto-fill, minmax(125px, 1fr));
-  gap: 12px;
-}
-[data-view="desktop"][data-density="spacious"] .grid {
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 26px;
-}
-
-/* Cap inner content width so giant monitors don't make text run wide.
-   1080px is roughly the sweet spot — wide enough for 5-6 cards per row,
-   narrow enough that the content has clear margins from the screen edge. */
-[data-view="desktop"] .seasonal-header,
-[data-view="desktop"] .social-header,
-[data-view="desktop"] .search-wrap,
-[data-view="desktop"] .sort-trigger-bar,
-[data-view="desktop"] .section,
-[data-view="desktop"] .social-feed,
-[data-view="desktop"] .recent-searches,
-[data-view="desktop"] .grid,
-[data-view="desktop"] #tab-profile .empty,
-[data-view="desktop"] #tab-profile .section-header,
-[data-view="desktop"] #tab-profile .settings-group,
-[data-view="desktop"] #tab-profile > div[style*="text-align:center"] {
-  max-width: 1080px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-/* My List — header, controls, and rows all share the same 800px column so
-   the dropdowns and the rows below them line up edge-to-edge. */
-[data-view="desktop"] .my-list-header,
-[data-view="desktop"] .list-controls,
-[data-view="desktop"] .list-rows {
-  max-width: 800px;
-  margin-left: auto;
-  margin-right: auto;
-}
-/* Make the two dropdowns stretch to fill the row equally */
-[data-view="desktop"] .list-controls .sort-trigger {
-  flex: 1;
-  justify-content: center;
-  height: 44px;
-}
-
-/* Slightly bigger score badge on desktop cards — tuned to sit between
-   the mobile size and the noticeable-but-not-huge sweet spot. */
-[data-view="desktop"] .card-score {
-  font-size: 13px;
-  padding: 4px 9px;
-  border-radius: 6px;
-  top: 7px; right: 7px;
-}
-[data-view="desktop"] .list-row { cursor: pointer; }
-/* Solid color — a transparent value here would reveal the swipe +1/-1
-   action buttons sitting underneath the row. */
-[data-view="desktop"] .list-row:hover {
-  background: var(--surface);
-}
-
-/* Card hover lift — desktop loves this kind of feedback */
-[data-view="desktop"] .card {
-  transition: transform 0.18s cubic-bezier(0.32, 0.72, 0, 1);
-}
-[data-view="desktop"] .card:hover { transform: translateY(-4px); }
-[data-view="desktop"] .card:hover .card-image {
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.42);
-}
-
-/* Carousels get a bit more padding on desktop */
-/* Match the rest of desktop content's 32px side gap (carousel now uses
-   margin instead of padding — see app.css). */
-[data-view="desktop"] .carousel { margin-left: 32px; margin-right: 32px; }
-[data-view="desktop"] .detail-section .carousel { margin-left: 0; margin-right: 0; }
-
-/* Detail overlay — bigger banner, more side padding, larger title */
-[data-view="desktop"] .detail-banner { height: 300px; }
-[data-view="desktop"] .detail-head {
-  max-width: 1100px;
-  margin: -100px auto 0;
-  padding: 0 32px;
-}
-[data-view="desktop"] .detail-cover {
-  width: 180px;
-  height: 252px;
-}
-[data-view="desktop"] .detail-title { font-size: 28px; }
-[data-view="desktop"] .detail-sub { font-size: 14px; }
-[data-view="desktop"] .detail-stats,
-[data-view="desktop"] .detail-actions,
-[data-view="desktop"] .detail-section {
-  max-width: 1100px;
-  margin-left: auto;
-  margin-right: auto;
-  padding-left: 32px;
-  padding-right: 32px;
-}
-[data-view="desktop"] .character-row { padding-left: 0; padding-right: 0; margin: 0; }
-
-/* Modals — same dialog look, but bounded to a reasonable width */
-[data-view="desktop"] .modal {
-  max-width: 460px;
-  margin: 0 auto;
-  border-radius: 16px;
-}
-[data-view="desktop"] .modal-backdrop {
-  align-items: center;
-}
-
-/* ============ Legacy auto-desktop sidebar removed ============
-   The old @media (min-width: 1024px) sidebar layout conflicted with the
-   explicit Mobile/Desktop toggle. Removed in v1.6. */
-@media (min-width: 1024px) {
-  .tab {
-    padding-bottom: 24px !important;
-  }
 }
 
 /* Respect the OS "Reduce Motion" toggle (iOS Settings → Accessibility →

@@ -1,35 +1,3 @@
-.topbar {
-  /* Grow the bar by the device's top safe-area so content sits below
-     camera notches / dynamic islands instead of being clipped by them.
-     The bar's background still fills the notch area for a clean look. */
-  height: calc(var(--topbar-h) + env(safe-area-inset-top, 0px));
-  padding-top: env(safe-area-inset-top, 0px);
-  padding-left: max(20px, env(safe-area-inset-left, 0px));
-  padding-right: max(20px, env(safe-area-inset-right, 0px));
-  flex-shrink: 0;
-  display: flex; align-items: center; justify-content: space-between;
-  background: color-mix(in srgb, var(--bg) 80%, transparent);
-  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-  border-bottom: 1px solid var(--border);
-  position: relative; z-index: 10;
-}
-
-.logo-wrap {
-  display: flex; align-items: center;
-  gap: 9px;
-}
-.logo-mark {
-  width: 32px; height: 32px;
-  flex-shrink: 0;
-  color: var(--accent);
-  filter: drop-shadow(0 3px 10px color-mix(in srgb, var(--accent) 35%, transparent));
-}
-.logo {
-  font-size: 20px; font-weight: 800; letter-spacing: -0.5px;
-  background: linear-gradient(135deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 60%, white) 100%);
-  -webkit-background-clip: text; background-clip: text; color: transparent;
-}
-
 /* Sort trigger button + dropdown sheet */
 .sort-trigger {
   display: inline-flex; align-items: center;
@@ -80,17 +48,27 @@
   flex-shrink: 0;
 }
 
-.topbar-right {
-  display: flex; align-items: center; gap: 4px;
-}
-.topbar-action {
-  background: none; border: none; color: var(--text);
-  padding: 8px; border-radius: 8px; cursor: pointer;
+/* Floating notification bell — absolute (not fixed) so it's anchored to
+   .app's corner and stays pinned to the phone frame even when .app is
+   centered on a wide desktop browser window. Sits above tab content
+   (z-index) but below overlays (100+). Respects the safe-area inset so
+   it clears camera notches / dynamic islands. */
+.notif-bell {
+  position: absolute;
+  top: max(14px, env(safe-area-inset-top, 0px));
+  right: max(14px, env(safe-area-inset-right, 0px));
+  z-index: 10;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border);
+  color: var(--text);
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  padding: 0; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  position: relative;
 }
-.topbar-action:hover { background: var(--surface-2); }
-.topbar-action.hidden { visibility: hidden; }
+.notif-bell:hover { background: var(--surface-2); }
+.notif-bell:active { transform: scale(0.94); }
 
 /* Bell badge — small pill anchored to the top-right of the bell icon */
 .notif-count-badge {
@@ -293,8 +271,8 @@
 /* Seasonal grid + Search 'See All' (category) grid share the same denser
    column layout — 3 across on Cozy, 4 on Compact, 2 on Spacious — so the
    tiles aren't huge compared to the carousels on the Search pre-search.
-   Using !important because desktop's auto-fill grid rules + the base
-   .grid rule both want to set grid-template-columns. */
+   Using !important because the base .grid rule also sets
+   grid-template-columns and would otherwise win on specificity. */
 #seasonal-grid,
 #category-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
 [data-density="compact"]  #seasonal-grid,
@@ -1007,7 +985,6 @@
   flex-shrink: 0;
 }
 .toast-action:hover { filter: brightness(1.1); }
-[data-view="desktop"] .toast-stack { bottom: 24px; }
 
 /* Trailer — thumbnail placeholder until tapped, then swaps in the iframe.
    Lazy-load keeps the page light when the user just opens detail to read. */
