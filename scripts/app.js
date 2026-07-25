@@ -2202,6 +2202,33 @@ const NOTIF_QUERY_BODY = `
   ... on MediaDataChangeNotification { id type createdAt context media { id title { userPreferred english romaji } coverImage { large } } }
 `;
 
+// The `reset` fetch above tells AniList's server to zero out the unread
+// counter, but two OTHER queries also cache Viewer.unreadNotificationCount
+// under their own keys (the boot Viewer query in fetchViewer, and the
+// lightweight polling query in refreshUnreadCount) — anilist()'s cache has
+// no idea they're related. Without this, whichever of those is still
+// within its 15-minute TTL (including the copy persisted to localStorage,
+// which survives a real app close) replays the pre-reset count on the next
+// load, undoing what the user just saw. Patch every cached response that
+// carries that field straight to 0 so nothing can resurrect the old count.
+function zeroOutCachedUnreadCounts() {
+  Object.keys(cache).forEach((k) => {
+    const entry = cache[k];
+    if (entry?.Viewer && typeof entry.Viewer.unreadNotificationCount === 'number') {
+      entry.Viewer.unreadNotificationCount = 0;
+      // Also expire the entry (not just patch its value) so the NEXT read
+      // triggers a background refetch instead of serving this now-stale
+      // "0" for a full 15 minutes — otherwise a real new notification that
+      // lands in that window wouldn't show up until the TTL naturally
+      // elapsed. Stale-while-revalidate still returns 0 instantly today;
+      // the background fetch self-heals it within one poll cycle if the
+      // true server count has already moved on.
+      if (typeof cacheExpires !== 'undefined') cacheExpires.set(k, 0);
+    }
+  });
+  if (typeof schedulePersist === 'function') schedulePersist();
+}
+
 async function fetchNotifications(reset) {
   const q = `query ($reset: Boolean) {
     Page(page: 1, perPage: 25) {
@@ -2225,6 +2252,7 @@ async function openNotifications() {
   try {
     const items = await fetchNotifications(true);
     setNotifBadge(0);
+    zeroOutCachedUnreadCounts();
     // Mark every returned item as "seen" so the OS layer doesn't fire again
     // for items the user just visually reviewed.
     if (!notifState.shownIds) loadShownNotifIds();
