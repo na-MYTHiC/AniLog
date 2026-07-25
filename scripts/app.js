@@ -2136,21 +2136,28 @@ function setNotifBadge(n) {
   }
 }
 
+// The bell itself is always visible (see index.html) — signed-out users
+// can see it exists and tap it to sign in, rather than the feature being
+// invisible until they've already found sign-in some other way.
 async function initNotifications() {
   const bell = document.getElementById('notif-bell');
   if (!bell) return;
   if (!state.user) {
-    bell.classList.add('hidden');
     stopNotifPolling();
     setNotifBadge(0);
     return;
   }
-  bell.classList.remove('hidden');
   if (!notifState.shownIds) loadShownNotifIds();
   // The badge was already set from fetchViewer's unreadNotificationCount —
   // no need to re-request it here. The polling loop keeps it fresh.
   startNotifPolling();
 }
+
+function onNotifBellTap() {
+  if (!state.user) return openSignInModal();
+  openNotifications();
+}
+window.onNotifBellTap = onNotifBellTap;
 
 function startNotifPolling() {
   if (notifState.pollTimer) return;
