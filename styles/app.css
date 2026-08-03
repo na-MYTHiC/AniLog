@@ -332,8 +332,12 @@
      the device is in landscape with a side notch. */
   height: calc(var(--bottombar-h) + env(safe-area-inset-bottom, 0px));
   padding-bottom: env(safe-area-inset-bottom, 0px);
-  padding-left: env(safe-area-inset-left, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
+  /* max() so we always keep a minimum gutter: the safe-area insets are 0
+     in portrait, which let the outer tabs sit flush against the screen
+     edge and made their active pills look clipped by the phone's rounded
+     corners. Landscape side-notch insets still win when they're larger. */
+  padding-left: max(10px, env(safe-area-inset-left, 0px));
+  padding-right: max(10px, env(safe-area-inset-right, 0px));
   flex-shrink: 0;
   background: color-mix(in srgb, var(--bg) 90%, transparent);
   backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
