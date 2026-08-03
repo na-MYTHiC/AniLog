@@ -356,25 +356,17 @@
 .nav-btn svg { width: 24px; height: 24px; stroke-width: 2; }
 .nav-btn span { font-size: 10px; font-weight: 600; letter-spacing: 0.2px; }
 .nav-btn.active { color: var(--accent); }
-/* Pill sized to fully wrap the 24px icon with breathing room on every
-   side, not just match its exact box — the old 24x24 pill was the same
-   size as the icon itself, so any sub-pixel offset made it look like it
-   was clipping the icon instead of framing it. Horizontally centered via
-   transform instead of relying on absolute-position "static position"
-   fallback behavior for a pseudo-element inside a flex column, which
-   isn't reliably centered. Vertically: nav-btn has 8px top padding before
-   the icon, so the icon's vertical center sits at 8 + 24/2 = 20px from
-   the button's top edge — top:3px with a 34px pill centers on that
-   same point (3 + 34/2 = 20). */
+/* nav-btn already centers its icon+label as one group (justify-content:
+   center on the column), so instead of hand-calculating a box to match
+   just the icon, inset the pill from the button's own edges — it
+   naturally wraps icon AND label together since they're centered as a
+   unit inside that same box. */
 .nav-btn.active::before {
   content: '';
   position: absolute;
-  top: 3px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 34px; height: 34px;
+  inset: 4px 10px;
   background: var(--accent-soft);
-  border-radius: 10px; z-index: -1;
+  border-radius: 14px; z-index: -1;
 }
 
 .toggle-row {
