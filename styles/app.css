@@ -70,6 +70,16 @@
 .notif-bell:hover { background: var(--surface-2); }
 .notif-bell:active { transform: scale(0.94); }
 
+/* Search's search bar and Seasonal's season-switcher both run their own
+   controls to the right edge (the "next season" arrow especially sits
+   right where the bell floats) — hide the bell on those two tabs instead
+   of it sitting on top of tappable controls. :has() reacts to the same
+   .active class switchTab() already toggles, so no extra JS needed. */
+.app:has(#tab-search.active) .notif-bell,
+.app:has(#tab-seasonal.active) .notif-bell {
+  display: none;
+}
+
 /* Bell badge — small pill anchored to the top-right of the bell icon */
 .notif-count-badge {
   position: absolute;
@@ -346,12 +356,25 @@
 .nav-btn svg { width: 24px; height: 24px; stroke-width: 2; }
 .nav-btn span { font-size: 10px; font-weight: 600; letter-spacing: 0.2px; }
 .nav-btn.active { color: var(--accent); }
+/* Pill sized to fully wrap the 24px icon with breathing room on every
+   side, not just match its exact box — the old 24x24 pill was the same
+   size as the icon itself, so any sub-pixel offset made it look like it
+   was clipping the icon instead of framing it. Horizontally centered via
+   transform instead of relying on absolute-position "static position"
+   fallback behavior for a pseudo-element inside a flex column, which
+   isn't reliably centered. Vertically: nav-btn has 8px top padding before
+   the icon, so the icon's vertical center sits at 8 + 24/2 = 20px from
+   the button's top edge — top:3px with a 34px pill centers on that
+   same point (3 + 34/2 = 20). */
 .nav-btn.active::before {
   content: '';
-  position: absolute; top: 6px;
-  width: 24px; height: 24px;
+  position: absolute;
+  top: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 34px; height: 34px;
   background: var(--accent-soft);
-  border-radius: 8px; z-index: -1;
+  border-radius: 10px; z-index: -1;
 }
 
 .toggle-row {
