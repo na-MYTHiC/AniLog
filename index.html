@@ -322,7 +322,7 @@
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v4.29 · Powered by AniList
+        AniLog · v4.30 · Powered by AniList
       </div>
     </section>
 
@@ -576,7 +576,24 @@
 <script>
 // Register the service worker so AniLog can be installed as a PWA
 // and survive offline. Best-effort — silently ignored if unsupported.
+//
+// The reload below fixes the classic "needs two refreshes" PWA trap: the
+// SW serves assets cache-first, so on the refresh that discovers a new
+// deploy the page has ALREADY rendered with the old cached JS/CSS. The
+// new SW installs, skipWaiting()s and claims clients in the background —
+// but only the NEXT refresh would actually show the new build. Reloading
+// once on controllerchange means a single refresh is always enough.
 if ('serviceWorker' in navigator) {
+  // Captured before registering: if there's no controller yet this is a
+  // first-ever install, where controllerchange fires as a normal part of
+  // setup and must NOT trigger a reload.
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloading) return; // guard against reload loops
+    reloading = true;
+    window.location.reload();
+  });
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   });

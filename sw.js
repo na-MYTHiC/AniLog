@@ -9,7 +9,7 @@
 //   - For everything else (AniList GraphQL, AniList images), bypass —
 //     we don't want stale data or 1+ GB of cover-image storage.
 
-const VERSION = 'anilog-v45';
+const VERSION = 'anilog-v46';
 const SHELL = [
   './',
   './index.html',
@@ -33,7 +33,18 @@ const SHELL = [
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(VERSION).then((cache) => cache.addAll(SHELL))
+    caches.open(VERSION).then((cache) =>
+      // `cache: 'reload'` forces each request past the browser's HTTP cache.
+      // Plain addAll() is allowed to satisfy these from the HTTP cache, which
+      // on GitHub Pages (10-min max-age) can hand the new SW version the exact
+      // stale files it was created to replace — a new cache name holding old
+      // bytes, so the deploy silently doesn't take.
+      Promise.all(SHELL.map((url) =>
+        fetch(new Request(url, { cache: 'reload' }))
+          .then((res) => (res.ok ? cache.put(url, res) : null))
+          .catch(() => null)   // one 404 shouldn't abort the whole install
+      ))
+    )
   );
   self.skipWaiting();
 });
