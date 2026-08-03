@@ -359,19 +359,8 @@
 }
 .nav-btn svg { width: 24px; height: 24px; stroke-width: 2; }
 .nav-btn span { font-size: 10px; font-weight: 600; letter-spacing: 0.2px; }
+/* Accent color alone marks the active tab — no pill/background behind it. */
 .nav-btn.active { color: var(--accent); }
-/* nav-btn already centers its icon+label as one group (justify-content:
-   center on the column), so instead of hand-calculating a box to match
-   just the icon, inset the pill from the button's own edges — it
-   naturally wraps icon AND label together since they're centered as a
-   unit inside that same box. */
-.nav-btn.active::before {
-  content: '';
-  position: absolute;
-  inset: 4px 10px;
-  background: var(--accent-soft);
-  border-radius: 14px; z-index: -1;
-}
 
 .empty {
   padding: 60px 20px;

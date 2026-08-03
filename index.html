@@ -322,7 +322,7 @@
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v4.33 · Powered by AniList
+        AniLog · v4.34 · Powered by AniList
       </div>
     </section>
 
@@ -342,11 +342,17 @@
       <span>Seasonal</span>
     </button>
     <button class="nav-btn" data-tab="social" aria-label="Social">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11h-6"/><path d="M19 8v6"/></svg>
+      <!-- Two figures (a group) — deliberately distinct from Profile's
+           single figure enclosed in a circle, so the two don't blur
+           together at 24px. -->
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       <span>Social</span>
     </button>
     <button class="nav-btn" data-tab="profile" aria-label="Profile">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
+      <!-- Single figure inside a circle (avatar framing) — the enclosing
+           circle is what separates it at a glance from Social's two
+           un-enclosed figures. -->
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="10" r="3"/><path d="M6.8 18.2a6.5 6.5 0 0 1 10.4 0"/></svg>
       <span>Profile</span>
     </button>
   </nav>
