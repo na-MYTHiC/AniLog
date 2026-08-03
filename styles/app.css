@@ -242,12 +242,26 @@
 }
 /* Covers are real <img> now (for loading="lazy"); these make the image fill
    its wrapper exactly the way background-size:cover used to. */
-.card-image img,
+/* Covers are real <img> now (for loading="lazy"); these make the image fill
+   its wrapper exactly the way background-size:cover used to. */
 .list-row-cover img,
 .activity-thumb img,
 .va-char-image img,
 .activity-avatar img,
 .character-image img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* .card-image is sized two different ways: a fixed height in carousels, but
+   `height: 0; padding-bottom: 146%` (the aspect-ratio padding hack) inside
+   .grid. Under that hack a percentage height resolves against zero, so
+   `height: 100%` collapsed grid covers to 0px and left only the placeholder
+   colour visible. Filling the padding box via inset works for both. */
+.card-image img {
+  position: absolute;
+  inset: 0;
   width: 100%; height: 100%;
   object-fit: cover;
   display: block;
