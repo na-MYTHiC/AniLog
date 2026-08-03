@@ -1046,13 +1046,24 @@ function formatRelativeTime(unixSeconds) {
 
 function activityActionText(act) {
   if (act.type === 'TEXT') return ''; // text activities render text body separately
-  if (act.status === 'CURRENT' && act.progress) return `Watched episode <strong>${escapeHtml(String(act.progress))}</strong>`;
-  if (act.status === 'COMPLETED') return `Completed`;
-  if (act.status === 'PLANNING') return `Planning to watch`;
-  if (act.status === 'PAUSED') return `Paused`;
-  if (act.status === 'DROPPED') return `Dropped`;
-  if (act.status === 'REPEATING') return `Rewatching${act.progress ? ` (ep ${escapeHtml(String(act.progress))})` : ''}`;
-  return act.status ? escapeHtml(String(act.status)) : '';
+  const status = act.status || '';
+  // AniList sends this as a ready-made lowercase phrase ("watched episode",
+  // "rewatched episode", "plans to watch", "paused watching", "completed",
+  // "dropped") — NOT the MediaListStatus enum (CURRENT/COMPLETED/...) despite
+  // the field being named `status` on both types. Comparing against the enum
+  // here always missed, which is why this used to fall through to echoing
+  // the bare phrase with no episode number.
+  const episodeMatch = status.match(/^(.*?)\s*episode$/i);
+  if (episodeMatch && act.progress) {
+    // `progress` is a string, and can be a range like "13 - 14" when someone
+    // binges several episodes between AniList syncs, not just a single number.
+    const raw = String(act.progress).trim();
+    const isRange = raw.includes('-');
+    const label = raw.replace(/\s*-\s*/g, '-');
+    const verb = episodeMatch[1].charAt(0).toUpperCase() + episodeMatch[1].slice(1);
+    return `${verb} ${isRange ? 'episodes' : 'episode'} <strong>${escapeHtml(label)}</strong>`;
+  }
+  return status ? status.charAt(0).toUpperCase() + status.slice(1) : '';
 }
 
 function renderReply(r) {
@@ -1090,7 +1101,14 @@ function renderActivity(act) {
   // ~80px tall instead of the previous ~180px stacked layout.
   const contentInner = isText
     ? `<div class="activity-text">${escapeHtml(act.text || '').slice(0, 600)}</div>`
-    : `<div class="activity-content">${activityActionText(act)}${m ? ` <strong>${escapeHtml(pickTitle(m.title) || 'Unknown')}</strong>` : ''}</div>`;
+    : (() => {
+        // "of" reads right after "watched episode 5" but not after
+        // "Completed" / "Dropped" / "Plans to watch" — only insert it for
+        // the episode-progress phrasing.
+        const connector = /episode$/i.test(act.status || '') ? ' of ' : ' ';
+        const title = m ? `${connector}<strong>${escapeHtml(pickTitle(m.title) || 'Unknown')}</strong>` : '';
+        return `<div class="activity-content">${activityActionText(act)}${title}</div>`;
+      })();
 
   const thumb = (!isText && m)
     ? `<div class="activity-thumb" data-media-id="${m.id}" style="background-image:url('${m.coverImage?.large || ''}'); background-color:${m.coverImage?.color || 'var(--surface-2)'};"></div>`
