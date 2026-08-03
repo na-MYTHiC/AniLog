@@ -237,9 +237,19 @@
   height: var(--card-h);
   border-radius: var(--card-radius);
   background: var(--surface-2);
-  background-size: cover; background-position: center;
   position: relative; overflow: hidden;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+/* Covers are real <img> now (for loading="lazy"); these make the image fill
+   its wrapper exactly the way background-size:cover used to. */
+.card-image img,
+.list-row-cover img,
+.activity-thumb img,
+.va-char-image img,
+.activity-avatar img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .card-score {
@@ -1215,7 +1225,7 @@
   aspect-ratio: 1 / 1;
   border-radius: 50%;
   background: var(--surface-2);
-  background-size: cover; background-position: center;
+  overflow: hidden;
   margin-bottom: 8px;
   border: 2px solid var(--border);
   transition: border-color 0.15s ease;
@@ -1432,14 +1442,21 @@
   padding: 12px 20px;
   border-bottom: 1px solid var(--border);
   align-items: flex-start;
+  /* Same treatment as .card / .list-row-wrap — the Social feed is the
+     longest list in the app (25 per page, unbounded), and each card is
+     heavier than a grid card: avatar, cover, footer and a reply panel.
+     The `auto` prefix means the reserved height self-corrects to the real
+     measured height after a card has been rendered once. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 92px;
+  contain: layout style paint;
 }
 .activity-card:last-child { border-bottom: none; }
 .activity-avatar {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background-size: cover;
-  background-position: center;
+  overflow: hidden;
   background-color: var(--surface-2);
   flex-shrink: 0;
 }
@@ -1495,8 +1512,7 @@
   width: 44px;
   height: 62px;
   border-radius: 6px;
-  background-size: cover;
-  background-position: center;
+  overflow: hidden;
   flex-shrink: 0;
   cursor: pointer;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
@@ -1704,8 +1720,7 @@
   height: var(--row-cover-h);
   border-radius: 6px;
   background: var(--surface-2);
-  background-size: cover;
-  background-position: center;
+  overflow: hidden;
   flex-shrink: 0;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
 }

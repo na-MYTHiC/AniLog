@@ -49,20 +49,34 @@ function schedulePersist() {
   if (persistTimer) return;
   persistTimer = setTimeout(() => {
     persistTimer = null;
-    try {
-      const keys = Object.keys(cache);
-      // Sort by expiry desc (most recently set first), keep top PERSIST_CAP
-      keys.sort((a, b) => (cacheExpires.get(b) || 0) - (cacheExpires.get(a) || 0));
-      const slim = {};
-      for (let i = 0; i < Math.min(keys.length, PERSIST_CAP); i++) {
-        const k = keys[i];
-        slim[k] = { data: cache[k], exp: cacheExpires.get(k) || 0 };
+    const keys = Object.keys(cache);
+    // Sort by expiry desc (most recently set first), keep top PERSIST_CAP
+    keys.sort((a, b) => (cacheExpires.get(b) || 0) - (cacheExpires.get(a) || 0));
+    let budget = Math.min(keys.length, PERSIST_CAP);
+
+    // Shrink and retry rather than giving up on the first quota error. Detail
+    // responses are large (full synopsis + relations + recommendations), so a
+    // handful of them can push a PERSIST_CAP-sized write past the ~5MB quota.
+    // The old code dropped the ENTIRE persistent cache in that case, so the
+    // next cold start had nothing to show instantly — a cliff, when halving
+    // the budget would have kept most of the benefit.
+    while (budget > 0) {
+      try {
+        const slim = {};
+        for (let i = 0; i < budget; i++) {
+          const k = keys[i];
+          slim[k] = { data: cache[k], exp: cacheExpires.get(k) || 0 };
+        }
+        localStorage.setItem(PERSIST_KEY, JSON.stringify(slim));
+        return;
+      } catch (e) {
+        budget = Math.floor(budget / 2);
       }
-      localStorage.setItem(PERSIST_KEY, JSON.stringify(slim));
-    } catch (e) {
-      // localStorage full or unavailable — drop persistent layer entirely
-      try { localStorage.removeItem(PERSIST_KEY); } catch (_) {}
     }
+
+    // Even one entry wouldn't fit (or localStorage is unavailable entirely) —
+    // only now clear, so a stale oversized blob isn't left behind.
+    try { localStorage.removeItem(PERSIST_KEY); } catch (_) {}
   }, 1000);
 }
 

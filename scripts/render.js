@@ -73,6 +73,20 @@ function setupInfiniteScroll(grid, scrollContainer, fetchPage, renderer, onAppen
   };
 }
 
+// Cover art as a real <img> rather than a CSS background-image. Only <img>
+// gets native loading="lazy" (so offscreen covers in a long infinite-scroll
+// list aren't fetched at all) and decoding="async" (so decode work stays off
+// the main thread). The wrapper div keeps the size/radius/shadow and its
+// background-color — AniList's dominant colour — shows as a placeholder
+// while the image loads, and remains if it fails.
+//
+// alt is intentionally empty: every cover sits next to its title as real
+// text, so describing it again would just make screen readers repeat it.
+function coverImg(url) {
+  if (!url) return '';
+  return `<img src="${escapeHtml(url)}" alt="" loading="lazy" decoding="async" onerror="this.remove()">`;
+}
+
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
@@ -211,7 +225,8 @@ function renderCard(m) {
   const meta = m.format ? `<div class="card-meta">${m.format.replace(/_/g, ' ')}${count}</div>` : '';
   return `
     <div class="card" data-media-id="${m.id}" onclick="openMedia(${m.id})">
-      <div class="card-image" style="background-image:url('${m.coverImage?.large || ''}'); background-color:${m.coverImage?.color || 'var(--surface-2)'};">
+      <div class="card-image" style="background-color:${m.coverImage?.color || 'var(--surface-2)'};">
+        ${coverImg(m.coverImage?.large)}
         ${score}
       </div>
       <div class="card-title">${escapeHtml(pickTitle(m.title) || 'Unknown')}</div>
@@ -323,7 +338,8 @@ function renderRelationCard(edge) {
   const meta = m.format ? `<div class="card-meta">${m.format.replace(/_/g, ' ')}${count}</div>` : '';
   return `
     <div class="card" data-media-id="${m.id}" onclick="openMedia(${m.id})">
-      <div class="card-image" style="background-image:url('${m.coverImage?.large || ''}'); background-color:${m.coverImage?.color || 'var(--surface-2)'};">
+      <div class="card-image" style="background-color:${m.coverImage?.color || 'var(--surface-2)'};">
+        ${coverImg(m.coverImage?.large)}
         <div class="relation-tag">${escapeHtml(relationLabel)}</div>
       </div>
       <div class="card-title">${escapeHtml(pickTitle(m.title) || 'Unknown')}</div>
@@ -371,7 +387,7 @@ function renderListEntryRow(entry) {
       <div class="list-row-action list-row-action-sub">−1</div>
       <div class="list-row-action list-row-action-add">+1</div>
       <div class="list-row">
-        <div class="list-row-cover" style="background-image:url('${m.coverImage?.large || ''}'); background-color:${m.coverImage?.color || 'var(--surface-2)'};"></div>
+        <div class="list-row-cover" style="background-color:${m.coverImage?.color || 'var(--surface-2)'};">${coverImg(m.coverImage?.large)}</div>
         <div class="list-row-body">
           <div class="list-row-title">${escapeHtml(pickTitle(m.title) || 'Unknown')}</div>
           <div class="list-row-bar">
@@ -399,7 +415,7 @@ function renderVACharCard(edge) {
   const showLine = role ? `${role} · ${mediaTitle}` : mediaTitle;
   return `
     <div class="va-char-card" data-media-id="${media.id}" data-char-id="${char.id}">
-      <div class="va-char-image" style="background-image:url('${char.image?.large || ''}'); background-color:${media.coverImage?.color || 'var(--surface-2)'};"></div>
+      <div class="va-char-image" style="background-color:${media.coverImage?.color || 'var(--surface-2)'};">${coverImg(char.image?.large)}</div>
       <div class="va-char-name">${escapeHtml(char.name?.userPreferred || '')}</div>
       <div class="va-char-show">${escapeHtml(showLine)}</div>
     </div>

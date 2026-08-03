@@ -547,13 +547,39 @@ searchClear.addEventListener('click', () => {
   searchInput.focus();
 });
 
+let searchScroller = null;
+// Read by the scroller's fetcher so each page uses the CURRENT query — the
+// closure is created once but the search text changes on every keystroke.
+let searchQuery = '';
 async function doSearch(query) {
-  const q = `query ($s: String) { Page(perPage: 30) { media(search: $s, type: ANIME, isAdult: false, sort: [POPULARITY_DESC]) { ${MEDIA_FRAGMENT} } } }`;
-  const data = await anilist(q, { s: query });
-  const results = data?.Page?.media || [];
+  searchQuery = query;
 
-  if (results.length > 0) {
-    searchGrid.innerHTML = results.map(renderCard).join('');
+  if (!searchScroller) {
+    // Search lives in the main tab area, so #content is the scroll root
+    // (unlike the Genre/Studio/Staff overlays, which scroll .overlay-body).
+    const scrollEl = document.getElementById('content');
+    searchScroller = setupInfiniteScroll(searchGrid, scrollEl, async (page) => {
+      const q = `query ($s: String, $page: Int) {
+        Page(page: $page, perPage: 30) {
+          pageInfo { hasNextPage }
+          media(search: $s, type: ANIME, isAdult: false, sort: [POPULARITY_DESC]) {
+            ${MEDIA_FRAGMENT}
+          }
+        }
+      }`;
+      const data = await anilist(q, { s: searchQuery, page });
+      return {
+        items: data?.Page?.media || [],
+        hasMore: data?.Page?.pageInfo?.hasNextPage || false,
+      };
+    });
+  }
+
+  await searchScroller.reload();
+  // A newer keystroke may have started another search while we awaited.
+  if (searchQuery !== query) return;
+
+  if (searchGrid.querySelector('.card')) {
     saveRecentSearch(query);
   } else {
     searchGrid.innerHTML = `<div class="no-results" style="grid-column: 1/-1;">No results for "${escapeHtml(query)}"</div>`;
@@ -1094,7 +1120,9 @@ function renderActivity(act) {
   const liked = !!act.isLiked;
   const isText = act.type === 'TEXT';
   const m = act.media;
-  const replyList = (act.replies || []).map(renderReply).join('');
+  // Carried as JSON and turned into DOM on first expand (see toggleReplyPanel)
+  // rather than rendered up front for every card in the feed.
+  const replyData = escapeHtml(JSON.stringify(act.replies || []));
 
   // Compact two-line body: action + anime title inline, then reactions.
   // Anime cover floats on the right as a small thumb so each card stays
@@ -1111,13 +1139,13 @@ function renderActivity(act) {
       })();
 
   const thumb = (!isText && m)
-    ? `<div class="activity-thumb" data-media-id="${m.id}" style="background-image:url('${m.coverImage?.large || ''}'); background-color:${m.coverImage?.color || 'var(--surface-2)'};"></div>`
+    ? `<div class="activity-thumb" data-media-id="${m.id}" style="background-color:${m.coverImage?.color || 'var(--surface-2)'};">${coverImg(m.coverImage?.large)}</div>`
     : '';
 
   const uid = u?.id || 0;
   return `
     <div class="activity-card" data-activity-id="${act.id}">
-      <div class="activity-avatar user-tap" data-user-id="${uid}" data-user-name="${escapeHtml(name)}" style="background-image:url('${avatar}');"></div>
+      <div class="activity-avatar user-tap" data-user-id="${uid}" data-user-name="${escapeHtml(name)}">${coverImg(avatar)}</div>
       <div class="activity-body">
         <div class="activity-meta-row">
           <span class="activity-user user-tap" data-user-id="${uid}" data-user-name="${escapeHtml(name)}">${escapeHtml(name)}</span>
@@ -1134,8 +1162,8 @@ function renderActivity(act) {
             <span class="reply-count">${replies}</span>
           </button>
         </div>
-        <div class="activity-replies" data-activity-id="${act.id}">
-          <div class="activity-reply-list">${replyList}</div>
+        <div class="activity-replies" data-activity-id="${act.id}" data-replies="${replyData}">
+          <div class="activity-reply-list"></div>
           <form class="activity-reply-form" data-activity-id="${act.id}">
             <input class="activity-reply-input" type="text" placeholder="Reply…" maxlength="500" />
             <button class="activity-reply-send" type="submit">Send</button>
@@ -1242,90 +1270,142 @@ async function loadSocial() {
 }
 
 // Wire taps, likes, reply expansion + submission for every activity card in the feed
+// Wired ONCE per feed element, not per card. The infinite scroller appends
+// pages into this same container, so per-card binding stacked a fresh set of
+// listeners on every previously-rendered card each time a page loaded — after
+// N pages a page-1 card had N handlers, and a single reply tap fired
+// SaveActivityReply N times (posting the same reply N times to AniList).
+// Delegation means listener count is constant no matter how far you scroll,
+// and newly appended cards work with no extra wiring.
 function attachActivityHandlers(feed) {
-  feed.querySelectorAll('.activity-thumb').forEach(el => {
-    el.addEventListener('click', () => {
-      const id = parseInt(el.dataset.mediaId, 10);
-      if (!isNaN(id)) openMedia(id);
-    });
-  });
+  if (feed.dataset.delegated === '1') return;
+  feed.dataset.delegated = '1';
 
-  // Avatar / username → their profile
-  feed.querySelectorAll('.user-tap').forEach(el => {
-    el.addEventListener('click', (e) => {
+  feed.addEventListener('click', (e) => {
+    // Order matters: check the most specific targets first, since a tap on
+    // the avatar is also inside the card.
+    const userEl = e.target.closest('.user-tap');
+    if (userEl && feed.contains(userEl)) {
       e.stopPropagation();
-      const id = parseInt(el.dataset.userId, 10);
-      const name = el.dataset.userName;
+      const id = parseInt(userEl.dataset.userId, 10);
+      const name = userEl.dataset.userName;
       if (id > 0 && name) openUser(id, name);
-    });
-  });
+      return;
+    }
 
-  feed.querySelectorAll('.like-btn').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
+    const thumb = e.target.closest('.activity-thumb');
+    if (thumb && feed.contains(thumb)) {
+      const id = parseInt(thumb.dataset.mediaId, 10);
+      if (!isNaN(id)) openMedia(id);
+      return;
+    }
+
+    const likeBtn = e.target.closest('.like-btn');
+    if (likeBtn && feed.contains(likeBtn)) {
       e.stopPropagation();
-      if (!state.user) return openSignInModal();
-      const id = parseInt(btn.dataset.activityId, 10);
-      if (isNaN(id)) return;
-      const mutation = `mutation ($id: Int) {
-        ToggleLikeV2(id: $id, type: ACTIVITY) { ... on ListActivity { id likeCount isLiked } ... on TextActivity { id likeCount isLiked } }
-      }`;
-      const data = await anilist(mutation, { id });
-      const updated = data?.ToggleLikeV2;
-      if (updated) {
-        btn.classList.toggle('liked', updated.isLiked);
-        const countEl = btn.querySelector('span');
-        if (countEl) countEl.textContent = updated.likeCount;
-        const svg = btn.querySelector('svg');
-        if (svg) svg.setAttribute('fill', updated.isLiked ? 'currentColor' : 'none');
-      }
-    });
+      handleLikeTap(likeBtn);
+      return;
+    }
+
+    const replyToggle = e.target.closest('.reply-toggle');
+    if (replyToggle && feed.contains(replyToggle)) {
+      toggleReplyPanel(feed, replyToggle);
+      return;
+    }
   });
 
-  // Reply count button toggles the inline replies panel
-  feed.querySelectorAll('.reply-toggle').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.dataset.activityId;
-      const panel = feed.querySelector(`.activity-replies[data-activity-id="${id}"]`);
-      if (!panel) return;
-      panel.classList.toggle('open');
-      // Auto-focus the input when opening so the user can type immediately
-      if (panel.classList.contains('open')) {
-        const input = panel.querySelector('.activity-reply-input');
-        if (input) setTimeout(() => input.focus(), 50);
-      }
-    });
+  feed.addEventListener('submit', (e) => {
+    const form = e.target.closest('.activity-reply-form');
+    if (!form || !feed.contains(form)) return;
+    e.preventDefault();
+    submitReply(form);
   });
+}
 
-  // Submit a reply via SaveActivityReply
-  feed.querySelectorAll('.activity-reply-form').forEach(form => {
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      if (!state.user) return openSignInModal();
-      const input = form.querySelector('.activity-reply-input');
-      const text = input.value.trim();
-      if (!text) return;
-      const sendBtn = form.querySelector('.activity-reply-send');
-      sendBtn.disabled = true;
-      const activityId = parseInt(form.dataset.activityId, 10);
-      const mutation = `mutation ($activityId: Int, $text: String) {
-        SaveActivityReply(activityId: $activityId, text: $text) {
-          id text createdAt user { id name avatar { large medium } }
-        }
-      }`;
-      const data = await anilist(mutation, { activityId, text });
-      sendBtn.disabled = false;
-      const reply = data?.SaveActivityReply;
-      if (reply) {
-        const list = form.parentElement.querySelector('.activity-reply-list');
-        if (list) list.insertAdjacentHTML('beforeend', renderReply(reply));
-        input.value = '';
-        // Bump the count next to the reply icon
-        const card = form.closest('.activity-card');
-        const count = card?.querySelector('.reply-count');
-        if (count) count.textContent = (parseInt(count.textContent || '0', 10) + 1);
-      }
-    });
-  });
+async function handleLikeTap(btn) {
+  if (!state.user) return openSignInModal();
+  const id = parseInt(btn.dataset.activityId, 10);
+  if (isNaN(id)) return;
+  // Guard against double-fire from an impatient double tap — the mutation
+  // is a toggle, so two in flight would cancel each other out.
+  if (btn.dataset.busy === '1') return;
+  btn.dataset.busy = '1';
+  const mutation = `mutation ($id: Int) {
+    ToggleLikeV2(id: $id, type: ACTIVITY) { ... on ListActivity { id likeCount isLiked } ... on TextActivity { id likeCount isLiked } }
+  }`;
+  try {
+    const data = await anilist(mutation, { id });
+    const updated = data?.ToggleLikeV2;
+    if (updated) {
+      btn.classList.toggle('liked', updated.isLiked);
+      const countEl = btn.querySelector('span');
+      if (countEl) countEl.textContent = updated.likeCount;
+      const svg = btn.querySelector('svg');
+      if (svg) svg.setAttribute('fill', updated.isLiked ? 'currentColor' : 'none');
+    }
+  } finally {
+    delete btn.dataset.busy;
+  }
+}
+
+function toggleReplyPanel(feed, btn) {
+  const id = btn.dataset.activityId;
+  const panel = feed.querySelector(`.activity-replies[data-activity-id="${id}"]`);
+  if (!panel) return;
+  panel.classList.toggle('open');
+  if (!panel.classList.contains('open')) return;
+
+  ensureRepliesRendered(panel);
+
+  const input = panel.querySelector('.activity-reply-input');
+  if (input) setTimeout(() => input.focus(), 50);
+}
+
+// Replies are rendered on first expand rather than up front — building the
+// full list for every card in the feed was wasted DOM for panels that stay
+// collapsed. The JSON rides along in a data attribute set by renderActivity.
+// Idempotent, so both the expand path and the post-reply path can call it.
+function ensureRepliesRendered(panel) {
+  const list = panel?.querySelector('.activity-reply-list');
+  if (!list || list.dataset.rendered === '1') return list;
+  list.dataset.rendered = '1';
+  let replies = [];
+  try { replies = JSON.parse(panel.dataset.replies || '[]'); } catch (err) {}
+  if (replies.length) list.innerHTML = replies.map(renderReply).join('');
+  delete panel.dataset.replies;  // free the payload once it's DOM
+  return list;
+}
+
+async function submitReply(form) {
+  if (!state.user) return openSignInModal();
+  const input = form.querySelector('.activity-reply-input');
+  const text = input.value.trim();
+  if (!text) return;
+  const sendBtn = form.querySelector('.activity-reply-send');
+  if (sendBtn.disabled) return;
+  sendBtn.disabled = true;
+  const activityId = parseInt(form.dataset.activityId, 10);
+  const mutation = `mutation ($activityId: Int, $text: String) {
+    SaveActivityReply(activityId: $activityId, text: $text) {
+      id text createdAt user { id name avatar { large medium } }
+    }
+  }`;
+  try {
+    const data = await anilist(mutation, { activityId, text });
+    const reply = data?.SaveActivityReply;
+    if (reply) {
+      // Render any stored replies first, so appending can't leave the new one
+      // as the only entry (and can't be clobbered by a later lazy render).
+      const list = ensureRepliesRendered(form.closest('.activity-replies'));
+      if (list) list.insertAdjacentHTML('beforeend', renderReply(reply));
+      input.value = '';
+      const card = form.closest('.activity-card');
+      const count = card?.querySelector('.reply-count');
+      if (count) count.textContent = (parseInt(count.textContent || '0', 10) + 1);
+    }
+  } finally {
+    sendBtn.disabled = false;
+  }
 }
 
 // ============ CATEGORY OVERLAY ("See all") ============
@@ -1394,20 +1474,37 @@ async function openGenre(genre, type) {
   loadGenre();
 }
 
+let genreScroller = null;
 async function loadGenre() {
   const grid = document.getElementById('genre-grid');
+  if (!grid) return;
   skeletonFill(grid, 12);
-  const q = `query ($genre: String, $type: MediaType, $sort: [MediaSort]) {
-    Page(perPage: 50) {
-      media(genre: $genre, type: $type, sort: $sort, isAdult: false) {
-        ${MEDIA_FRAGMENT}
-      }
-    }
-  }`;
-  const data = await anilist(q, { genre: genreState.genre, type: genreState.type, sort: [genreState.sort] });
-  if (data?.Page?.media?.length) {
-    grid.innerHTML = data.Page.media.map(renderCard).join('');
-  } else {
+
+  if (!genreScroller) {
+    // Overlays scroll their own .overlay-body, not #content — using the wrong
+    // root makes the IntersectionObserver never fire and pagination stall.
+    const scrollEl = grid.closest('.overlay-body');
+    genreScroller = setupInfiniteScroll(grid, scrollEl, async (page) => {
+      const q = `query ($genre: String, $type: MediaType, $sort: [MediaSort], $page: Int) {
+        Page(page: $page, perPage: 30) {
+          pageInfo { hasNextPage }
+          media(genre: $genre, type: $type, sort: $sort, isAdult: false) {
+            ${MEDIA_FRAGMENT}
+          }
+        }
+      }`;
+      const data = await anilist(q, {
+        genre: genreState.genre, type: genreState.type, sort: [genreState.sort], page,
+      });
+      return {
+        items: data?.Page?.media || [],
+        hasMore: data?.Page?.pageInfo?.hasNextPage || false,
+      };
+    });
+  }
+
+  await genreScroller.reload();
+  if (!grid.querySelector('.card')) {
     grid.innerHTML = `<div class="no-results" style="grid-column: 1/-1;">No results for ${escapeHtml(genreState.genre)}.</div>`;
   }
 }
@@ -1444,31 +1541,46 @@ async function openStudio(id, name) {
   loadStudio();
 }
 
+let studioScroller = null;
+// Lives outside the fetcher so dedup carries ACROSS pages — a show credited
+// to the studio for multiple roles can otherwise reappear on a later page,
+// which a per-page Set would never catch. reload() clears it.
+let studioSeenIds = new Set();
 async function loadStudio() {
   const grid = document.getElementById('studio-grid');
+  if (!grid) return;
   skeletonFill(grid, 12);
-  // AniList's Studio.media DOES NOT accept a `type` argument — including
-  // one returns a 400 error and the overlay shows "No works found".
-  // (Studios only produce anime so the filter was always redundant anyway.)
-  const q = `query ($id: Int, $sort: [MediaSort]) {
-    Studio(id: $id) {
-      media(sort: $sort, perPage: 50) {
-        nodes { ${MEDIA_FRAGMENT} }
-      }
-    }
-  }`;
-  const data = await anilist(q, { id: studioState.id, sort: [studioState.sort] });
-  // Dedup by media id — AniList occasionally returns the same media twice
-  // when the studio is credited for multiple roles on the same show.
-  const seen = new Set();
-  const items = (data?.Studio?.media?.nodes || []).filter((m) => {
-    if (!m || seen.has(m.id)) return false;
-    seen.add(m.id);
-    return true;
-  });
-  if (items.length) {
-    grid.innerHTML = items.map(renderCard).join('');
-  } else {
+  studioSeenIds = new Set();
+
+  if (!studioScroller) {
+    const scrollEl = grid.closest('.overlay-body');
+    studioScroller = setupInfiniteScroll(grid, scrollEl, async (page) => {
+      // AniList's Studio.media DOES NOT accept a `type` argument — including
+      // one returns a 400 error and the overlay shows "No works found".
+      // (Studios only produce anime so the filter was always redundant anyway.)
+      const q = `query ($id: Int, $sort: [MediaSort], $page: Int) {
+        Studio(id: $id) {
+          media(sort: $sort, page: $page, perPage: 30) {
+            pageInfo { hasNextPage }
+            nodes { ${MEDIA_FRAGMENT} }
+          }
+        }
+      }`;
+      const data = await anilist(q, { id: studioState.id, sort: [studioState.sort], page });
+      const items = (data?.Studio?.media?.nodes || []).filter((m) => {
+        if (!m || studioSeenIds.has(m.id)) return false;
+        studioSeenIds.add(m.id);
+        return true;
+      });
+      return {
+        items,
+        hasMore: data?.Studio?.media?.pageInfo?.hasNextPage || false,
+      };
+    });
+  }
+
+  await studioScroller.reload();
+  if (!grid.querySelector('.card')) {
     grid.innerHTML = `<div class="no-results" style="grid-column: 1/-1;">No works found.</div>`;
   }
 }
@@ -1584,39 +1696,59 @@ async function loadStaffHero(id) {
   `;
 }
 
+let staffScroller = null;
 async function loadStaff() {
   const grid = document.getElementById('staff-grid');
+  if (!grid) return;
   skeletonFill(grid, 12);
-  const q = `query ($id: Int, $sort: [CharacterSort]) {
-    Staff(id: $id) {
-      characters(sort: $sort, perPage: 50) {
-        edges {
-          role
-          node {
-            id
-            name { userPreferred }
-            image { large }
-          }
-          media {
-            id
-            title { userPreferred english romaji }
-            coverImage { color }
-            type
+
+  // One delegated listener on the grid instead of one per card. Binding
+  // per-card here would restack handlers on every appended page, the same
+  // way it did in the Social feed.
+  if (grid.dataset.delegated !== '1') {
+    grid.dataset.delegated = '1';
+    grid.addEventListener('click', (e) => {
+      const card = e.target.closest('.va-char-card');
+      if (!card || !grid.contains(card)) return;
+      const id = parseInt(card.dataset.mediaId, 10);
+      if (!isNaN(id)) openMedia(id);
+    });
+  }
+
+  if (!staffScroller) {
+    const scrollEl = grid.closest('.overlay-body');
+    staffScroller = setupInfiniteScroll(grid, scrollEl, async (page) => {
+      const q = `query ($id: Int, $sort: [CharacterSort], $page: Int) {
+        Staff(id: $id) {
+          characters(sort: $sort, page: $page, perPage: 30) {
+            pageInfo { hasNextPage }
+            edges {
+              role
+              node {
+                id
+                name { userPreferred }
+                image { large }
+              }
+              media {
+                id
+                title { userPreferred english romaji }
+                coverImage { color }
+                type
+              }
+            }
           }
         }
-      }
-    }
-  }`;
-  const data = await anilist(q, { id: staffState.id, sort: [staffState.sort] });
-  const edges = data?.Staff?.characters?.edges;
-  if (edges?.length) {
-    grid.innerHTML = edges.map(renderVACharCard).filter(Boolean).join('');
-    grid.querySelectorAll('.va-char-card').forEach(card => {
-      card.addEventListener('click', () => {
-        openMedia(parseInt(card.dataset.mediaId, 10));
-      });
-    });
-  } else {
+      }`;
+      const data = await anilist(q, { id: staffState.id, sort: [staffState.sort], page });
+      return {
+        items: data?.Staff?.characters?.edges || [],
+        hasMore: data?.Staff?.characters?.pageInfo?.hasNextPage || false,
+      };
+    }, renderVACharCard);
+  }
+
+  await staffScroller.reload();
+  if (!grid.querySelector('.va-char-card')) {
     grid.innerHTML = `<div class="no-results" style="grid-column: 1/-1;">No roles found.</div>`;
   }
 }
