@@ -246,7 +246,8 @@
 .list-row-cover img,
 .activity-thumb img,
 .va-char-image img,
-.activity-avatar img {
+.activity-avatar img,
+.character-image img {
   width: 100%; height: 100%;
   object-fit: cover;
   display: block;
@@ -1091,7 +1092,7 @@
   aspect-ratio: 1 / 1;
   border-radius: 50%;
   background: var(--surface-2);
-  background-size: cover; background-position: center;
+  overflow: hidden;
   margin: 0 auto 8px;
   border: 2px solid var(--border);
   transition: border-color 0.15s ease;

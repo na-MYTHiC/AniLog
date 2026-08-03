@@ -1810,6 +1810,79 @@ async function loadDetailFriends(mediaId) {
   });
 }
 
+// Bumped on every openMedia so a slow response for an anime the user has
+// already navigated away from can't overwrite the one they're looking at.
+let detailReqId = 0;
+
+// Fetches the below-the-fold sections and fills in the placeholders left by
+// openMedia. Every write re-checks that the user is still on the same anime,
+// since this resolves well after the core render.
+async function loadDetailExtras(mediaId, body) {
+  const myReq = detailReqId;
+  const stale = () => myReq !== detailReqId || !currentMedia || currentMedia.id !== mediaId;
+
+  let extras = null;
+  try {
+    const q = `query ($id: Int) { Media(id: $id) { ${MEDIA_DETAIL_EXTRAS} } }`;
+    const data = await anilist(q, { id: mediaId });
+    extras = data?.Media;
+  } catch (e) { /* leave the sections hidden */ }
+  if (!extras || stale()) return;
+
+  // Recommendations
+  const recs = (extras.recommendations?.edges || [])
+    .map((e) => e.node?.mediaRecommendation)
+    .filter((r) => r?.type === 'ANIME');
+  const recsSection = body.querySelector('[data-recs-section]');
+  const recsCarousel = body.querySelector('[data-recs-carousel]');
+  if (recsSection && recsCarousel && recs.length) {
+    recsCarousel.innerHTML = recs.map(renderCard).join('');
+    recsSection.hidden = false;
+  }
+
+  // Characters — wired here rather than in openMedia because the cards don't
+  // exist until now. Runs once per openMedia, so handlers can't stack.
+  const charEdges = extras.characters?.edges || [];
+  const charsSection = body.querySelector('[data-chars-section]');
+  const charsRow = body.querySelector('[data-chars-row]');
+  if (charsSection && charsRow && charEdges.length) {
+    charsRow.innerHTML = charEdges.map((e) => `
+      <div class="character-card" data-character-id="${e.node.id}">
+        <div class="character-image">${coverImg(e.node.image?.large)}</div>
+        <div class="character-name">${escapeHtml(e.node.name?.userPreferred || '')}</div>
+        <div class="character-role">${e.role ? escapeHtml(e.role.toLowerCase()) : ''}</div>
+      </div>
+    `).join('');
+    charsSection.hidden = false;
+    charsRow.addEventListener('click', (ev) => {
+      const card = ev.target.closest('.character-card');
+      if (!card) return;
+      const cid = parseInt(card.dataset.characterId, 10);
+      if (!isNaN(cid)) openCharacter(cid);
+    });
+  }
+
+  // Relations — expandRelations walks PREQUEL/SEQUEL outward so the whole
+  // season chain shows, not just the directly adjacent entries.
+  const relSection = body.querySelector('[data-relations-section]');
+  const relCarousel = body.querySelector('[data-relations-carousel]');
+  if (!relSection || !relCarousel) return;
+
+  const direct = filterRelations(extras.relations?.edges);
+  if (direct.length) {
+    relCarousel.innerHTML = direct.map(renderRelationCard).join('');
+    relSection.hidden = false;
+  }
+  try {
+    const expanded = await expandRelations(extras.relations?.edges, mediaId);
+    if (stale()) return;
+    if (expanded.length) {
+      relCarousel.innerHTML = expanded.map(renderRelationCard).join('');
+      relSection.hidden = false;
+    }
+  } catch (e) { /* the direct list above stays as the fallback */ }
+}
+
 async function openMedia(id) {
   // Tapping a card inside Studio / Character / Staff / Genre / Category
   // would otherwise just update the detail overlay underneath — invisible
@@ -1826,8 +1899,10 @@ async function openMedia(id) {
   body.innerHTML = `<div style="padding: 40px 20px; text-align:center; color:var(--text-dim);">Loading…</div>`;
   overlay.classList.add('visible');
 
-  const q = `query ($id: Int) { Media(id: $id) { ${MEDIA_DETAIL_FRAGMENT} } }`;
+  const myReq = ++detailReqId;
+  const q = `query ($id: Int) { Media(id: $id) { ${MEDIA_DETAIL_CORE} } }`;
   const data = await anilist(q, { id });
+  if (myReq !== detailReqId) return;   // a newer openMedia superseded this one
   const m = data?.Media;
   if (!m) {
     body.innerHTML = `<div style="padding: 40px 20px; text-align:center; color:var(--text-dim);">Couldn't load details.</div>`;
@@ -1853,11 +1928,6 @@ async function openMedia(id) {
   if (countText) subParts.push(escapeHtml(countText));
 
   const descLong = desc && desc.length > 280;
-
-  const filteredRelations = filterRelations(m.relations?.edges);
-  const recs = (m.recommendations?.edges || [])
-    .map(e => e.node?.mediaRecommendation)
-    .filter(r => r?.type === 'ANIME');
 
   body.innerHTML = `
     <div class="detail-banner" style="background-image:url('${m.bannerImage || m.coverImage?.extraLarge || ''}'); background-color:${m.coverImage?.color || 'var(--surface-2)'};"></div>
@@ -1920,33 +1990,18 @@ async function openMedia(id) {
         <div class="detail-desc${descLong ? ' collapsed' : ''}">${escapeHtml(desc)}</div>
         ${descLong ? `<button class="desc-toggle">Read more</button>` : ''}
       </div>` : ''}
-    <div class="detail-section" data-relations-section ${filteredRelations.length ? '' : 'hidden'}>
+    <div class="detail-section" data-relations-section hidden>
       <h4>Relations</h4>
-      <div class="carousel" data-relations-carousel>
-        ${filteredRelations.map(renderRelationCard).join('')}
-      </div>
+      <div class="carousel" data-relations-carousel></div>
     </div>
-    ${recs.length ? `
-      <div class="detail-section">
-        <h4>Recommendations</h4>
-        <div class="carousel">
-          ${recs.map(renderCard).join('')}
-        </div>
-      </div>` : ''}
-    ${m.characters?.edges?.length ? `
-      <div class="detail-section">
-        <h4>Characters</h4>
-        <div class="character-row">
-          ${m.characters.edges.map(e => `
-            <div class="character-card" data-character-id="${e.node.id}">
-              <div class="character-image" style="background-image:url('${e.node.image?.large || ''}');"></div>
-              <div class="character-name">${escapeHtml(e.node.name?.userPreferred || '')}</div>
-              <div class="character-role">${e.role ? escapeHtml(e.role.toLowerCase()) : ''}</div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-    ` : ''}
+    <div class="detail-section" data-recs-section hidden>
+      <h4>Recommendations</h4>
+      <div class="carousel" data-recs-carousel></div>
+    </div>
+    <div class="detail-section" data-chars-section hidden>
+      <h4>Characters</h4>
+      <div class="character-row" data-chars-row></div>
+    </div>
     ${renderStreamingSection(m.externalLinks)}
     ${renderTrailerSection(m.trailer)}
   `;
@@ -2000,23 +2055,11 @@ async function openMedia(id) {
     });
   });
 
-  // Expand the season chain in the background — walk PREQUEL/SEQUEL outward
-  // so the user sees every season, not just the directly adjacent one.
-  const relSection = body.querySelector('[data-relations-section]');
-  const relCarousel = body.querySelector('[data-relations-carousel]');
-  if (relSection && relCarousel) {
-    const targetId = m.id;
-    expandRelations(m.relations?.edges, m.id).then(expanded => {
-      // Bail if the user opened a different anime in the meantime
-      if (!currentMedia || currentMedia.id !== targetId) return;
-      if (!expanded.length) {
-        relSection.hidden = true;
-        return;
-      }
-      relSection.hidden = false;
-      relCarousel.innerHTML = expanded.map(renderRelationCard).join('');
-    }).catch(() => { /* swallow — the directly-rendered list stays as fallback */ });
-  }
+  // Relations / recommendations / characters are ~89% of the full detail
+  // payload but all sit below the fold, so they're fetched separately once
+  // the visible part is already on screen.
+  loadDetailExtras(m.id, body);
+
   // Wire up genre pills → genre overlay
   body.querySelectorAll('.genre-pill').forEach(pill => {
     pill.addEventListener('click', () => {
@@ -2032,12 +2075,6 @@ async function openMedia(id) {
       descToggle.textContent = isCollapsed ? 'Read more' : 'Read less';
     });
   }
-  // Character cards → character overlay
-  body.querySelectorAll('.character-card').forEach(card => {
-    card.addEventListener('click', () => {
-      openCharacter(parseInt(card.dataset.characterId, 10));
-    });
-  });
   // Score pill → rate modal (only when signed in; pill has score-clickable class)
   const scorePill = body.querySelector('#detail-score-pill');
   if (scorePill) {
@@ -2544,7 +2581,11 @@ function _idle(cb, opts) {
 function prefetchMedia(id) {
   if (!id || _prefetchedMediaIds.has(id) || !_prefetchAllowed()) return;
   _prefetchedMediaIds.add(id);
-  const q = `query ($id: Int) { Media(id: $id) { ${MEDIA_DETAIL_FRAGMENT} } }`;
+  // Core only — it's the query openMedia awaits before painting, so warming
+  // it is what actually makes the tap feel instant. The extras are ~10x the
+  // bytes and load behind the render anyway, so speculatively fetching them
+  // for every card the user brushes past would waste most of that data.
+  const q = `query ($id: Int) { Media(id: $id) { ${MEDIA_DETAIL_CORE} } }`;
   anilist(q, { id }).catch(() => {});
 }
 function _mediaIdFromEvent(e) {

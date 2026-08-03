@@ -39,7 +39,16 @@ const MEDIA_FRAGMENT = `
   seasonYear
 `;
 
-const MEDIA_DETAIL_FRAGMENT = `
+// The detail query is split in two because the whole thing is ~29KB and only
+// ~3KB of that is above the fold. Measured against Media(16498):
+//   core            3.2KB   everything visible without scrolling
+//   characters     16.0KB   55% of the payload — each entry carries a full
+//                           voiceActors list with images
+//   relations       5.1KB
+//   recommendations 4.8KB
+// Fetching core alone lets the page paint from a tenth of the bytes; the rest
+// streams in behind it while the user is still reading the synopsis.
+const MEDIA_DETAIL_CORE = `
   id
   title { userPreferred english romaji }
   coverImage { extraLarge large color }
@@ -61,6 +70,14 @@ const MEDIA_DETAIL_FRAGMENT = `
   externalLinks { id url site icon color type language }
   mediaListEntry { id status score progress }
   studios(isMain: true) { nodes { id name } }
+  nextAiringEpisode { airingAt episode timeUntilAiring }
+  startDate { year month day }
+  endDate { year month day }
+`;
+
+// Below-the-fold sections, fetched separately right after the core render.
+const MEDIA_DETAIL_EXTRAS = `
+  id
   characters(sort: ROLE, perPage: 12) {
     edges {
       role
@@ -77,9 +94,6 @@ const MEDIA_DETAIL_FRAGMENT = `
       }
     }
   }
-  nextAiringEpisode { airingAt episode timeUntilAiring }
-  startDate { year month day }
-  endDate { year month day }
   relations {
     edges {
       relationType
