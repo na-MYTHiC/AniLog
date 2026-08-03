@@ -22,7 +22,8 @@ const THEMES = [
 
 // ============ ANILIST OAUTH ============
 const ANILIST_CLIENT_ID = '42596';
-const ANILIST_REDIRECT_URI = 'https://na-mythic.github.io/AniLog/';
+// No redirect_uri param — AniList uses the redirect URL registered on the
+// API client itself (https://na-mythic.github.io/AniLog/, see README).
 const ANILIST_AUTH_URL = `https://anilist.co/api/v2/oauth/authorize?client_id=${ANILIST_CLIENT_ID}&response_type=token`;
 
 const ANILIST = 'https://graphql.anilist.co';

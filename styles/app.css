@@ -373,29 +373,6 @@
   border-radius: 14px; z-index: -1;
 }
 
-.toggle-row {
-  padding: 16px 20px 4px;
-  display: flex; justify-content: center;
-}
-.toggle {
-  display: inline-flex;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 3px; gap: 2px;
-}
-.toggle-btn {
-  padding: 7px 18px;
-  background: none; border: none;
-  color: var(--text-dim);
-  font-size: 13px; font-weight: 600;
-  border-radius: 7px; cursor: pointer;
-  /* Specific props only — `transition: all` would animate layout/paint
-     properties too if they ever changed, causing surprise jank. */
-  transition: background 0.2s ease, color 0.2s ease;
-}
-.toggle-btn.active { background: var(--accent); color: var(--accent-on); }
-
 .empty {
   padding: 60px 20px;
   text-align: center;
@@ -449,11 +426,6 @@
   gap: 12px;
 }
 .settings-row:last-child { border-bottom: none; }
-.settings-row-stack {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 12px;
-}
 .settings-label { font-size: 14px; font-weight: 500; }
 .settings-sub {
   font-size: 12px; color: var(--text-dim);
@@ -522,23 +494,6 @@
 .theme-option-check {
   color: var(--accent);
   flex-shrink: 0;
-}
-.theme-option.custom {
-  border-top: 1px solid var(--border);
-  margin-top: 6px;
-}
-.theme-option.custom .theme-option-swatch {
-  background: conic-gradient(from 0deg, #ff5c5c, #ffa726, #fdd835, #66bb6a, #29b6f6, #5e35b1, #d81b60, #ff5c5c);
-}
-.theme-option.custom .theme-option-name {
-  display: flex; flex-direction: column;
-  gap: 2px;
-}
-.theme-option.custom .theme-option-name::after {
-  content: 'Pick your own hex color';
-  font-size: 11px;
-  font-weight: 400;
-  color: var(--text-dim);
 }
 
 .search-wrap {
@@ -737,12 +692,6 @@
   line-height: 1.4;
 }
 .user-hero-stats strong { color: var(--text); font-weight: 700; }
-.user-hero-actions {
-  display: flex;
-  gap: 8px;
-  padding: 12px 20px 0;
-  flex-wrap: wrap;
-}
 .user-list-rows { padding-bottom: 24px; }
 /* Reuse the Home tab's list-controls layout inside the user overlay. */
 #user-list-controls { margin-top: 4px; }
@@ -1116,53 +1065,6 @@
   flex-shrink: 0;
 }
 [data-theme="light"] .stream-btn .stream-icon { background: rgba(0, 0, 0, 0.04); }
-
-/* The Studio pill is rendered with .genre-pill but deserves more presence */
-.genre-pill.studio-pill {
-  padding: 8px 16px;
-  font-size: 13px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-.genre-pill.studio-pill::after {
-  content: '›';
-  font-size: 16px;
-  font-weight: 700;
-  opacity: 0.7;
-  line-height: 1;
-}
-
-/* Studio chip on detail page (subtle inline style) */
-.studio-card {
-  margin: 0 20px 16px;
-  padding: 8px 14px;
-  display: flex; align-items: center;
-  gap: 10px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-.studio-card:hover { background: var(--surface-2); }
-.studio-label {
-  font-size: 10px;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  font-weight: 700;
-}
-.studio-name {
-  flex: 1;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--accent);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.studio-chevron { color: var(--text-dim); flex-shrink: 0; }
 
 /* Character row on detail page — exactly 4 cards visible across the row.
    Card width is calc'd from the carousel's content width so the math
@@ -1887,22 +1789,3 @@
   font-weight: 700;
 }
 
-.signin-card {
-  margin: 14px 20px 8px;
-  background: linear-gradient(135deg, var(--accent-soft), transparent);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 18px;
-  display: flex; align-items: center; gap: 14px;
-}
-.signin-card-text { flex: 1; }
-.signin-card-title { font-size: 14px; font-weight: 700; margin-bottom: 3px; }
-.signin-card-sub { font-size: 12px; color: var(--text-dim); }
-.signin-card .btn-primary { padding: 9px 14px; font-size: 13px; flex-shrink: 0; }
-
-/* Hidden native color input (the custom swatch triggers it) */
-.hidden-color-input {
-  position: absolute;
-  width: 1px; height: 1px;
-  opacity: 0; pointer-events: none;
-}
