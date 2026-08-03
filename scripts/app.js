@@ -572,7 +572,7 @@ async function doSearch(query) {
         items: data?.Page?.media || [],
         hasMore: data?.Page?.pageInfo?.hasNextPage || false,
       };
-    });
+    }, null, null, (el) => skeletonFill(el, 9));
   }
 
   await searchScroller.reload();
@@ -694,7 +694,7 @@ async function loadSeasonal() {
         items: data?.Page?.media || [],
         hasMore: data?.Page?.pageInfo?.hasNextPage || false,
       };
-    });
+    }, null, null, (el) => skeletonFill(el, 12));
   }
   await seasonalScroller.reload();
 }
@@ -1180,16 +1180,6 @@ async function loadSocial() {
   if (!feed) return;
   const myReq = ++socialReqId;
 
-  feed.innerHTML = Array(5).fill(`
-    <div class="activity-card">
-      <div class="activity-avatar skeleton"></div>
-      <div class="activity-body">
-        <div class="skeleton" style="height: 14px; width: 40%; border-radius: 4px; margin-bottom: 8px;"></div>
-        <div class="skeleton" style="height: 52px; border-radius: 8px;"></div>
-      </div>
-    </div>
-  `).join('');
-
   const activityBody = `
     ... on ListActivity {
       id type status progress createdAt likeCount replyCount isLiked
@@ -1252,7 +1242,17 @@ async function loadSocial() {
         items: rawItems(data),
         hasMore: data?.Page?.pageInfo?.hasNextPage || false,
       };
-    }, renderActivity, attachActivityHandlers);
+    }, renderActivity, attachActivityHandlers, (el) => {
+      el.innerHTML = Array(5).fill(`
+        <div class="activity-card">
+          <div class="activity-avatar skeleton"></div>
+          <div class="activity-body">
+            <div class="skeleton" style="height: 14px; width: 40%; border-radius: 4px; margin-bottom: 8px;"></div>
+            <div class="skeleton" style="height: 52px; border-radius: 8px;"></div>
+          </div>
+        </div>
+      `).join('');
+    });
   }
 
   await socialScroller.reload();
@@ -1445,7 +1445,7 @@ async function loadCategory() {
         items: data?.Page?.media || [],
         hasMore: data?.Page?.pageInfo?.hasNextPage || false,
       };
-    });
+    }, null, null, (el) => skeletonFill(el, 12));
   }
   await categoryScroller.reload();
 }
@@ -1478,7 +1478,6 @@ let genreScroller = null;
 async function loadGenre() {
   const grid = document.getElementById('genre-grid');
   if (!grid) return;
-  skeletonFill(grid, 12);
 
   if (!genreScroller) {
     // Overlays scroll their own .overlay-body, not #content — using the wrong
@@ -1500,7 +1499,7 @@ async function loadGenre() {
         items: data?.Page?.media || [],
         hasMore: data?.Page?.pageInfo?.hasNextPage || false,
       };
-    });
+    }, null, null, (el) => skeletonFill(el, 12));
   }
 
   await genreScroller.reload();
@@ -1549,7 +1548,6 @@ let studioSeenIds = new Set();
 async function loadStudio() {
   const grid = document.getElementById('studio-grid');
   if (!grid) return;
-  skeletonFill(grid, 12);
   studioSeenIds = new Set();
 
   if (!studioScroller) {
@@ -1576,7 +1574,7 @@ async function loadStudio() {
         items,
         hasMore: data?.Studio?.media?.pageInfo?.hasNextPage || false,
       };
-    });
+    }, null, null, (el) => skeletonFill(el, 12));
   }
 
   await studioScroller.reload();
@@ -1700,7 +1698,6 @@ let staffScroller = null;
 async function loadStaff() {
   const grid = document.getElementById('staff-grid');
   if (!grid) return;
-  skeletonFill(grid, 12);
 
   // One delegated listener on the grid instead of one per card. Binding
   // per-card here would restack handlers on every appended page, the same
@@ -1744,7 +1741,7 @@ async function loadStaff() {
         items: data?.Staff?.characters?.edges || [],
         hasMore: data?.Staff?.characters?.pageInfo?.hasNextPage || false,
       };
-    }, renderVACharCard);
+    }, renderVACharCard, null, (el) => skeletonFill(el, 12));
   }
 
   await staffScroller.reload();

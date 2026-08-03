@@ -13,7 +13,11 @@
 //
 // Returned object exposes `.reload()` to reset pagination and re-fetch from
 // page 1, and `.destroy()` to tear down the observer.
-function setupInfiniteScroll(grid, scrollContainer, fetchPage, renderer, onAppend) {
+// skeletonFn (optional) fills the grid with placeholders while page 1 is in
+// flight. It belongs here rather than at each call site: reload() clears the
+// grid as its first act, so a caller that painted skeletons beforehand just
+// had them thrown away a moment later.
+function setupInfiniteScroll(grid, scrollContainer, fetchPage, renderer, onAppend, skeletonFn) {
   const render = renderer || renderCard;
   const sentinel = document.createElement('div');
   sentinel.className = 'scroll-sentinel';
@@ -25,21 +29,41 @@ function setupInfiniteScroll(grid, scrollContainer, fetchPage, renderer, onAppen
   let reqId = 0;
   let observer = null;
 
+  function clearSkeletons() {
+    grid.querySelectorAll(':scope > .is-placeholder').forEach((el) => el.remove());
+  }
+
+  function showSkeletons() {
+    if (typeof skeletonFn !== 'function') return;
+    // Render into a detached node, tag each child, then move them in — so we
+    // can remove exactly these later without touching real results.
+    const holder = document.createElement('div');
+    skeletonFn(holder);
+    Array.from(holder.children).forEach((child) => {
+      child.classList.add('is-placeholder');
+      grid.insertBefore(child, sentinel);
+    });
+  }
+
   async function loadNext() {
     if (loading || !hasMore) return;
     loading = true;
     const myReq = reqId;
-    sentinel.textContent = 'Loading…';
+    // Page 1 shows skeletons instead of the tiny sentinel caption; later
+    // pages show the caption, since real content already fills the screen.
+    sentinel.textContent = page === 1 && typeof skeletonFn === 'function' ? '' : 'Loading…';
     try {
       const result = await fetchPage(page);
       if (myReq !== reqId) return;
       const items = result?.items || [];
+      clearSkeletons();
       sentinel.insertAdjacentHTML('beforebegin', items.map(render).join(''));
       if (typeof onAppend === 'function') onAppend(grid);
       hasMore = !!result?.hasMore;
       page += 1;
       sentinel.textContent = hasMore ? '' : '— end of list —';
     } catch (e) {
+      clearSkeletons();
       sentinel.textContent = "Couldn't load more.";
     } finally {
       loading = false;
@@ -63,6 +87,7 @@ function setupInfiniteScroll(grid, scrollContainer, fetchPage, renderer, onAppen
       grid.innerHTML = '';
       grid.appendChild(sentinel);
       sentinel.textContent = '';
+      showSkeletons();
       setupObserver();
       await loadNext();
     },
