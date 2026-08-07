@@ -300,6 +300,27 @@
       <div class="section-header">
         <div class="section-title">Notifications</div>
       </div>
+
+      <!-- Push enrolment. Separate from the toggles below, which only control
+           what the app shows while it's open. -->
+      <div class="settings-group">
+        <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 10px;">
+          <div>
+            <div class="settings-label">Push notifications</div>
+            <div class="settings-sub" id="push-status">Get alerts even when AniLog is closed.</div>
+          </div>
+          <button class="btn-primary" id="push-enable-btn">Enable push notifications</button>
+          <!-- Shown once subscribed: the blob to paste into the GitHub secret -->
+          <div id="push-subscription-wrap" hidden>
+            <div class="settings-sub" style="margin-bottom: 6px;">
+              Copy this into the <strong>PUSH_SUBSCRIPTION</strong> GitHub secret:
+            </div>
+            <textarea id="push-subscription" class="signin-token-input" rows="4" readonly></textarea>
+            <button class="btn-secondary" id="push-copy-btn" style="margin-top: 8px;">Copy</button>
+          </div>
+        </div>
+      </div>
+
       <div class="settings-group">
         <div class="settings-row">
           <div>
@@ -325,7 +346,7 @@
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v4.41 · Powered by AniList
+        AniLog · v4.42 · Powered by AniList
       </div>
     </section>
 

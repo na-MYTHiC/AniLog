@@ -2465,6 +2465,123 @@ document.querySelectorAll('.seg[data-notif]').forEach(seg => {
   });
 });
 
+// ============ WEB PUSH ENROLMENT ============
+// The polling below only notifies while the app is open. Push covers the
+// rest, delivered by the scheduled sender in .github/workflows/anilog-push.yml.
+//
+// iOS only permits Web Push for a PWA installed to the Home Screen — never in
+// a Safari tab — and the permission prompt must come from a real tap, which is
+// why this is a button rather than something that runs on load.
+
+// VAPID keys travel as base64url; PushManager wants raw bytes.
+function urlBase64ToUint8Array(base64) {
+  const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+  const raw = atob(padded.replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+}
+
+function pushSupported() {
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+// Standalone display mode is the reliable signal that iOS will allow push.
+function isStandalonePWA() {
+  return window.matchMedia?.('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
+}
+
+async function refreshPushStatus() {
+  const statusEl = document.getElementById('push-status');
+  const btn = document.getElementById('push-enable-btn');
+  if (!statusEl || !btn) return;
+
+  if (!pushSupported()) {
+    statusEl.textContent = 'This browser doesn’t support push notifications.';
+    btn.hidden = true;
+    return;
+  }
+  if (!VAPID_PUBLIC_KEY) {
+    statusEl.textContent = 'Push isn’t configured yet — no VAPID key is set in this build.';
+    btn.hidden = true;
+    return;
+  }
+  const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  if (iOS && !isStandalonePWA()) {
+    statusEl.textContent = 'On iPhone, add AniLog to your Home Screen first — Safari tabs can’t receive push.';
+    btn.hidden = true;
+    return;
+  }
+  if (Notification.permission === 'denied') {
+    statusEl.textContent = 'Notifications are blocked in your browser settings for this site.';
+    btn.hidden = true;
+    return;
+  }
+
+  const reg = await navigator.serviceWorker.getRegistration();
+  const existing = await reg?.pushManager.getSubscription();
+  if (existing) {
+    statusEl.textContent = 'Push is on for this device.';
+    btn.textContent = 'Show subscription again';
+    btn.hidden = false;
+    return;
+  }
+  statusEl.textContent = 'Get alerts even when AniLog is closed.';
+  btn.textContent = 'Enable push notifications';
+  btn.hidden = false;
+}
+
+async function enablePush() {
+  if (!pushSupported() || !VAPID_PUBLIC_KEY) return;
+  const btn = document.getElementById('push-enable-btn');
+  if (btn) btn.disabled = true;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        showToast('Notifications not allowed');
+        return;
+      }
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,   // required; Chrome rejects silent push
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+    }
+    const wrap = document.getElementById('push-subscription-wrap');
+    const field = document.getElementById('push-subscription');
+    if (field) field.value = JSON.stringify(sub.toJSON());
+    if (wrap) wrap.hidden = false;
+    await refreshPushStatus();
+  } catch (e) {
+    showToast('Couldn’t enable push — try again');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+document.getElementById('push-enable-btn')?.addEventListener('click', enablePush);
+document.getElementById('push-copy-btn')?.addEventListener('click', async () => {
+  const field = document.getElementById('push-subscription');
+  if (!field?.value) return;
+  try {
+    await navigator.clipboard.writeText(field.value);
+    showToast('Copied');
+  } catch (e) {
+    field.select();   // clipboard blocked — let the user copy by hand
+    showToast('Press and hold to copy');
+  }
+});
+refreshPushStatus();
+
+// A push tapped while the app is already open asks the page to open that
+// anime, rather than the SW navigating and throwing away the loaded app.
+navigator.serviceWorker?.addEventListener('message', (e) => {
+  if (e.data?.type === 'anilog-open-media' && e.data.mediaId) {
+    openMedia(e.data.mediaId);
+  }
+});
+
 // ============ NOTIFICATIONS ============
 // AniList exposes Viewer.unreadNotificationCount for the badge and
 // Page.notifications for the list. We poll the count every 90 seconds while

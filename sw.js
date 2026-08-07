@@ -15,7 +15,7 @@
 //   - For everything else (AniList GraphQL, AniList images), bypass —
 //     we don't want stale data or 1+ GB of cover-image storage.
 
-const VERSION = 'anilog-v57';
+const VERSION = 'anilog-v58';
 const SHELL = [
   './',
   './index.html',
@@ -63,6 +63,55 @@ self.addEventListener('activate', (event) => {
     )
   );
   self.clients.claim();
+});
+
+// ============ WEB PUSH ============
+// Delivered by the scheduled sender in .github/workflows/anilog-push.yml.
+// This fires even when the app is closed, which is the whole point — the
+// in-app poll in app.js only runs while a tab is open.
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch (e) {
+    // Not JSON — fall back to treating the whole body as the message.
+    payload = { body: event.data ? event.data.text() : '' };
+  }
+
+  const title = payload.title || 'AniLog';
+  const options = {
+    body: payload.body || '',
+    icon: payload.icon || './icon-192.png',
+    badge: './icon-192.png',
+    // Same tag collapses repeats of the same event instead of stacking
+    // duplicates if the sender retries.
+    tag: payload.tag || 'anilog',
+    data: { url: payload.url || './', mediaId: payload.mediaId || null },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = event.notification.data?.url || './';
+
+  event.waitUntil((async () => {
+    const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    // Prefer focusing a window that's already open — launching a second copy
+    // of an installed PWA is jarring and loses whatever state was there.
+    for (const client of clients) {
+      if ('focus' in client) {
+        await client.focus();
+        // Tell the page which anime to open, rather than navigating (which
+        // would throw away the loaded app).
+        if (event.notification.data?.mediaId) {
+          client.postMessage({ type: 'anilog-open-media', mediaId: event.notification.data.mediaId });
+        }
+        return;
+      }
+    }
+    if (self.clients.openWindow) await self.clients.openWindow(target);
+  })());
 });
 
 self.addEventListener('fetch', (event) => {

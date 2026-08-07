@@ -1,0 +1,53 @@
+name: Send AniLog push notifications
+
+# Polls AniList and pushes anything new. AniList has no webhooks, so polling
+# is the only option — every 15 minutes is plenty for "an episode aired".
+#
+# Free on public repositories: GitHub doesn't bill Actions minutes for them.
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:        # lets you trigger a test run from the Actions tab
+
+# Needed to commit the last-seen marker back to the repo.
+permissions:
+  contents: write
+
+concurrency:
+  # A slow run must not overlap the next tick, or both could send the same
+  # notification before either records that it did.
+  group: anilog-push
+  cancel-in-progress: false
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    # Skip entirely until the secrets exist, so the Actions tab isn't full of
+    # red X's before setup is finished.
+    if: ${{ vars.PUSH_ENABLED == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - run: npm install web-push@3.6.7 --no-save
+
+      - name: Check AniList and send
+        env:
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_PUBLIC_KEY: ${{ vars.VAPID_PUBLIC_KEY }}
+          ANILIST_TOKEN: ${{ secrets.ANILIST_TOKEN }}
+          PUSH_SUBSCRIPTION: ${{ secrets.PUSH_SUBSCRIPTION }}
+        run: node tools/send-push.js
+
+      - name: Record what we sent
+        run: |
+          if [ -n "$(git status --porcelain tools/push-state.json)" ]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add tools/push-state.json
+            git commit -m "Record last pushed AniList notification [skip ci]"
+            git push
+          fi

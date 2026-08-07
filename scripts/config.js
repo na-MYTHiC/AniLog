@@ -28,6 +28,12 @@ const ANILIST_AUTH_URL = `https://anilist.co/api/v2/oauth/authorize?client_id=${
 
 const ANILIST = 'https://graphql.anilist.co';
 
+// Web Push. Public half of the VAPID keypair — safe to ship, it's meant to be
+// public. Generate a pair with `bash tools/gen-vapid.sh`, paste the public key
+// here and add the private one as the VAPID_PRIVATE_KEY GitHub secret.
+// Empty means push is simply unavailable and the UI says so.
+const VAPID_PUBLIC_KEY = '';
+
 const MEDIA_FRAGMENT = `
   id
   title { userPreferred english romaji }
