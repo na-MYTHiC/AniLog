@@ -219,6 +219,9 @@
         <button class="btn-primary" onclick="signIn()">Sign in with AniList</button>
       </div>
 
+      <!-- Only visible when edits were made offline and haven't synced yet. -->
+      <div class="pending-writes" id="pending-writes" hidden></div>
+
       <div class="section-header" style="margin-top: 16px;">
         <div class="section-title">Appearance</div>
       </div>
@@ -322,7 +325,7 @@
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v4.40 · Powered by AniList
+        AniLog · v4.41 · Powered by AniList
       </div>
     </section>
 
@@ -358,7 +361,7 @@
   </nav>
 
   <!-- Category overlay -->
-  <div class="overlay" id="category-overlay">
+  <div class="overlay" role="dialog" aria-modal="true" id="category-overlay">
     <header class="overlay-header">
       <button class="back-btn" onclick="closeOverlay('category-overlay')">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -378,7 +381,7 @@
   </div>
 
   <!-- Detail overlay -->
-  <div class="overlay" id="detail-overlay">
+  <div class="overlay" role="dialog" aria-modal="true" id="detail-overlay">
     <header class="overlay-header">
       <button class="back-btn" onclick="closeOverlay('detail-overlay')">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -389,7 +392,7 @@
   </div>
 
   <!-- Genre overlay -->
-  <div class="overlay" id="genre-overlay" style="z-index: 101;">
+  <div class="overlay" role="dialog" aria-modal="true" id="genre-overlay" style="z-index: 101;">
     <header class="overlay-header">
       <button class="back-btn" onclick="closeOverlay('genre-overlay')">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -409,7 +412,7 @@
   </div>
 
   <!-- Studio overlay -->
-  <div class="overlay" id="studio-overlay" style="z-index: 101;">
+  <div class="overlay" role="dialog" aria-modal="true" id="studio-overlay" style="z-index: 101;">
     <header class="overlay-header">
       <button class="back-btn" onclick="closeOverlay('studio-overlay')">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -429,7 +432,7 @@
   </div>
 
   <!-- Character overlay -->
-  <div class="overlay" id="character-overlay" style="z-index: 102;">
+  <div class="overlay" role="dialog" aria-modal="true" id="character-overlay" style="z-index: 102;">
     <header class="overlay-header">
       <button class="back-btn" onclick="closeOverlay('character-overlay')">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -440,7 +443,7 @@
   </div>
 
   <!-- Staff (Voice Actor) overlay -->
-  <div class="overlay" id="staff-overlay" style="z-index: 103;">
+  <div class="overlay" role="dialog" aria-modal="true" id="staff-overlay" style="z-index: 103;">
     <header class="overlay-header">
       <button class="back-btn" onclick="closeOverlay('staff-overlay')">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -461,7 +464,7 @@
   </div>
 
   <!-- Generic sort picker modal -->
-  <div class="modal-backdrop" id="sort-modal" onclick="if(event.target===this)closeSortModal()">
+  <div class="modal-backdrop" role="dialog" aria-modal="true" id="sort-modal" onclick="if(event.target===this)closeSortModal()">
     <div class="modal">
       <div class="modal-grip"></div>
       <h3 id="sort-modal-title">Sort By</h3>
@@ -470,7 +473,7 @@
   </div>
 
   <!-- Theme picker modal -->
-  <div class="modal-backdrop" id="theme-modal" onclick="if(event.target===this)closeThemeModal()">
+  <div class="modal-backdrop" role="dialog" aria-modal="true" id="theme-modal" onclick="if(event.target===this)closeThemeModal()">
     <div class="modal">
       <div class="modal-grip"></div>
       <h3>Accent Theme</h3>
@@ -479,11 +482,24 @@
   </div>
 
   <!-- List entry edit modal (status switcher + remove) -->
-  <div class="modal-backdrop" id="list-edit-modal" onclick="if(event.target===this)closeListEditSheet()">
+  <div class="modal-backdrop" role="dialog" aria-modal="true" id="list-edit-modal" onclick="if(event.target===this)closeListEditSheet()">
     <div class="modal">
       <div class="modal-grip"></div>
       <h3 id="list-edit-title">Edit Entry</h3>
-      <p style="text-align: center; font-size: 12px; color: var(--text-dim); margin: -4px 0 18px;">Change status or remove from your list</p>
+      <p style="text-align: center; font-size: 12px; color: var(--text-dim); margin: -4px 0 18px;">Set your progress, change status, or remove from your list</p>
+
+      <!-- Direct episode entry. Swiping a row is +/-1, so jumping to episode
+           47 used to mean 47 swipes. -->
+      <div class="progress-editor" id="list-edit-progress-wrap">
+        <button class="progress-step" id="progress-minus" aria-label="One episode back">−</button>
+        <div class="progress-field">
+          <input class="progress-input" id="list-edit-progress" type="number"
+                 inputmode="numeric" min="0" step="1" value="0" aria-label="Episodes watched">
+          <span class="progress-total" id="list-edit-progress-total"></span>
+        </div>
+        <button class="progress-step" id="progress-plus" aria-label="One episode forward">+</button>
+      </div>
+
       <div class="sort-row" id="list-edit-status" style="padding: 0 0 12px; flex-wrap: wrap;">
         <div class="chip" data-status="CURRENT">Watching</div>
         <div class="chip" data-status="PLANNING">Planning</div>
@@ -493,6 +509,7 @@
         <div class="chip" data-status="REPEATING">Rewatching</div>
       </div>
       <div class="modal-actions">
+        <button class="btn-primary" id="list-edit-save-btn">Save</button>
         <button class="btn-secondary" id="list-edit-remove-btn">Remove from list</button>
         <button class="btn-secondary" onclick="closeListEditSheet()">Cancel</button>
       </div>
@@ -500,7 +517,7 @@
   </div>
 
   <!-- Rate anime modal -->
-  <div class="modal-backdrop" id="rate-modal" onclick="if(event.target===this)closeRateModal()">
+  <div class="modal-backdrop" role="dialog" aria-modal="true" id="rate-modal" onclick="if(event.target===this)closeRateModal()">
     <div class="modal">
       <div class="modal-grip"></div>
       <h3 id="rate-modal-title">Rate this anime</h3>
@@ -514,7 +531,7 @@
   </div>
 
   <!-- Sign-in modal -->
-  <div class="modal-backdrop" id="signin-modal" onclick="if(event.target===this)closeSignInModal()">
+  <div class="modal-backdrop" role="dialog" aria-modal="true" id="signin-modal" onclick="if(event.target===this)closeSignInModal()">
     <div class="modal">
       <div class="modal-grip"></div>
       <h3>Sign in with AniList</h3>
@@ -559,7 +576,7 @@
 
 <!-- User profile overlay — opens from Social when tapping a username / avatar.
      Shows their profile card + a status-filtered list view (like Home). -->
-<div class="overlay" id="notif-overlay" style="z-index: 105;">
+<div class="overlay" role="dialog" aria-modal="true" id="notif-overlay" style="z-index: 105;">
   <header class="overlay-header">
     <button class="back-btn" onclick="closeOverlay('notif-overlay')">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -569,7 +586,7 @@
   <div class="overlay-body" id="notif-body"></div>
 </div>
 
-<div class="overlay" id="user-overlay" style="z-index: 104;">
+<div class="overlay" role="dialog" aria-modal="true" id="user-overlay" style="z-index: 104;">
   <header class="overlay-header">
     <button class="back-btn" onclick="closeOverlay('user-overlay')">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>

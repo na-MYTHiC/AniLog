@@ -259,9 +259,8 @@ function closeLightbox() {
     if (e.target === box) closeLightbox();
   });
   closeBtn.addEventListener('click', closeLightbox);
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && box.classList.contains('visible')) closeLightbox();
-  });
+  // Escape is handled centrally by closeTopLayer() — a lightbox-specific
+  // listener here would fire alongside it and dismiss two layers at once.
 })();
 
 // ============ TRAILER ============
@@ -497,7 +496,7 @@ async function loadSearchTab() {
   if (searchReqId !== myReq) return;
   rows.forEach((r) => {
     const el = document.getElementById(r.id);
-    if (el) renderCarouselInto(el, rowsData?.[r.alias]?.media);
+    if (el) renderCarouselInto(el, rowsData?.[r.alias]?.media, () => loadSearchTab());
   });
 
   // Genre rows — same idea. Aliases must be valid GraphQL names, so "Slice of
@@ -517,7 +516,7 @@ async function loadSearchTab() {
   const genreData = await anilist(genreQuery, genreVars);
   if (searchReqId !== myReq) return;
   genreEls.forEach((el, i) => {
-    if (el) renderCarouselInto(el, genreData?.[`g${i}`]?.media);
+    if (el) renderCarouselInto(el, genreData?.[`g${i}`]?.media, () => loadSearchTab());
   });
 }
 
@@ -924,7 +923,13 @@ async function bumpProgress(entry, delta, wrap) {
     }`;
     variables.status = 'COMPLETED';
   }
-  const data = await anilist(mutation, variables);
+  const { data, queued } = await mutateList(mutation, variables);
+  // Queued means "couldn't reach the server, saved for later" — the optimistic
+  // row is now the pending truth, so reverting it would throw the edit away.
+  if (queued) {
+    if (becomesCompleted) entry.status = 'COMPLETED';
+    return;
+  }
   if (!data?.SaveMediaListEntry) {
     // Revert + reload
     entry.progress = oldProgress;
@@ -947,10 +952,23 @@ async function addToList(media) {
 
 // ============ LIST EDIT SHEET ============
 
+// Episode count of the entry being edited — 0 when AniList doesn't know it
+// yet (still-airing shows), which means no upper bound on progress.
+let editingTotal = 0;
+
 function openListEditSheet(media, entry) {
   editingEntry = entry;
   editingMediaId = media.id;
+  editingTotal = media.episodes || 0;
   const isNew = !entry.id;
+
+  const input = document.getElementById('list-edit-progress');
+  input.value = entry.progress || 0;
+  if (editingTotal) input.max = editingTotal;
+  else input.removeAttribute('max');
+  document.getElementById('list-edit-progress-total').textContent =
+    editingTotal ? `/ ${editingTotal}` : 'eps';
+  syncProgressButtons();
   document.getElementById('list-edit-title').textContent = isNew
     ? `Add to list — ${pickTitle(media.title) || 'Anime'}`
     : pickTitle(media.title) || 'Edit Entry';
@@ -967,15 +985,75 @@ function closeListEditSheet() {
 }
 window.closeListEditSheet = closeListEditSheet;
 
-async function setListStatus(newStatus) {
+// Clamps the episode field and keeps the +/- buttons from offering moves
+// that would land out of range.
+function syncProgressButtons() {
+  const input = document.getElementById('list-edit-progress');
+  if (!input) return;
+  let v = parseInt(input.value, 10);
+  if (isNaN(v) || v < 0) v = 0;
+  if (editingTotal && v > editingTotal) v = editingTotal;
+  // Only rewrite the field when we actually changed something, so typing
+  // isn't disrupted mid-entry.
+  if (String(v) !== input.value) input.value = v;
+  const minus = document.getElementById('progress-minus');
+  const plus = document.getElementById('progress-plus');
+  if (minus) minus.disabled = v <= 0;
+  if (plus) plus.disabled = !!editingTotal && v >= editingTotal;
+}
+
+function stepProgress(delta) {
+  const input = document.getElementById('list-edit-progress');
+  if (!input) return;
+  const current = parseInt(input.value, 10) || 0;
+  input.value = current + delta;
+  syncProgressButtons();
+}
+
+// Commits progress and status in one mutation.
+async function saveListEdit() {
   if (!editingMediaId) return;
-  const mutation = `mutation ($mediaId: Int, $status: MediaListStatus) {
-    SaveMediaListEntry(mediaId: $mediaId, status: $status) { id status progress score }
+  syncProgressButtons();
+
+  const progress = parseInt(document.getElementById('list-edit-progress').value, 10) || 0;
+  const picked = document.querySelector('#list-edit-status .chip.active')?.dataset.status || null;
+
+  // Reaching the final episode implies COMPLETED — but only when the user
+  // hasn't deliberately chosen something else (e.g. marking a finished show
+  // as Rewatching, or dropping it on the last episode).
+  let status = picked;
+  if (editingTotal && progress === editingTotal && (!picked || picked === 'CURRENT')) {
+    status = 'COMPLETED';
+  }
+
+  // status is omitted entirely when unknown, so AniList keeps whatever the
+  // entry already had rather than being reset.
+  const varDefs = ['$mediaId: Int', '$progress: Int'];
+  const args = ['mediaId: $mediaId', 'progress: $progress'];
+  const vars = { mediaId: editingMediaId, progress };
+  if (status) {
+    varDefs.push('$status: MediaListStatus');
+    args.push('status: $status');
+    vars.status = status;
+  }
+  const mutation = `mutation (${varDefs.join(', ')}) {
+    SaveMediaListEntry(${args.join(', ')}) { id status progress score }
   }`;
-  const data = await anilist(mutation, { mediaId: editingMediaId, status: newStatus });
+
+  const mid = editingMediaId;
+  const { data, queued } = await mutateList(mutation, vars);
+  closeListEditSheet();
+
+  if (queued) {
+    showToast('Saved offline — will sync when you reconnect');
+    if (state.activeTab === 'home') loadMyList();
+    return;
+  }
   if (data?.SaveMediaListEntry) {
-    closeListEditSheet();
-    openMedia(editingMediaId);
+    if (state.activeTab === 'home') loadMyList();
+    openMedia(mid);
+  } else {
+    showToast("Couldn't save — try again");
   }
 }
 
@@ -989,12 +1067,18 @@ async function removeFromList() {
     progress: editingEntry.progress || 0,
   };
   const mutation = `mutation ($id: Int) { DeleteMediaListEntry(id: $id) { deleted } }`;
-  const data = await anilist(mutation, { id: editingEntry.id });
+  const { data, queued } = await mutateList(mutation, { id: editingEntry.id });
+  const mid = editingMediaId;
+  if (queued) {
+    closeListEditSheet();
+    showToast('Removal saved offline — will sync when you reconnect');
+    if (state.activeTab === 'home') loadMyList();
+    return;
+  }
   if (!data?.DeleteMediaListEntry?.deleted) {
     showToast("Couldn't remove — try again");
     return;
   }
-  const mid = editingMediaId;
   closeListEditSheet();
   if (state.activeTab === 'home') loadMyList();
   openMedia(mid);
@@ -1486,6 +1570,66 @@ document.getElementById('category-sort-btn').addEventListener('click', () => {
     loadCategory();
   });
 });
+
+// ============ LAYER DISMISSAL / FOCUS ============
+// Overlays and modals stack (overlays 100-105, modals 200, lightbox 10000),
+// so Escape has to close the TOP one rather than all of them or an arbitrary
+// one. Anything not listed here is a plain .overlay and just loses .visible.
+const LAYER_CLOSERS = {
+  'lightbox':        () => closeLightbox(),
+  'sort-modal':      () => closeSortModal(),
+  'theme-modal':     () => closeThemeModal(),
+  'list-edit-modal': () => closeListEditSheet(),
+  'rate-modal':      () => closeRateModal(),
+  'signin-modal':    () => closeSignInModal(),
+};
+const LAYER_SELECTOR = '.modal-backdrop, .overlay, .lightbox';
+
+function closeTopLayer() {
+  const open = Array.from(document.querySelectorAll(LAYER_SELECTOR))
+    .filter((el) => el.classList.contains('visible'));
+  if (!open.length) return false;
+  // Read the painted z-index rather than the inline attribute — several
+  // overlays get theirs from the stylesheet, not from a style="" attribute.
+  const z = (el) => parseInt(getComputedStyle(el).zIndex, 10) || 0;
+  const top = open.reduce((a, b) => (z(b) >= z(a) ? b : a));
+  const closer = LAYER_CLOSERS[top.id];
+  if (closer) closer();
+  else closeOverlay(top.id);
+  return true;
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (closeTopLayer()) e.preventDefault();
+});
+
+// Returning focus to whatever opened a layer, so closing one doesn't strand
+// keyboard focus at the top of the document. Watching the class attribute
+// means every layer is covered without touching any of the open/close call
+// sites — including ones added later.
+//
+// Focus is deliberately NOT moved INTO the layer on open: on mobile that can
+// scroll the page or raise the keyboard when the first focusable happens to
+// be a text field, which would be a visible regression for the common case.
+const _layerFocusReturn = new WeakMap();
+new MutationObserver((mutations) => {
+  for (const m of mutations) {
+    const el = m.target;
+    if (!(el instanceof HTMLElement) || !el.matches(LAYER_SELECTOR)) continue;
+    const visible = el.classList.contains('visible');
+    const tracked = _layerFocusReturn.has(el);
+    if (visible && !tracked) {
+      _layerFocusReturn.set(el, document.activeElement);
+    } else if (!visible && tracked) {
+      const prev = _layerFocusReturn.get(el);
+      _layerFocusReturn.delete(el);
+      if (prev && prev !== document.body && document.contains(prev)) {
+        try { prev.focus({ preventScroll: true }); } catch (err) {}
+      }
+    }
+  }
+}).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
 
 function closeOverlay(id) {
   document.getElementById(id).classList.remove('visible');
@@ -2149,9 +2293,14 @@ async function saveScore(score) {
   const mutation = `mutation ($mediaId: Int, $score: Float) {
     SaveMediaListEntry(mediaId: $mediaId, score: $score) { id score status progress }
   }`;
-  const data = await anilist(mutation, { mediaId: ratingMediaId, score });
+  const mid = ratingMediaId;
+  const { data, queued } = await mutateList(mutation, { mediaId: mid, score });
+  if (queued) {
+    closeRateModal();
+    showToast('Score saved offline — will sync when you reconnect');
+    return;
+  }
   if (data?.SaveMediaListEntry) {
-    const mid = ratingMediaId;
     closeRateModal();
     openMedia(mid); // refresh detail page so pill + button reflect the new score
   }
@@ -2286,10 +2435,20 @@ document.querySelectorAll('#relations-seg .seg-btn').forEach(b => {
   });
 });
 
-// Wire the list-edit modal status chips and remove button
+// Status chips now only SELECT — committing is the Save button's job, so a
+// single trip through the sheet can change progress and status together.
 document.querySelectorAll('#list-edit-status .chip').forEach(c => {
-  c.addEventListener('click', () => setListStatus(c.dataset.status));
+  c.addEventListener('click', () => {
+    document.querySelectorAll('#list-edit-status .chip').forEach(x => x.classList.remove('active'));
+    c.classList.add('active');
+  });
 });
+document.getElementById('list-edit-save-btn').addEventListener('click', saveListEdit);
+
+// +/- step buttons around the episode field
+document.getElementById('progress-minus').addEventListener('click', () => stepProgress(-1));
+document.getElementById('progress-plus').addEventListener('click', () => stepProgress(1));
+document.getElementById('list-edit-progress').addEventListener('input', syncProgressButtons);
 document.getElementById('list-edit-remove-btn').addEventListener('click', () => {
   if (confirm('Remove this anime from your list?')) removeFromList();
 });
@@ -2653,7 +2812,10 @@ if (state.accessToken) {
   // its in-flight/cache maps, so the double dispatch is free.
   if (state.user?.id) loadMyList();
   fetchViewer();
+  // Anything edited while offline last session goes out now.
+  flushPendingWrites();
 }
+updatePendingUI();
 // Also fires when fetchViewer resolves and toggles state.user — updateAuthUI
 // calls this too (see api.js), but calling here handles the signed-out case
 // on cold boot cleanly.

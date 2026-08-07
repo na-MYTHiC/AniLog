@@ -82,6 +82,99 @@ function schedulePersist() {
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+// ============ OFFLINE WRITE QUEUE ============
+// Reads have worked offline for a while (persistent cache); writes did not —
+// a failed mutation just reverted and the change was gone. Anything routed
+// through mutateList() is instead persisted and replayed once we're back.
+//
+// This is only safe because every queued mutation is a SET, not a delta:
+// SaveMediaListEntry(progress: 7) and DeleteMediaListEntry are both fine to
+// replay even if the original actually landed. Non-idempotent mutations —
+// ToggleLikeV2 especially, where a replay would flip the like back off —
+// deliberately do NOT use this path.
+const PENDING_KEY = 'anilog-pending-writes';
+const PENDING_MAX = 50;
+const PENDING_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+let pendingWrites = [];
+let flushing = false;
+
+(function loadPendingWrites() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PENDING_KEY) || '[]');
+    const cutoff = Date.now() - PENDING_TTL_MS;
+    pendingWrites = Array.isArray(raw) ? raw.filter((w) => w && w.ts > cutoff) : [];
+  } catch (e) { pendingWrites = []; }
+})();
+
+function savePendingWrites() {
+  try {
+    localStorage.setItem(PENDING_KEY, JSON.stringify(pendingWrites));
+  } catch (e) { /* quota — the in-memory queue still works this session */ }
+}
+
+function pendingWriteCount() { return pendingWrites.length; }
+
+function enqueueWrite(query, variables) {
+  pendingWrites.push({ query, variables, ts: Date.now() });
+  // Oldest-first eviction. Hitting this means something is badly wrong, but
+  // an unbounded queue in localStorage would be worse.
+  if (pendingWrites.length > PENDING_MAX) pendingWrites = pendingWrites.slice(-PENDING_MAX);
+  savePendingWrites();
+  updatePendingUI();
+}
+
+// Replays in order and stops at the first failure, so a later edit can never
+// overwrite an earlier one that hasn't landed yet.
+async function flushPendingWrites() {
+  if (flushing || !pendingWrites.length || !state.accessToken) return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+  flushing = true;
+  const startCount = pendingWrites.length;
+  try {
+    while (pendingWrites.length) {
+      const next = pendingWrites[0];
+      const data = await anilist(next.query, next.variables);
+      if (!data) break;
+      pendingWrites.shift();
+      savePendingWrites();
+    }
+  } finally {
+    flushing = false;
+    updatePendingUI();
+    const synced = startCount - pendingWrites.length;
+    if (synced > 0 && typeof showToast === 'function') {
+      showToast(`Synced ${synced} offline ${synced === 1 ? 'change' : 'changes'}`);
+      if (typeof loadMyList === 'function' && state.user) loadMyList();
+    }
+  }
+}
+
+// Runs an idempotent list mutation, queueing it if the server can't be
+// reached. Returns { data, queued } — a queued write should be treated as
+// provisionally successful so the optimistic UI stands.
+async function mutateList(query, variables) {
+  const data = await anilist(query, variables);
+  if (data) {
+    // Piggyback: a successful write proves we're online, so drain anything
+    // that piled up earlier.
+    if (pendingWrites.length) flushPendingWrites();
+    return { data, queued: false };
+  }
+  enqueueWrite(query, variables);
+  return { data: null, queued: true };
+}
+
+function updatePendingUI() {
+  const el = document.getElementById('pending-writes');
+  if (!el) return;
+  const n = pendingWrites.length;
+  el.hidden = n === 0;
+  if (n > 0) el.textContent = `${n} offline ${n === 1 ? 'change' : 'changes'} pending`;
+}
+
+window.addEventListener('online', () => flushPendingWrites());
+
 function fetchWithTimeout(url, opts, ms) {
   const ctrl = new AbortController();
   const id = setTimeout(() => ctrl.abort(), ms);

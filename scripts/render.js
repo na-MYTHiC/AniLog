@@ -76,7 +76,15 @@ function setupInfiniteScroll(grid, scrollContainer, fetchPage, renderer, onAppen
       }
     } catch (e) {
       clearSkeletons();
-      sentinel.textContent = "Couldn't load more.";
+      // Rebuilt as a button so a failed page can be re-requested in place.
+      // The observer won't retry on its own: the sentinel is already in view,
+      // so no new intersection fires until something scrolls.
+      sentinel.innerHTML = `<span>Couldn't load more.</span> <button class="retry-btn" type="button">Retry</button>`;
+      const btn = sentinel.querySelector('.retry-btn');
+      if (btn) btn.addEventListener('click', () => {
+        sentinel.textContent = 'Loading…';
+        loadNext();
+      });
     } finally {
       loading = false;
     }
@@ -233,13 +241,25 @@ function skeletonFill(el, n) {
 // Takes the media array directly rather than a whole response, because the
 // search tab now fetches all its carousels in one aliased query — each row's
 // data arrives under its own alias, not under a shared `Page`.
-function renderCarouselInto(el, media) {
+function renderCarouselInto(el, media, onRetry) {
   if (!el) return;
   if (Array.isArray(media) && media.length) {
     el.innerHTML = media.map(renderCard).join('');
-  } else {
-    el.innerHTML = `<div style="padding:20px; color:var(--text-dim); font-size:13px;">Couldn't load.</div>`;
+    return;
   }
+  // A failed row used to be a dead end — the only way back was leaving the
+  // tab and returning. Give it a way to ask again in place.
+  el.innerHTML = `
+    <div class="load-failed">
+      <span>Couldn't load.</span>
+      ${typeof onRetry === 'function' ? '<button class="retry-btn" type="button">Retry</button>' : ''}
+    </div>`;
+  const btn = el.querySelector('.retry-btn');
+  if (btn) btn.addEventListener('click', () => {
+    el.innerHTML = '';
+    skeletonFill(el, 6);
+    onRetry();
+  });
 }
 
 // Home tab is the My List placeholder — no carousels to load until sign-in is wired.
