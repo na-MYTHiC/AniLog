@@ -2,14 +2,20 @@
 //
 // Strategy:
 //   - On install, pre-cache the static app shell (HTML, CSS, JS, icon).
-//   - For navigations (HTML), prefer network so the user always gets the
-//     freshest build, falling back to the cached shell when offline.
+//   - For navigations (HTML), serve the cached shell immediately and refresh
+//     it in the background. Network-first cost a full round-trip on EVERY
+//     launch — the one thing standing between the user and an otherwise
+//     entirely cache-served startup. It also handed back new HTML while the
+//     CSS/JS below still came from the old cache, so the page ran mismatched
+//     until the update reload landed; serving both from the same cache is
+//     self-consistent, and the controllerchange reload in index.html still
+//     swaps everything over atomically once a new version activates.
 //   - For other same-origin assets (CSS / JS / icon), serve from cache
 //     first for instant loads, then fetch in the background.
 //   - For everything else (AniList GraphQL, AniList images), bypass —
 //     we don't want stale data or 1+ GB of cover-image storage.
 
-const VERSION = 'anilog-v55';
+const VERSION = 'anilog-v56';
 const SHELL = [
   './',
   './index.html',
@@ -67,31 +73,46 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   if (url.origin !== self.location.origin) return;
 
-  // HTML navigations: network-first
+  // HTML navigations: cache-first, revalidate in the background
   if (req.mode === 'navigate') {
-    event.respondWith(
-      fetch(req)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(VERSION).then((cache) => cache.put(req, copy));
-          return res;
-        })
-        .catch(() => caches.match('./index.html'))
-    );
+    const networkUpdate = fetch(req).then(async (res) => {
+      if (res && res.ok) {
+        const cache = await caches.open(VERSION);
+        await cache.put('./index.html', res.clone());
+      }
+      return res;
+    });
+
+    // Registered synchronously, before any await. Calling waitUntil() after
+    // the handler has yielded can throw once the event is no longer active.
+    event.waitUntil(networkUpdate.catch(() => {}));
+
+    event.respondWith((async () => {
+      // Scoped to VERSION rather than a bare caches.match(), which searches
+      // every cache and could hand back the previous build's shell while the
+      // old cache is still being deleted.
+      const cache = await caches.open(VERSION);
+      const cached = await cache.match('./index.html');
+      if (cached) return cached;
+      // Nothing cached yet — first ever visit, or install didn't finish.
+      try {
+        return await networkUpdate;
+      } catch (e) {
+        return Response.error();
+      }
+    })());
     return;
   }
 
-  // Same-origin assets: cache-first, then network
-  event.respondWith(
-    caches.match(req).then((cached) => {
-      if (cached) return cached;
-      return fetch(req).then((res) => {
-        if (res && res.status === 200) {
-          const copy = res.clone();
-          caches.open(VERSION).then((cache) => cache.put(req, copy));
-        }
-        return res;
-      });
-    })
-  );
+  // Same-origin assets: cache-first, then network. Scoped to VERSION for the
+  // same reason as the shell above — an unscoped match can serve a previous
+  // build's CSS/JS out of a cache that activate() hasn't finished deleting.
+  event.respondWith((async () => {
+    const cache = await caches.open(VERSION);
+    const cached = await cache.match(req);
+    if (cached) return cached;
+    const res = await fetch(req);
+    if (res && res.status === 200) cache.put(req, res.clone());
+    return res;
+  })());
 });

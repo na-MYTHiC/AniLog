@@ -322,7 +322,7 @@
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v4.39 · Powered by AniList
+        AniLog · v4.40 · Powered by AniList
       </div>
     </section>
 
@@ -601,7 +601,21 @@ if ('serviceWorker' in navigator) {
     window.location.reload();
   });
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    // updateViaCache:'none' makes the browser bypass its HTTP cache when it
+    // checks sw.js for a new version. GitHub Pages serves sw.js with
+    // max-age=600, so without this a deploy could go unnoticed for ten
+    // minutes — and now that navigations are served from cache, this update
+    // check is the ONLY thing that notices a new build.
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+      .then((reg) => {
+        // An installed PWA can sit "open" for days without a cold start, so
+        // re-check whenever it comes back to the foreground. Cheap: it's a
+        // conditional request that 304s unless sw.js actually changed.
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') reg.update().catch(() => {});
+        });
+      })
+      .catch(() => {});
   });
 }
 </script>
