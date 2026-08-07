@@ -134,6 +134,13 @@ async function anilist(query, variables = {}) {
 
 async function _executeRequest(key, query, variables, headers, isMutation) {
   const MAX_ATTEMPTS = 3;
+  // Rate-limit waits are tracked separately from real failures. A 429 means
+  // "you're early, come back" — not "this request is failing" — so burning a
+  // retry on it meant a brief throttle could exhaust all three attempts and
+  // surface as a permanent "Couldn't load." Capped so a sustained limit still
+  // gives up rather than hanging forever.
+  const MAX_RATE_LIMIT_WAITS = 4;
+  let rateLimitWaits = 0;
   let lastErr = null;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
@@ -151,9 +158,16 @@ async function _executeRequest(key, query, variables, headers, isMutation) {
       }
 
       // Rate limited — wait the requested time (capped at 10s), then retry
+      // WITHOUT consuming an attempt.
       if (res.status === 429) {
+        if (rateLimitWaits >= MAX_RATE_LIMIT_WAITS) {
+          lastErr = new Error('AniList 429: rate limited');
+          break;
+        }
+        rateLimitWaits += 1;
         const retryAfter = parseInt(res.headers.get('Retry-After') || '2', 10);
         await sleep(Math.min(Math.max(retryAfter, 1), 10) * 1000);
+        attempt -= 1;
         continue;
       }
 

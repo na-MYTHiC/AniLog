@@ -38,7 +38,7 @@ const state = {
   season: 'SPRING',
   seasonYear: 2026,
   seasonalSort: 'TRENDING_DESC',
-  notifs: { episode: true, reply: true, like: false },
+  notifs: { episode: true, reply: true, like: true },
   preferEnglish: true,
   strictRelations: true,
   listStatus: 'CURRENT',

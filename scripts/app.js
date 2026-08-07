@@ -473,43 +473,52 @@ async function loadSearchTab() {
     a.onclick = () => openGenre(g, 'ANIME');
   });
 
-  // Top three rows — fixed sort, single carousel each
+  // These nine carousels used to be nine separate requests fired back to
+  // back, which is a good way to trip AniList's rate limiter — and a 429 that
+  // outlasts our retries surfaces as "Couldn't load." in a row that has no
+  // way to recover. GraphQL aliases let one request carry all of them, so
+  // it's now two round-trips total and far less likely to be throttled.
   const rows = [
-    { id: 'trending-row', sort: 'TRENDING_DESC' },
-    { id: 'top-row',      sort: 'SCORE_DESC' },
-    { id: 'popular-row',  sort: 'POPULARITY_DESC' },
+    { id: 'trending-row', alias: 'trending', sort: 'TRENDING_DESC' },
+    { id: 'top-row',      alias: 'top',      sort: 'SCORE_DESC' },
+    { id: 'popular-row',  alias: 'popular',  sort: 'POPULARITY_DESC' },
   ];
-  for (const r of rows) {
-    if (searchReqId !== myReq) return;
-    const q = `query { Page(perPage: 12) { media(sort: ${r.sort}, type: ANIME, isAdult: false) { ${MEDIA_FRAGMENT} } } }`;
-    const el = document.getElementById(r.id);
-    if (cache['pub:' + q + '{}']) {
-      renderIntoEl(el, cache['pub:' + q + '{}']);
-    } else {
-      skeletonFill(el, 6);
-      const data = await anilist(q);
-      if (searchReqId !== myReq) return;
-      renderIntoEl(el, data);
-    }
-  }
 
-  // Then the genre rows — popularity-sorted, filtered by the genre name
-  for (const genre of SEARCH_GENRES) {
-    if (searchReqId !== myReq) return;
-    const el = document.querySelector(`[data-genre-row="${genre}"]`);
-    if (!el) continue;
-    const q = `query ($genre: String) { Page(perPage: 12) { media(genre: $genre, sort: POPULARITY_DESC, type: ANIME, isAdult: false) { ${MEDIA_FRAGMENT} } } }`;
-    const vars = { genre };
-    const cacheKey = 'pub:' + q + JSON.stringify(vars);
-    if (cache[cacheKey]) {
-      renderIntoEl(el, cache[cacheKey]);
-    } else {
-      skeletonFill(el, 6);
-      const data = await anilist(q, vars);
-      if (searchReqId !== myReq) return;
-      renderIntoEl(el, data);
-    }
-  }
+  const rowsQuery = `query {
+    ${rows.map((r) => `${r.alias}: Page(perPage: 12) {
+      media(sort: ${r.sort}, type: ANIME, isAdult: false) { ${MEDIA_FRAGMENT} }
+    }`).join('\n')}
+  }`;
+  rows.forEach((r) => {
+    const el = document.getElementById(r.id);
+    if (el && !el.children.length) skeletonFill(el, 6);
+  });
+  const rowsData = await anilist(rowsQuery);
+  if (searchReqId !== myReq) return;
+  rows.forEach((r) => {
+    const el = document.getElementById(r.id);
+    if (el) renderCarouselInto(el, rowsData?.[r.alias]?.media);
+  });
+
+  // Genre rows — same idea. Aliases must be valid GraphQL names, so "Slice of
+  // Life" can't be one; index-based aliases sidestep the whole question.
+  const genreEls = SEARCH_GENRES.map((g) => document.querySelector(`[data-genre-row="${g}"]`));
+  genreEls.forEach((el) => { if (el && !el.children.length) skeletonFill(el, 6); });
+
+  const genreVars = {};
+  const genreQuery = `query (${SEARCH_GENRES.map((_, i) => `$g${i}: String`).join(', ')}) {
+    ${SEARCH_GENRES.map((g, i) => {
+      genreVars[`g${i}`] = g;
+      return `g${i}: Page(perPage: 12) {
+        media(genre: $g${i}, sort: POPULARITY_DESC, type: ANIME, isAdult: false) { ${MEDIA_FRAGMENT} }
+      }`;
+    }).join('\n')}
+  }`;
+  const genreData = await anilist(genreQuery, genreVars);
+  if (searchReqId !== myReq) return;
+  genreEls.forEach((el, i) => {
+    if (el) renderCarouselInto(el, genreData?.[`g${i}`]?.media);
+  });
 }
 
 
@@ -569,21 +578,41 @@ async function doSearch(query) {
       }`;
       const data = await anilist(q, { s: searchQuery, page });
       return {
-        items: data?.Page?.media || [],
+        items: rankSearchResults(data?.Page?.media || [], searchQuery),
         hasMore: data?.Page?.pageInfo?.hasNextPage || false,
       };
-    }, null, null, (el) => skeletonFill(el, 9));
+    }, null, null, (el) => skeletonFill(el, 9), 'No results.');
   }
 
   await searchScroller.reload();
   // A newer keystroke may have started another search while we awaited.
   if (searchQuery !== query) return;
+  if (searchGrid.querySelector('.card')) saveRecentSearch(query);
+}
 
-  if (searchGrid.querySelector('.card')) {
-    saveRecentSearch(query);
-  } else {
-    searchGrid.innerHTML = `<div class="no-results" style="grid-column: 1/-1;">No results for "${escapeHtml(query)}"</div>`;
-  }
+// AniList ranks `search` hits across every title variant and synonym, so a
+// show matching only its romaji title can outrank one whose English title is
+// what you actually typed. Re-rank each page so English matches surface
+// first. Sort is stable in every engine we target, so within a tier the
+// API's popularity order is preserved.
+function rankSearchResults(items, term) {
+  const t = (term || '').trim().toLowerCase();
+  if (!t) return items;
+  const tier = (m) => {
+    const en = (m?.title?.english || '').toLowerCase();
+    const ro = (m?.title?.romaji || '').toLowerCase();
+    if (en === t) return 0;
+    if (en.startsWith(t)) return 1;
+    if (ro === t) return 2;
+    if (ro.startsWith(t)) return 3;
+    if (en.includes(t)) return 4;
+    if (ro.includes(t)) return 5;
+    return 6;   // matched on a synonym or native title
+  };
+  return items
+    .map((m, i) => ({ m, i, tier: tier(m) }))
+    .sort((a, b) => a.tier - b.tier || a.i - b.i)
+    .map((x) => x.m);
 }
 
 // ============ RECENT SEARCHES ============
@@ -1499,13 +1528,10 @@ async function loadGenre() {
         items: data?.Page?.media || [],
         hasMore: data?.Page?.pageInfo?.hasNextPage || false,
       };
-    }, null, null, (el) => skeletonFill(el, 12));
+    }, null, null, (el) => skeletonFill(el, 12), 'No results for this genre.');
   }
 
   await genreScroller.reload();
-  if (!grid.querySelector('.card')) {
-    grid.innerHTML = `<div class="no-results" style="grid-column: 1/-1;">No results for ${escapeHtml(genreState.genre)}.</div>`;
-  }
 }
 
 document.getElementById('genre-sort-btn').addEventListener('click', () => {
@@ -1541,46 +1567,61 @@ async function openStudio(id, name) {
 }
 
 let studioScroller = null;
-// Lives outside the fetcher so dedup carries ACROSS pages — a show credited
-// to the studio for multiple roles can otherwise reappear on a later page,
-// which a per-page Set would never catch. reload() clears it.
-let studioSeenIds = new Set();
 async function loadStudio() {
   const grid = document.getElementById('studio-grid');
   if (!grid) return;
-  studioSeenIds = new Set();
 
   if (!studioScroller) {
     const scrollEl = grid.closest('.overlay-body');
     studioScroller = setupInfiniteScroll(grid, scrollEl, async (page) => {
       // AniList's Studio.media DOES NOT accept a `type` argument — including
-      // one returns a 400 error and the overlay shows "No works found".
+      // one returns a 400 error and the overlay shows nothing.
       // (Studios only produce anime so the filter was always redundant anyway.)
+      //
+      // edges (not nodes) because only the edge carries isMainStudio, which
+      // separates "we animated this" from "we were a production committee
+      // member". Without it, Production I.G lists all of Attack on Titan,
+      // which WIT animated.
       const q = `query ($id: Int, $sort: [MediaSort], $page: Int) {
         Studio(id: $id) {
           media(sort: $sort, page: $page, perPage: 30) {
             pageInfo { hasNextPage }
-            nodes { ${MEDIA_FRAGMENT} }
+            edges { isMainStudio node { ${MEDIA_FRAGMENT} } }
           }
         }
       }`;
       const data = await anilist(q, { id: studioState.id, sort: [studioState.sort], page });
-      const items = (data?.Studio?.media?.nodes || []).filter((m) => {
-        if (!m || studioSeenIds.has(m.id)) return false;
-        studioSeenIds.add(m.id);
-        return true;
-      });
+
+      // Dedup against what's actually on screen rather than a shared Set.
+      // A Set mutated inside this fetcher gets poisoned by stale requests:
+      // switching sort resets it, but an in-flight fetch from the PREVIOUS
+      // sort then resolves, marks all its ids as seen, and only afterwards
+      // gets discarded by the reqId guard — so the new sort's first page was
+      // deduped down to nothing and the overlay claimed "No works found".
+      // The DOM can't be poisoned that way; stale results never reach it.
+      const seen = new Set(
+        Array.from(grid.querySelectorAll('.card[data-media-id]'), (el) => el.dataset.mediaId)
+      );
+      // Adding to `seen` as we go also covers duplicates WITHIN one page —
+      // AniList can credit the same studio twice on one title.
+      const items = (data?.Studio?.media?.edges || [])
+        .filter((e) => {
+          if (!e?.isMainStudio || !e.node) return false;
+          const key = String(e.node.id);
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .map((e) => e.node);
+
       return {
         items,
         hasMore: data?.Studio?.media?.pageInfo?.hasNextPage || false,
       };
-    }, null, null, (el) => skeletonFill(el, 12));
+    }, null, null, (el) => skeletonFill(el, 12), 'No animation works found.');
   }
 
   await studioScroller.reload();
-  if (!grid.querySelector('.card')) {
-    grid.innerHTML = `<div class="no-results" style="grid-column: 1/-1;">No works found.</div>`;
-  }
 }
 
 document.getElementById('studio-sort-btn').addEventListener('click', () => {
@@ -1741,13 +1782,10 @@ async function loadStaff() {
         items: data?.Staff?.characters?.edges || [],
         hasMore: data?.Staff?.characters?.pageInfo?.hasNextPage || false,
       };
-    }, renderVACharCard, null, (el) => skeletonFill(el, 12));
+    }, renderVACharCard, null, (el) => skeletonFill(el, 12), 'No roles found.');
   }
 
   await staffScroller.reload();
-  if (!grid.querySelector('.va-char-card')) {
-    grid.innerHTML = `<div class="no-results" style="grid-column: 1/-1;">No roles found.</div>`;
-  }
 }
 
 

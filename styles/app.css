@@ -1,22 +1,49 @@
 /* Sort trigger button + dropdown sheet */
+/* Dropdown triggers. These sit on the page as controls, so they borrow the
+   filled-surface language of .seg rather than the outlined-card language
+   they used to use — an outlined --surface box on --bg read as a stray card
+   rather than something tappable. */
 .sort-trigger {
   display: inline-flex; align-items: center;
-  gap: 8px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  gap: 7px;
+  background: var(--surface-2);
+  border: 1px solid transparent;
   color: var(--text);
-  padding: 8px 12px;
-  border-radius: 10px;
+  padding: 9px 13px;
+  border-radius: var(--radius-sm);
   font-size: 13px;
   font-weight: 600;
+  line-height: 1.2;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, transform 0.12s ease;
 }
-.sort-trigger:hover { background: var(--surface-2); }
+.sort-trigger:active { transform: scale(0.97); }
+/* The leading glyph is context, not an action — dim it so the label and the
+   accent-coloured value carry the emphasis. */
+.sort-trigger > svg:first-child { color: var(--text-dim); flex-shrink: 0; }
+/* Trailing chevron: smaller and dimmer than the leading icon so the two
+   don't read as a matched pair of equal-weight icons. */
+.sort-trigger > svg:last-child {
+  color: var(--text-faint);
+  flex-shrink: 0;
+  width: 13px; height: 13px;
+  margin-left: -1px;
+}
+.sort-trigger span { white-space: nowrap; }
+.sort-trigger:hover { background: color-mix(in srgb, var(--surface-2) 80%, var(--text)); }
 .sort-trigger strong {
   color: var(--accent);
   font-weight: 700;
   margin-left: 2px;
+}
+/* The Home tab shows two of these side by side. Without an equal split they
+   size to their text and land at different widths, which is most of what
+   made the row look unconsidered. */
+.list-controls .sort-trigger,
+#user-list-controls .sort-trigger {
+  flex: 1;
+  justify-content: center;
+  min-width: 0;
 }
 .sort-trigger-bar {
   padding: 14px 20px 4px;
@@ -25,19 +52,34 @@
 .sort-list {
   max-height: 55vh;
   overflow-y: auto;
-  margin: 8px -20px 0;
+  /* Inset rows instead of bleeding to the sheet edges, so each option reads
+     as its own tappable row and the selected one can carry a rounded fill. */
+  margin: 6px 0 0;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   scrollbar-width: none;
 }
 .sort-list::-webkit-scrollbar { display: none; }
 .sort-option {
   display: flex; align-items: center;
   gap: 12px;
-  padding: 14px 20px;
+  padding: 13px 14px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease;
 }
-.sort-option:hover { background: var(--surface-2); }
+.sort-option:active { background: var(--surface-2); }
+/* The tick alone was easy to miss at a glance; tint the whole selected row
+   so the current value is obvious the moment the sheet opens. */
+.sort-option:has(.sort-option-check) {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+/* Excludes the selected row, which would otherwise lose its accent tint the
+   moment a pointer crossed it. */
+.sort-option:hover:not(:has(.sort-option-check)) { background: var(--surface-2); }
 .sort-option-name {
   flex: 1;
   font-size: 15px;

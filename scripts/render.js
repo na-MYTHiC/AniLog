@@ -17,7 +17,7 @@
 // flight. It belongs here rather than at each call site: reload() clears the
 // grid as its first act, so a caller that painted skeletons beforehand just
 // had them thrown away a moment later.
-function setupInfiniteScroll(grid, scrollContainer, fetchPage, renderer, onAppend, skeletonFn) {
+function setupInfiniteScroll(grid, scrollContainer, fetchPage, renderer, onAppend, skeletonFn, emptyMessage) {
   const render = renderer || renderCard;
   const sentinel = document.createElement('div');
   sentinel.className = 'scroll-sentinel';
@@ -28,6 +28,11 @@ function setupInfiniteScroll(grid, scrollContainer, fetchPage, renderer, onAppen
   let loading = false;
   let reqId = 0;
   let observer = null;
+  // Counted across pages so the empty state only appears once we've actually
+  // run out. A caller can't decide this right after reload(): a page can come
+  // back with zero renderable items and still have more pages behind it —
+  // which is normal now that Studio filters out producer-only credits.
+  let appended = 0;
 
   function clearSkeletons() {
     grid.querySelectorAll(':scope > .is-placeholder').forEach((el) => el.remove());
@@ -59,9 +64,16 @@ function setupInfiniteScroll(grid, scrollContainer, fetchPage, renderer, onAppen
       clearSkeletons();
       sentinel.insertAdjacentHTML('beforebegin', items.map(render).join(''));
       if (typeof onAppend === 'function') onAppend(grid);
+      appended += items.length;
       hasMore = !!result?.hasMore;
       page += 1;
-      sentinel.textContent = hasMore ? '' : '— end of list —';
+      if (hasMore) {
+        sentinel.textContent = '';
+      } else if (appended === 0 && emptyMessage) {
+        sentinel.textContent = emptyMessage;
+      } else {
+        sentinel.textContent = appended === 0 ? '' : '— end of list —';
+      }
     } catch (e) {
       clearSkeletons();
       sentinel.textContent = "Couldn't load more.";
@@ -84,6 +96,7 @@ function setupInfiniteScroll(grid, scrollContainer, fetchPage, renderer, onAppen
       page = 1;
       hasMore = true;
       loading = false;
+      appended = 0;
       grid.innerHTML = '';
       grid.appendChild(sentinel);
       sentinel.textContent = '';
@@ -217,9 +230,13 @@ function skeletonFill(el, n) {
 }
 
 
-function renderIntoEl(el, data) {
-  if (data?.Page?.media?.length) {
-    el.innerHTML = data.Page.media.map(renderCard).join('');
+// Takes the media array directly rather than a whole response, because the
+// search tab now fetches all its carousels in one aliased query — each row's
+// data arrives under its own alias, not under a shared `Page`.
+function renderCarouselInto(el, media) {
+  if (!el) return;
+  if (Array.isArray(media) && media.length) {
+    el.innerHTML = media.map(renderCard).join('');
   } else {
     el.innerHTML = `<div style="padding:20px; color:var(--text-dim); font-size:13px;">Couldn't load.</div>`;
   }
