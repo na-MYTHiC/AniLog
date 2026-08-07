@@ -61,9 +61,11 @@ Setup, once:
 
 Notes:
 
+- **Android / Chrome** accepts push in an ordinary browser tab — installing to
+  the Home Screen makes it more reliable but isn't required.
 - **iOS only allows Web Push for a Home Screen PWA**, never a Safari tab. The
-  Profile screen detects this and says so rather than offering a button that
-  can't work.
+  Profile screen detects that case specifically (by user agent) and explains it
+  rather than offering a button that can't work; Android never hits that path.
 - Subscriptions expire when the app is deleted or push is reset. The sender
   logs that clearly; you re-enable in the app and update the secret. It can't
   self-heal — the subscription lives in a secret the workflow can't rewrite.
