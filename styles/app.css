@@ -303,11 +303,10 @@
 }
 /* Covers are real <img> now (for loading="lazy"); these make the image fill
    its wrapper exactly the way background-size:cover used to. */
-/* Covers are real <img> now (for loading="lazy"); these make the image fill
-   its wrapper exactly the way background-size:cover used to. */
 .list-row-cover img,
 .activity-thumb img,
-.va-char-image img,
+.va-role-char img,
+.va-role-cover img,
 .activity-avatar img,
 .character-image img {
   width: 100%; height: 100%;
@@ -1425,47 +1424,64 @@
 }
 
 /* Voice actor's character cards (in staff overlay grid) */
-.va-char-card {
+/* A voice actor's roles, one row each: character on the left, show cover on
+   the right. Replaced a grid of large circular character portraits — those
+   filled the screen with faces while the show, the thing you're usually
+   scanning for, was grey text under them. Rows fit roughly twice as many
+   credits per screen and carry both images. */
+.va-role-row {
+  display: flex; align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
   cursor: pointer;
-  display: flex; flex-direction: column;
-  align-items: center;
-  text-align: center;
-  transition: transform 0.15s ease;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.15s ease;
 }
-.va-char-card:active { transform: scale(0.96); }
-.va-char-image {
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  border-radius: 50%;
+.va-role-row:last-of-type { border-bottom: none; }
+.va-role-row:active { background: var(--surface-2); }
+
+/* Both images are portrait-framed and the same height, so the row reads as a
+   matched pair rather than two unrelated thumbnails. Circles cropped
+   character art badly and made the two look like different kinds of thing. */
+.va-role-char,
+.va-role-cover {
+  width: 44px; height: 62px;
+  flex-shrink: 0;
+  border-radius: 8px;
   background: var(--surface-2);
   overflow: hidden;
-  margin-bottom: 8px;
-  border: 2px solid var(--border);
-  transition: border-color 0.15s ease;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
 }
-.va-char-card:hover .va-char-image { border-color: var(--accent); }
-.va-char-name {
-  font-size: 13px;
+.va-role-info { flex: 1; min-width: 0; }
+.va-role-name {
+  font-size: 14px;
   font-weight: 700;
-  line-height: 1.3;
+  line-height: 1.25;
   color: var(--text);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  white-space: nowrap;
   overflow: hidden;
-  padding: 0 4px;
+  text-overflow: ellipsis;
 }
-.va-char-show {
+.va-role-tag {
+  display: inline-block;
   margin-top: 3px;
-  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+.va-role-show {
+  margin-top: 3px;
+  font-size: 11.5px;
   color: var(--text-dim);
   line-height: 1.3;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  padding: 0 4px;
 }
 
 .modal-backdrop {
@@ -2129,3 +2145,8 @@
   color: var(--accent-on);
   font-weight: 800;
 }
+
+/* Plain block flow, not .grid — these are full-width rows. The scroller's
+   sentinel carries an inline grid-column, harmless outside a grid. */
+.va-role-list { padding: 4px 0 0; }
+.va-role-list .scroll-sentinel { padding: 18px; }

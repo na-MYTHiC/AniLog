@@ -2089,7 +2089,7 @@ async function loadStaff() {
   if (grid.dataset.delegated !== '1') {
     grid.dataset.delegated = '1';
     grid.addEventListener('click', (e) => {
-      const card = e.target.closest('.va-char-card');
+      const card = e.target.closest('.va-role-row');
       if (!card || !grid.contains(card)) return;
       const id = parseInt(card.dataset.mediaId, 10);
       if (!isNaN(id)) openMedia(id);
@@ -2113,7 +2113,7 @@ async function loadStaff() {
               media {
                 id
                 title { userPreferred english romaji }
-                coverImage { color }
+                coverImage { large color }
                 type
               }
             }
@@ -2125,7 +2125,7 @@ async function loadStaff() {
         items: data?.Staff?.characters?.edges || [],
         hasMore: data?.Staff?.characters?.pageInfo?.hasNextPage || false,
       };
-    }, renderVACharCard, null, (el) => skeletonFill(el, 12), 'No roles found.');
+    }, renderVACharCard, null, (el) => skeletonFillVARoles(el, 8), 'No roles found.');
   }
 
   await staffScroller.reload();

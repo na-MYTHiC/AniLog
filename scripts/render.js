@@ -264,6 +264,20 @@ function renderCarouselInto(el, media, onRetry) {
 
 // Home tab is the My List placeholder — no carousels to load until sign-in is wired.
 
+function skeletonFillVARoles(el, n) {
+  el.innerHTML = Array(n).fill(`
+    <div class="va-role-row">
+      <div class="va-role-char skeleton"></div>
+      <div class="va-role-info">
+        <div class="skeleton" style="height: 13px; width: 60%; border-radius: 4px;"></div>
+        <div class="skeleton" style="height: 10px; width: 30%; border-radius: 4px; margin-top: 6px;"></div>
+        <div class="skeleton" style="height: 11px; width: 80%; border-radius: 4px; margin-top: 6px;"></div>
+      </div>
+      <div class="va-role-cover skeleton"></div>
+    </div>
+  `).join('');
+}
+
 function skeletonFillRows(el, n) {
   el.innerHTML = Array(n).fill(`
     <div class="list-row">
@@ -465,6 +479,11 @@ function renderListEntryRow(entry) {
 
 // Attach swipe-to-update + tap-to-open to each row wrap
 
+// A voice actor's role is two things at once — a character, and the show
+// they're in. This used to be a grid of large circular character portraits
+// with the show relegated to a line of grey text, so scanning "what has this
+// person been in" meant reading rather than looking. Now a row carrying both
+// images: character on the left (who), show cover on the right (where).
 function renderVACharCard(edge) {
   const char = edge?.node;
   if (!char) return '';
@@ -474,12 +493,15 @@ function renderVACharCard(edge) {
   if (!media) return '';
   const role = edge.role ? capitalize(edge.role) : '';
   const mediaTitle = pickTitle(media.title);
-  const showLine = role ? `${role} · ${mediaTitle}` : mediaTitle;
   return `
-    <div class="va-char-card" data-media-id="${media.id}" data-char-id="${char.id}">
-      <div class="va-char-image" style="background-color:${media.coverImage?.color || 'var(--surface-2)'};">${coverImg(char.image?.large)}</div>
-      <div class="va-char-name">${escapeHtml(char.name?.userPreferred || '')}</div>
-      <div class="va-char-show">${escapeHtml(showLine)}</div>
+    <div class="va-role-row" data-media-id="${media.id}" data-char-id="${char.id}">
+      <div class="va-role-char">${coverImg(char.image?.large)}</div>
+      <div class="va-role-info">
+        <div class="va-role-name">${escapeHtml(char.name?.userPreferred || '')}</div>
+        ${role ? `<div class="va-role-tag">${escapeHtml(role)}</div>` : ''}
+        <div class="va-role-show">${escapeHtml(mediaTitle)}</div>
+      </div>
+      <div class="va-role-cover" style="background-color:${media.coverImage?.color || 'var(--surface-2)'};">${coverImg(media.coverImage?.large)}</div>
     </div>
   `;
 }
