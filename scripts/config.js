@@ -38,6 +38,12 @@ const ANILIST = 'https://graphql.anilist.co';
 // two halves can't drift apart (a mismatch fails every send with a 403).
 const VAPID_PUBLIC_KEY = 'BMGOxfc34-MFbwRPYpiyp8IJy-atWV67MB3ZnppJPj-4yQp2nJK4vkmItgopjrni7ZgKLaNpJgUj4-eQqbPo6xs';
 
+// Edit pages for the two secrets the sender reads. Reinstalling the PWA
+// destroys the push subscription, so PUSH_SUBSCRIPTION has to be re-pasted
+// every time — linking straight at the field turns that from "navigate
+// GitHub's settings on a phone" into paste-and-save.
+const GITHUB_SECRETS = 'https://github.com/na-MYTHiC/AniLog/settings/secrets/actions';
+
 const MEDIA_FRAGMENT = `
   id
   title { userPreferred english romaji }

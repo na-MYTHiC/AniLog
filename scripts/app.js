@@ -2623,8 +2623,19 @@ async function copyField(id, label) {
   }
 }
 
+// Copy, then jump straight to that secret's edit page on GitHub. The window
+// has to be opened FIRST: awaiting the clipboard before window.open() spends
+// the user gesture, and Android Chrome then blocks the open as a popup.
+function copyAndOpenSecret(fieldId, secretName, label) {
+  const win = window.open(`${GITHUB_SECRETS}/${secretName}`, '_blank', 'noopener');
+  copyField(fieldId, label);
+  if (!win) showToast('Copied — popup blocked, open GitHub manually');
+}
+
 document.getElementById('push-enable-btn')?.addEventListener('click', enablePush);
 document.getElementById('push-copy-btn')?.addEventListener('click', () => copyField('push-subscription', 'Subscription'));
+document.getElementById('push-github-btn')?.addEventListener('click',
+  () => copyAndOpenSecret('push-subscription', 'PUSH_SUBSCRIPTION', 'Subscription'));
 
 // ---- Setup codes disclosure ----
 // The PUSH_SUBSCRIPTION blob and the AniList token are both one-time GitHub
@@ -2687,6 +2698,8 @@ document.getElementById('setup-codes-toggle')?.addEventListener('click', async (
   if (opening) await refreshSetupCodes();
 });
 document.getElementById('token-copy-btn')?.addEventListener('click', () => copyField('token-value', 'Token'));
+document.getElementById('token-github-btn')?.addEventListener('click',
+  () => copyAndOpenSecret('token-value', 'ANILIST_TOKEN', 'Token'));
 
 refreshPushStatus();
 

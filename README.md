@@ -95,6 +95,14 @@ Notes:
 - Subscriptions expire when the app is deleted or push is reset. The sender
   logs that clearly; you re-enable in the app and update the secret. It can't
   self-heal — the subscription lives in a secret the workflow can't rewrite.
+  The **Copy & open GitHub secret** button in the setup-codes panel goes
+  straight to that field, which is the whole re-pairing: tap, paste, save.
+- **Updating doesn't need a reinstall.** The registration in `index.html`
+  uses `updateViaCache: 'none'` and calls `reg.update()` on every foreground,
+  and the worker uses `skipWaiting()` + `clients.claim()`, so backgrounding
+  and reopening picks up a new build on its own. Reinstalling is strictly
+  worse: it wipes `localStorage` (sign-in) and kills the push subscription,
+  forcing the secret to be re-pasted for no gain.
 - `tools/push-state.json` tracks the last notification id sent, so nothing goes
   out twice. The workflow commits it when it changes.
 
