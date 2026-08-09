@@ -32,12 +32,12 @@
   --grid-cols: 2;
   --grid-gap: 14px;
   --grid-pad-y: 16px;
-  --grid-pad-x: 20px;
+  --grid-pad-x: var(--gutter);
   /* List row sizing — drives My List row scale with density */
   --row-cover-w: 92px;
   --row-cover-h: 130px;
   --row-pad-y: 16px;
-  --row-pad-x: 20px;
+  --row-pad-x: var(--gutter);
   --row-gap: 16px;
   --row-title-size: 18px;
   --row-meta-size: 14px;
@@ -59,13 +59,26 @@
   --mini-cover-w: 44px;
   --mini-cover-h: 62px;
   --mini-pad-y: 12px;
-  --mini-pad-x: 20px;
+  --mini-pad-x: var(--gutter);
   --mini-gap: 12px;
   --mini-title: 14px;
   --mini-meta: 11.5px;
   /* Character carousel on a media page — a column count, like --grid-cols */
   --char-cols: 4;
   --char-gap: 10px;
+  /* One horizontal page gutter for everything: list rows, grids, section
+     headers, detail sections, heroes. These used to be 14/16/20/22px
+     depending on which screen you were on, so content edges didn't line up
+     when moving between tabs. */
+  --gutter: 20px;
+  /* Subject header shared by the user, voice-actor and character overlays.
+     They were three sizes of the same component (72/60px avatars, 20/17px
+     names) purely because each was written separately. */
+  --hero-avatar: 64px;
+  --hero-pad-y: 18px;
+  --hero-gap: 14px;
+  --hero-name: 18px;
+  --hero-sub: 12px;
 }
 
 [data-density="compact"] {
@@ -81,11 +94,11 @@
   --grid-cols: 3;
   --grid-gap: 8px;
   --grid-pad-y: 10px;
-  --grid-pad-x: 14px;
+  --grid-pad-x: var(--gutter);
   --row-cover-w: 70px;
   --row-cover-h: 100px;
   --row-pad-y: 12px;
-  --row-pad-x: 16px;
+  --row-pad-x: var(--gutter);
   --row-gap: 14px;
   --row-title-size: 15px;
   --row-meta-size: 12px;
@@ -99,12 +112,18 @@
   --mini-cover-w: 38px;
   --mini-cover-h: 54px;
   --mini-pad-y: 10px;
-  --mini-pad-x: 16px;
+  --mini-pad-x: var(--gutter);
   --mini-gap: 10px;
   --mini-title: 13px;
   --mini-meta: 11px;
   --char-cols: 5;
   --char-gap: 8px;
+  --gutter: 16px;
+  --hero-avatar: 56px;
+  --hero-pad-y: 15px;
+  --hero-gap: 12px;
+  --hero-name: 16px;
+  --hero-sub: 11.5px;
 }
 
 [data-density="spacious"] {
@@ -120,11 +139,11 @@
   --grid-cols: 2;
   --grid-gap: 22px;
   --grid-pad-y: 24px;
-  --grid-pad-x: 20px;
+  --grid-pad-x: var(--gutter);
   --row-cover-w: 116px;
   --row-cover-h: 166px;
   --row-pad-y: 20px;
-  --row-pad-x: 22px;
+  --row-pad-x: var(--gutter);
   --row-gap: 20px;
   --row-title-size: 20px;
   --row-meta-size: 16px;
@@ -138,12 +157,18 @@
   --mini-cover-w: 52px;
   --mini-cover-h: 74px;
   --mini-pad-y: 15px;
-  --mini-pad-x: 22px;
+  --mini-pad-x: var(--gutter);
   --mini-gap: 14px;
   --mini-title: 15.5px;
   --mini-meta: 12.5px;
   --char-cols: 3;
   --char-gap: 12px;
+  --gutter: 22px;
+  --hero-avatar: 76px;
+  --hero-pad-y: 22px;
+  --hero-gap: 16px;
+  --hero-name: 20px;
+  --hero-sub: 13px;
 }
 
 [data-theme="light"] {
@@ -220,16 +245,10 @@ html, body {
   background: var(--bg);
 }
 
-/* Search tab content side gap — matches Seasonal grid's 20px. The
-   carousel itself uses margin (set globally in app.css) so cards stop
-   at the carousel boundary instead of running flush to the screen. */
-#tab-search .search-wrap,
-#tab-search .recent-searches,
-#tab-search .section-header,
-#tab-search .grid {
-  padding-left: 20px !important;
-  padding-right: 20px !important;
-}
+/* The Search tab used to force these four to a literal 20px !important so
+   its side gap matched the Seasonal grid. All four now resolve to --gutter
+   on their own, so the override is gone — it was pinning one tab to a fixed
+   gap while every other tab moved with the density setting. */
 
 /* Search tab carousels — show ~4 cards per row at a time, like the
    character row on the detail page. Override the density-driven --card-w

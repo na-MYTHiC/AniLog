@@ -46,7 +46,7 @@
   min-width: 0;
 }
 .sort-trigger-bar {
-  padding: 14px 20px 4px;
+  padding: 14px var(--gutter) 4px;
 }
 
 .sort-list {
@@ -142,12 +142,6 @@
 
 /* Notifications list */
 .notif-list { padding: 8px 0 24px; }
-.notif-empty {
-  padding: 60px 30px;
-  text-align: center;
-  color: var(--text-dim);
-  font-size: 14px;
-}
 .notif-item {
   display: flex; gap: var(--mini-gap);
   padding: var(--mini-pad-y) var(--mini-pad-x);
@@ -246,7 +240,7 @@
 
 .section { padding: var(--section-pad-y) 0 8px; }
 .section-header {
-  padding: 0 20px;
+  padding: 0 var(--gutter);
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 14px;
 }
@@ -448,7 +442,7 @@
 .nav-btn.active { color: var(--accent); }
 
 .empty {
-  padding: 60px 20px;
+  padding: 60px var(--gutter);
   text-align: center;
 }
 .empty-icon {
@@ -655,7 +649,7 @@
 }
 
 .search-wrap {
-  padding: 12px 20px;
+  padding: 12px var(--gutter);
   position: sticky; top: 0;
   background: var(--bg);
   z-index: 5;
@@ -697,7 +691,7 @@
 .seasonal-header {
   display: flex; align-items: center;
   gap: 12px;
-  padding: 20px 16px 0;
+  padding: 20px var(--gutter) 0;
 }
 .seasonal-title-wrap {
   flex: 1;
@@ -733,7 +727,7 @@
 }
 .back-to-current:hover { text-decoration: underline; }
 .sort-row {
-  padding: 16px 20px 0;
+  padding: 16px var(--gutter) 0;
   display: flex; gap: 8px;
   overflow-x: auto;
   scrollbar-width: none;
@@ -814,7 +808,7 @@
   background: linear-gradient(to bottom, transparent 30%, var(--bg) 100%);
 }
 .detail-head {
-  padding: 0 20px;
+  padding: 0 var(--gutter);
   margin-top: -60px;
   position: relative; z-index: 2;
   display: flex; gap: 14px;
@@ -822,15 +816,20 @@
 }
 /* User profile overlay — friend's list view opened from Social. Uses the
    existing overlay chrome; only the inner card + status filters are new. */
-.user-hero {
+/* .user-hero and .staff-hero are one component under two names — the user,
+   voice-actor and character overlays all show "a subject, then a list". They
+   had drifted to different avatar sizes, paddings and type scales; now they
+   share the --hero-* tokens and move together with density. */
+.user-hero,
+.staff-hero {
   display: flex;
-  gap: 16px;
+  gap: var(--hero-gap);
   align-items: center;
-  padding: 24px 20px 18px;
+  padding: var(--hero-pad-y) var(--gutter);
   border-bottom: 1px solid var(--border);
 }
 .user-hero-avatar {
-  width: 72px; height: 72px;
+  width: var(--hero-avatar); height: var(--hero-avatar);
   border-radius: 50%;
   background-size: cover; background-position: center;
   background-color: var(--surface-2);
@@ -839,13 +838,13 @@
 }
 .user-hero-info { flex: 1; min-width: 0; }
 .user-hero-name {
-  font-size: 20px;
+  font-size: var(--hero-name);
   font-weight: 800;
   line-height: 1.2;
   margin-bottom: 4px;
 }
 .user-hero-stats {
-  font-size: 12px;
+  font-size: var(--hero-sub);
   color: var(--text-dim);
   line-height: 1.4;
 }
@@ -853,12 +852,6 @@
 .user-list-rows { padding-bottom: 24px; }
 /* Reuse the Home tab's list-controls layout inside the user overlay. */
 #user-list-controls { margin-top: 4px; }
-.user-list-empty {
-  padding: 60px 20px;
-  text-align: center;
-  color: var(--text-dim);
-  font-size: 14px;
-}
 
 /* Anything with .user-tap is a click target — small hover cue on desktop */
 .user-tap { cursor: pointer; }
@@ -982,7 +975,7 @@
 .sub-studio:hover { opacity: 0.8; text-decoration: underline; }
 .detail-stats {
   display: flex; gap: 6px;
-  padding: 16px 20px;
+  padding: 16px var(--gutter);
   flex-wrap: wrap;
 }
 .stat-pill {
@@ -1038,7 +1031,7 @@
   margin-right: 4px;
 }
 .detail-actions {
-  padding: 0 20px 16px;
+  padding: 0 var(--gutter) 16px;
   display: flex; gap: 8px;
 }
 .detail-actions .btn-primary, .detail-actions .btn-secondary { flex: 1; }
@@ -1063,7 +1056,7 @@
 #list-edit-status { justify-content: center; gap: 6px; padding-bottom: 14px !important; }
 #list-edit-status .chip { cursor: pointer; }
 .detail-section {
-  padding: 16px 20px;
+  padding: 16px var(--gutter);
   border-top: 1px solid var(--border);
 }
 
@@ -1317,14 +1310,8 @@
 .va-chevron { color: var(--text-dim); flex-shrink: 0; }
 
 /* Staff (VA) overlay hero */
-.staff-hero {
-  display: flex; align-items: center;
-  gap: 14px;
-  padding: 20px;
-  border-bottom: 1px solid var(--border);
-}
 .staff-hero-image {
-  width: 60px; height: 60px;
+  width: var(--hero-avatar); height: var(--hero-avatar);
   border-radius: 50%;
   background: var(--surface-2);
   background-size: cover; background-position: center;
@@ -1333,12 +1320,12 @@
 }
 .staff-hero-info { flex: 1; min-width: 0; }
 .staff-hero-name {
-  font-size: 17px;
+  font-size: var(--hero-name);
   font-weight: 800;
   line-height: 1.2;
 }
 .staff-hero-sub {
-  font-size: 12px;
+  font-size: var(--hero-sub);
   color: var(--text-dim);
   margin-top: 3px;
 }
@@ -1352,7 +1339,7 @@
 .va-role-row {
   display: flex; align-items: center;
   gap: 12px;
-  padding: var(--va-row-pad-y) 16px;
+  padding: var(--va-row-pad-y) var(--gutter);
   cursor: pointer;
   border-bottom: 1px solid var(--border);
   transition: background 0.15s ease;
@@ -1495,15 +1482,19 @@
 .search-pre { display: block; }
 .search-pre.hidden { display: none; }
 
-.no-results {
-  padding: 60px 20px;
+/* One empty state. These were three separate rules with identical values,
+   which is how they'd have drifted apart the next time one was touched. */
+.no-results,
+.notif-empty,
+.user-list-empty {
+  padding: 60px var(--gutter);
   text-align: center;
   color: var(--text-dim);
-  font-size: 14px;
+  font-size: var(--mini-title);
 }
 
 /* Recent searches */
-.recent-searches { padding: 10px 20px 0; }
+.recent-searches { padding: 10px var(--gutter) 0; }
 .recent-header {
   display: flex; justify-content: space-between; align-items: baseline;
   margin-bottom: 8px;
@@ -1569,7 +1560,7 @@
 /* My List header on the Home tab */
 /* Social tab — activity feed */
 .social-header {
-  padding: 20px 20px 0;
+  padding: 20px var(--gutter) 0;
 }
 .social-title {
   font-size: 24px;
@@ -1789,7 +1780,7 @@
 }
 
 .my-list-header {
-  padding: 20px 20px 0;
+  padding: 20px var(--gutter) 0;
 }
 .my-list-title {
   font-size: 26px;
@@ -1805,7 +1796,7 @@
 .list-controls {
   display: flex;
   gap: 8px;
-  padding: 14px 20px 4px;
+  padding: 14px var(--gutter) 4px;
   flex-wrap: wrap;
 }
 /* My List — list rows (density-scaled) */
