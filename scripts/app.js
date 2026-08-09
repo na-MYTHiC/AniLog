@@ -783,9 +783,26 @@ function openSeasonModal() {
   seasonPickSeason = seasonalView.season;
   renderSeasonPicker();
   document.getElementById('season-modal').classList.add('visible');
-  // Land on the current year rather than at the top of a 60-entry list.
-  const active = document.querySelector('#season-years .season-year.active');
-  if (active) active.scrollIntoView({ block: 'center' });
+  centreActiveYear();
+}
+
+// Land on the current year rather than at the top of a 60-entry list.
+//
+// Sets scrollTop by hand rather than calling scrollIntoView(): that scrolls
+// EVERY scrollable ancestor, and the document is one of them. It dragged the
+// whole .app frame ~600px up the page, pushing the modal off the top of the
+// screen and revealing the overlays that sit below .app in the DOM — the
+// picker appeared to open onto a stray Voice Actor page.
+//
+// Rect maths rather than offsetTop, because .season-years isn't positioned,
+// so its children measure against .modal-backdrop instead of the list.
+function centreActiveYear() {
+  const list = document.getElementById('season-years');
+  const active = list?.querySelector('.season-year.active');
+  if (!list || !active) return;
+  const listBox = list.getBoundingClientRect();
+  const activeBox = active.getBoundingClientRect();
+  list.scrollTop += (activeBox.top - listBox.top) - (listBox.height - activeBox.height) / 2;
 }
 
 function closeSeasonModal() {
