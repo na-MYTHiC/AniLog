@@ -835,7 +835,7 @@ function updateAuthUI() {
   }
 
   // Signing in or out changes whether there's a token to reveal.
-  refreshTokenReveal();
+  refreshSetupCodes();
 }
 
 
@@ -2564,13 +2564,18 @@ async function refreshPushStatus() {
   const existing = await reg?.pushManager.getSubscription();
   if (existing) {
     statusEl.textContent = 'Push is on for this device.';
-    btn.textContent = 'Show subscription again';
-    btn.hidden = false;
+    // Nothing left to do here once subscribed — the blob moved behind the
+    // setup-codes disclosure, so this button would only restate it. If the
+    // subscription ever lapses getSubscription() returns null and the enable
+    // button comes back on its own.
+    btn.hidden = true;
+    await refreshSetupCodes();
     return;
   }
   statusEl.textContent = 'Get alerts even when AniLog is closed.';
   btn.textContent = 'Enable push notifications';
   btn.hidden = false;
+  await refreshSetupCodes();
 }
 
 async function enablePush() {
@@ -2591,11 +2596,12 @@ async function enablePush() {
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
       });
     }
-    const wrap = document.getElementById('push-subscription-wrap');
-    const field = document.getElementById('push-subscription');
-    if (field) field.value = JSON.stringify(sub.toJSON());
-    if (wrap) wrap.hidden = false;
     await refreshPushStatus();
+    // Expand once, right here — this is the one moment the code is actually
+    // wanted, and making the user hunt for it after tapping Enable would be
+    // perverse. Every subsequent load starts collapsed again.
+    setSetupCodesOpen(true);
+    await refreshSetupCodes();   // fills the blob now that the panel is open
   } catch (e) {
     showToast('Couldn’t enable push — try again');
   } finally {
@@ -2620,41 +2626,69 @@ async function copyField(id, label) {
 document.getElementById('push-enable-btn')?.addEventListener('click', enablePush);
 document.getElementById('push-copy-btn')?.addEventListener('click', () => copyField('push-subscription', 'Subscription'));
 
-// The scheduled sender needs the AniList token as a GitHub secret. On desktop
-// you'd read it out of localStorage with the console; a phone has no console,
-// which is exactly where push is being set up. Only useful while signed in.
-function refreshTokenReveal() {
-  const wrap = document.getElementById('token-reveal-wrap');
-  if (wrap) wrap.hidden = !state.accessToken;
-  // Never leave a signed-out session's token sitting in the DOM.
-  if (!state.accessToken) {
-    const valueWrap = document.getElementById('token-value-wrap');
-    const field = document.getElementById('token-value');
-    const btn = document.getElementById('token-reveal-btn');
-    if (valueWrap) valueWrap.hidden = true;
-    if (field) field.value = '';
-    if (btn) btn.textContent = 'Show AniList token for setup';
+// ---- Setup codes disclosure ----
+// The PUSH_SUBSCRIPTION blob and the AniList token are both one-time GitHub
+// setup values, and both are unreadable noise the rest of the time. They share
+// one collapsed panel that starts closed on every load, and the values are only
+// written into the DOM while it's open — a token left sitting in a textarea is
+// a token anyone borrowing the phone can scroll to.
+
+function setSetupCodesOpen(open) {
+  const panel = document.getElementById('setup-codes');
+  const toggle = document.getElementById('setup-codes-toggle');
+  if (!panel) return;
+  panel.hidden = !open;
+  if (toggle) toggle.textContent = open ? 'Hide setup codes' : 'Show setup codes';
+
+  const tokenField = document.getElementById('token-value');
+  if (tokenField) tokenField.value = open ? (state.accessToken || '') : '';
+  if (!open) {
+    const subField = document.getElementById('push-subscription');
+    if (subField) subField.value = '';
   }
 }
 
-document.getElementById('token-reveal-btn')?.addEventListener('click', () => {
-  const valueWrap = document.getElementById('token-value-wrap');
-  const field = document.getElementById('token-value');
-  const btn = document.getElementById('token-reveal-btn');
-  if (!valueWrap || !field) return;
-  if (!valueWrap.hidden) {
-    valueWrap.hidden = true;
-    if (btn) btn.textContent = 'Show AniList token for setup';
-    return;
+// Decides what the panel can offer: the subscription only once this device is
+// subscribed, the token only while signed in. With neither, the toggle itself
+// stays hidden rather than opening onto an empty box.
+async function refreshSetupCodes() {
+  const toggle = document.getElementById('setup-codes-toggle');
+  const subWrap = document.getElementById('push-subscription-wrap');
+  const tokenWrap = document.getElementById('token-reveal-wrap');
+
+  let sub = null;
+  if (pushSupported()) {
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      sub = await reg?.pushManager.getSubscription();
+    } catch (e) { /* no registration yet — treated as not subscribed */ }
   }
-  field.value = state.accessToken || '';
-  valueWrap.hidden = false;
-  if (btn) btn.textContent = 'Hide token';
+
+  if (subWrap) subWrap.hidden = !sub;
+  if (tokenWrap) tokenWrap.hidden = !state.accessToken;
+
+  const anything = !!sub || !!state.accessToken;
+  if (toggle) toggle.hidden = !anything;
+  if (!anything) setSetupCodesOpen(false);
+
+  // Keep the live subscription in the field while the panel is open, so a
+  // re-subscribe doesn't leave a stale blob on screen.
+  const panel = document.getElementById('setup-codes');
+  const subField = document.getElementById('push-subscription');
+  if (sub && subField && panel && !panel.hidden) {
+    subField.value = JSON.stringify(sub.toJSON());
+  }
+}
+
+document.getElementById('setup-codes-toggle')?.addEventListener('click', async () => {
+  const panel = document.getElementById('setup-codes');
+  const opening = !!panel?.hidden;
+  setSetupCodesOpen(opening);
+  if (opening) await refreshSetupCodes();
 });
 document.getElementById('token-copy-btn')?.addEventListener('click', () => copyField('token-value', 'Token'));
 
 refreshPushStatus();
-refreshTokenReveal();
 
 // A push tapped while the app is already open asks the page to open that
 // anime, rather than the SW navigating and throwing away the loaded app.
