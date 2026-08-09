@@ -378,14 +378,14 @@
         <div class="settings-row">
           <div>
             <div class="settings-label">App version</div>
-            <div class="settings-sub" id="update-status">v4.50</div>
+            <div class="settings-sub" id="update-status">v4.51</div>
           </div>
           <button class="btn-secondary" id="update-check-btn">Check for updates</button>
         </div>
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v4.50 · Powered by AniList
+        AniLog · v4.51 · Powered by AniList
       </div>
     </section>
 
@@ -667,6 +667,18 @@
   <div class="overlay-body" id="user-body"></div>
 </div>
 
+<!-- A single activity, opened from an activity notification. z-index above
+     the profile overlay so it can be opened from a card inside one. -->
+<div class="overlay" role="dialog" aria-modal="true" id="activity-overlay" style="z-index: 105;">
+  <header class="overlay-header">
+    <button class="back-btn" onclick="closeOverlay('activity-overlay')">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+    </button>
+    <div class="overlay-title" id="activity-title">Activity</div>
+  </header>
+  <div class="overlay-body"><div id="activity-body" class="social-feed"></div></div>
+</div>
+
 <script>
 // Register the service worker so AniLog can be installed as a PWA
 // and survive offline. Best-effort — silently ignored if unsupported.
@@ -685,7 +697,7 @@
 //     screen worth preserving, so reload silently. Invisible.
 //   later — the user is mid-scroll. Raise the banner and let them choose.
 //
-// Holding the worker back instead (v4.50) was a trap: a client running older
+// Holding the worker back instead (v4.51) was a trap: a client running older
 // code had no way to release it, so the update could never apply.
 window.__anilogUpdatePending = false;
 function anilogUpdateReady() {

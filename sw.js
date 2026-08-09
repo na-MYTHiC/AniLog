@@ -15,7 +15,7 @@
 //   - For everything else (AniList GraphQL, AniList images), bypass —
 //     we don't want stale data or 1+ GB of cover-image storage.
 
-const VERSION = 'anilog-v66';
+const VERSION = 'anilog-v67';
 const SHELL = [
   './',
   './index.html',
@@ -107,6 +107,7 @@ self.addEventListener('push', (event) => {
     data: {
       url: payload.url || './',
       mediaId: payload.mediaId || null,
+      activityId: payload.activityId || null,
       userId: payload.userId || null,
       userName: payload.userName || null,
     },
@@ -132,6 +133,7 @@ self.addEventListener('notificationclick', (event) => {
         client.postMessage({
           type: 'anilog-open',
           mediaId: data.mediaId || null,
+          activityId: data.activityId || null,
           userId: data.userId || null,
           userName: data.userName || null,
         });

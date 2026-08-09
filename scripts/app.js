@@ -1387,6 +1387,75 @@ async function loadSocial() {
   }
 }
 
+// ============ SINGLE ACTIVITY OVERLAY ============
+// "X liked your activity" used to open X's profile, because there was
+// nowhere else to go. This is the somewhere else: the post itself, rendered
+// by the same renderActivity/attachActivityHandlers pair the Social feed
+// uses, so likes and replies work here exactly as they do there.
+let activityReqId = 0;
+
+async function openActivity(activityId) {
+  const id = parseInt(activityId, 10);
+  if (!id) return;
+  const body = document.getElementById('activity-body');
+  if (!body) return;
+  const myReq = ++activityReqId;
+
+  document.getElementById('activity-overlay').classList.add('visible');
+  body.innerHTML = `
+    <div class="activity-card">
+      <div class="activity-avatar skeleton"></div>
+      <div class="activity-body">
+        <div class="skeleton" style="height: 14px; width: 40%; border-radius: 4px; margin-bottom: 8px;"></div>
+        <div class="skeleton" style="height: 52px; border-radius: 8px;"></div>
+      </div>
+    </div>`;
+
+  // Same selection set as the feed, so renderActivity gets everything it
+  // expects. MessageActivity is included here but not in the feed: it can't
+  // appear in a public list, but you can certainly be notified about one.
+  const q = `query ($id: Int) {
+    Activity(id: $id) {
+      ... on ListActivity {
+        id type status progress createdAt likeCount replyCount isLiked
+        user { id name avatar { large medium } }
+        media { id title { userPreferred english romaji } coverImage { large color } type }
+        replies { id text createdAt user { id name avatar { large medium } } }
+      }
+      ... on TextActivity {
+        id type text createdAt likeCount replyCount isLiked
+        user { id name avatar { large medium } }
+        replies { id text createdAt user { id name avatar { large medium } } }
+      }
+      ... on MessageActivity {
+        id type message createdAt likeCount replyCount isLiked
+        user: messenger { id name avatar { large medium } }
+        replies { id text createdAt user { id name avatar { large medium } } }
+      }
+    }
+  }`;
+
+  let act = null;
+  try {
+    const data = await anilist(q, { id });
+    act = data?.Activity || null;
+  } catch (e) { /* handled by the empty state below */ }
+  if (myReq !== activityReqId) return;
+
+  if (!act) {
+    body.innerHTML = `
+      <div class="empty" style="padding: 40px 20px;">
+        <div class="empty-title">Couldn’t load this activity</div>
+        <div class="empty-text">It may have been deleted, or belong to a private account.</div>
+      </div>`;
+    return;
+  }
+
+  body.innerHTML = renderActivity(act);
+  attachActivityHandlers(body);
+}
+window.openActivity = openActivity;
+
 // Wire taps, likes, reply expansion + submission for every activity card in the feed
 // Wired ONCE per feed element, not per card. The infinite scroller appends
 // pages into this same container, so per-card binding stacked a fresh set of
@@ -2796,8 +2865,9 @@ document.getElementById('update-check-btn')?.addEventListener('click', checkForU
 // media notifications open the anime, everything else opens the person who
 // caused it. AniList has no single-activity view in this app, so the profile
 // is the closest real destination — landing on Home was the bug.
-function openFromNotification({ mediaId, userId, userName }) {
+function openFromNotification({ mediaId, activityId, userId, userName }) {
   if (mediaId) return openMedia(mediaId);
+  if (activityId) return openActivity(activityId);
   if (userId) return openUser(userId, userName || '');
 }
 
@@ -2810,12 +2880,14 @@ navigator.serviceWorker?.addEventListener('message', (e) => {
   else if (d.type === 'anilog-open-media' && d.mediaId) openMedia(d.mediaId);
 });
 
-// Cold start from a notification tap: ./?media=123 or ./?user=456&name=Foo.
+// Cold start from a notification tap: ./?media=123, ./?activity=456, or
+// ./?user=789&name=Foo.
 (function openFromLaunchUrl() {
   const params = new URLSearchParams(window.location.search || '');
   const mediaId = parseInt(params.get('media') || '', 10) || null;
+  const activityId = parseInt(params.get('activity') || '', 10) || null;
   const userId = parseInt(params.get('user') || '', 10) || null;
-  if (!mediaId && !userId) return;
+  if (!mediaId && !activityId && !userId) return;
 
   // Drop the params before opening, so a refresh doesn't reopen the overlay
   // and the URL doesn't stay dirty.
@@ -2824,7 +2896,7 @@ navigator.serviceWorker?.addEventListener('message', (e) => {
   // Deferred: the overlay handlers below this line aren't wired yet.
   setTimeout(() => {
     try {
-      openFromNotification({ mediaId, userId, userName: params.get('name') || '' });
+      openFromNotification({ mediaId, activityId, userId, userName: params.get('name') || '' });
     } catch (e) { /* boot continues regardless */ }
   }, 0);
 })();
@@ -3090,6 +3162,9 @@ function notifOsPayload(n) {
 function handleNotifTap(n) {
   closeOverlay('notif-overlay');
   if (n.media?.id) return openMedia(n.media.id);
+  // Before the profile: "X liked your activity" is about the activity, and
+  // X's profile was only ever a stand-in for having nowhere better to send it.
+  if (n.activityId) return openActivity(n.activityId);
   if (n.user?.id && n.user?.name) return openUser(n.user.id, n.user.name);
 }
 

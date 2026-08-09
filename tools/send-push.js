@@ -85,9 +85,9 @@ async function fetchNotifications(token, perPage) {
             media { id title { userPreferred english romaji } coverImage { large } }
           }
           ... on FollowingNotification       { id createdAt context user { id name avatar { large } } }
-          ... on ActivityLikeNotification    { id createdAt context user { id name avatar { large } } }
-          ... on ActivityReplyNotification   { id createdAt context user { id name avatar { large } } }
-          ... on ActivityMentionNotification { id createdAt context user { id name avatar { large } } }
+          ... on ActivityLikeNotification    { id createdAt context activityId user { id name avatar { large } } }
+          ... on ActivityReplyNotification   { id createdAt context activityId user { id name avatar { large } } }
+          ... on ActivityMentionNotification { id createdAt context activityId user { id name avatar { large } } }
         }
       }
     }`;
@@ -120,6 +120,8 @@ async function fetchNotifications(token, perPage) {
 // — which is most of the time, and the whole point of push.
 function targetUrl(p) {
   if (p.mediaId) return `./?media=${p.mediaId}`;
+  // Ahead of the user: a like or reply is about the post, not the person.
+  if (p.activityId) return `./?activity=${p.activityId}`;
   if (p.userId) return `./?user=${p.userId}&name=${encodeURIComponent(p.userName || '')}`;
   return './';
 }
@@ -132,6 +134,7 @@ function toPayload(n) {
     body,
     tag,
     icon: u?.avatar?.large,
+    activityId: n.activityId || null,
     userId: u?.id || null,
     userName: u?.name || null,
   });
