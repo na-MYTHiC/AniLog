@@ -1275,51 +1275,18 @@
 }
 
 /* Character overlay hero */
-/* Horizontal, not a centred 120px portrait — that filled most of the first
-   screen to say one name. Rounded rectangle rather than a circle because
-   character art is framed as a portrait and a circle crops it badly. */
-.char-hero {
-  display: flex; align-items: center;
-  gap: 14px;
-  padding: 18px 20px;
-}
-.char-hero-image {
-  width: 78px; height: 108px;
-  flex-shrink: 0;
-  border-radius: var(--radius-sm);
-  background: var(--surface-2);
-  background-size: cover; background-position: center top;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.28);
-}
-.char-hero-info { flex: 1; min-width: 0; }
-.char-hero-name {
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: -0.3px;
-  line-height: 1.2;
-  margin-bottom: 5px;
-}
-.char-hero-role {
-  font-size: 11px;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  font-weight: 700;
-}
 
 
 /* Voice actor list */
-.va-list {
-  margin: 0 20px;
-  background: var(--surface);
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  overflow: hidden;
-}
+/* Full-bleed, not an inset card. The rounded panel was the main reason the
+   character page looked unlike the rest of the app — every other list here
+   (My List, Social, notifications, a VA's roles) runs edge to edge with
+   hairline separators. */
+.va-list { padding-top: 2px; }
 .va-row {
   display: flex; align-items: center;
   gap: var(--mini-gap);
-  padding: var(--mini-pad-y) 14px;
+  padding: var(--mini-pad-y) var(--mini-pad-x);
   cursor: pointer;
   border-bottom: 1px solid var(--border);
   transition: background 0.15s ease;

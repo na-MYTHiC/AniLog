@@ -1955,29 +1955,31 @@ function openCharacter(charId) {
   document.getElementById('character-title').textContent = char.name?.userPreferred || 'Character';
   const body = document.getElementById('character-body');
 
+  // Deliberately the same shape as the voice-actor screen: .staff-hero for
+  // the subject, then full-width rows. This page used to be the odd one out
+  // — its own hero treatment and an inset rounded card — which made it read
+  // as a different app from every other overlay.
+  const sub = edge.role ? `${edge.role.toLowerCase()} character` : 'Character';
   body.innerHTML = `
-    <div class="char-hero">
-      <div class="char-hero-image" style="background-image:url('${char.image?.large || ''}');"></div>
-      <div class="char-hero-info">
-        <div class="char-hero-name">${escapeHtml(char.name?.userPreferred || '')}</div>
-        ${edge.role ? `<div class="char-hero-role">${escapeHtml(edge.role.toLowerCase())} character</div>` : ''}
+    <div class="staff-hero">
+      <div class="staff-hero-image" style="background-image:url('${char.image?.large || ''}');"></div>
+      <div class="staff-hero-info">
+        <div class="staff-hero-name">${escapeHtml(char.name?.userPreferred || '')}</div>
+        <div class="staff-hero-sub">${escapeHtml(sub)}</div>
       </div>
     </div>
     ${vas.length ? `
-      <div class="detail-section" style="border-top: none; padding-top: 20px;">
-        <h4>Voice Actors</h4>
-        <div class="va-list">
-          ${vas.map(va => `
-            <div class="va-row" data-va-id="${va.id}" data-va-name="${escapeHtml(va.name?.userPreferred || '')}">
-              <div class="va-image" style="background-image:url('${va.image?.large || ''}');"></div>
-              <div class="va-info">
-                <div class="va-name">${escapeHtml(va.name?.userPreferred || '')}</div>
-                <div class="va-lang">${escapeHtml(va.languageV2 || 'Voice actor')}</div>
-              </div>
-              <svg class="va-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+      <div class="va-list">
+        ${vas.map(va => `
+          <div class="va-row" data-va-id="${va.id}" data-va-name="${escapeHtml(va.name?.userPreferred || '')}">
+            <div class="va-image" style="background-image:url('${va.image?.large || ''}');"></div>
+            <div class="va-info">
+              <div class="va-name">${escapeHtml(va.name?.userPreferred || '')}</div>
+              <div class="va-lang">${escapeHtml(va.languageV2 || 'Voice actor')}</div>
             </div>
-          `).join('')}
-        </div>
+            <svg class="va-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+          </div>
+        `).join('')}
       </div>
     ` : `
       <div class="no-results">No voice actors listed for this character.</div>

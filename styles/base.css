@@ -45,9 +45,9 @@
   /* Voice-actor role rows carry TWO portraits (character + show), so they
      can't reuse --row-cover-*: two of those side by side leave no room for
      the text between them. Own scale, still density-driven. */
-  --va-img-w: 60px;
-  --va-img-h: 84px;
-  --va-row-pad-y: 12px;
+  --va-img-w: 78px;
+  --va-img-h: 110px;
+  --va-row-pad-y: 13px;
   --va-name-size: 15px;
   --va-show-size: 12.5px;
   /* Secondary rows — Social feed, notifications, the voice-actor list on a
@@ -90,9 +90,9 @@
   --row-title-size: 15px;
   --row-meta-size: 12px;
   --row-bar-h: 6px;
-  --va-img-w: 56px;
-  --va-img-h: 78px;
-  --va-row-pad-y: 11px;
+  --va-img-w: 70px;
+  --va-img-h: 98px;
+  --va-row-pad-y: 12px;
   --va-name-size: 14px;
   --va-show-size: 12px;
   --mini-avatar: 38px;
@@ -129,9 +129,9 @@
   --row-title-size: 20px;
   --row-meta-size: 16px;
   --row-bar-h: 8px;
-  --va-img-w: 70px;
-  --va-img-h: 98px;
-  --va-row-pad-y: 14px;
+  --va-img-w: 90px;
+  --va-img-h: 126px;
+  --va-row-pad-y: 15px;
   --va-name-size: 16px;
   --va-show-size: 13px;
   --mini-avatar: 52px;
