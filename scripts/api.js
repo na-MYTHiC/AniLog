@@ -113,8 +113,6 @@ function savePendingWrites() {
   } catch (e) { /* quota — the in-memory queue still works this session */ }
 }
 
-function pendingWriteCount() { return pendingWrites.length; }
-
 function enqueueWrite(query, variables) {
   pendingWrites.push({ query, variables, ts: Date.now() });
   // Oldest-first eviction. Hitting this means something is badly wrong, but

@@ -144,7 +144,7 @@
 .notif-list { padding: 8px 0 24px; }
 .notif-item {
   display: flex; gap: var(--mini-gap);
-  padding: var(--mini-pad-y) var(--mini-pad-x);
+  padding: var(--mini-pad-y) var(--gutter);
   cursor: pointer;
   border-bottom: 1px solid var(--border);
   transition: background 0.15s ease;
@@ -382,23 +382,21 @@
   display: grid;
   grid-template-columns: repeat(var(--grid-cols), 1fr);
   gap: var(--grid-gap);
-  padding: var(--grid-pad-y) var(--grid-pad-x);
+  padding: var(--grid-pad-y) var(--gutter);
 }
-/* Seasonal grid + Search "See All" (category) grid share a column count:
-   3 on Compact, 2 on Cozy, 1 on Spacious.
-   Was 4 / 3 / 2, chosen to keep tiles close to the carousel card size. That
-   made a Compact tile 89px wide, where almost every real AniList title hit
-   the two-line clamp and got cut — "Daemons of the Shadow Realm" has no
+/* Column counts live in --grid-cols (3 on Compact, 2 on Cozy, 1 on Spacious)
+   and every card grid reads them, so Seasonal, See All, search results, genre
+   and studio all match.
+   These were 4 / 3 / 2, chosen to keep tiles close to the carousel card size.
+   That made a Compact tile 89px wide, where almost every real AniList title
+   hit the two-line clamp and got cut — "Daemons of the Shadow Realm" has no
    short form to fall back on, so the only fix is a wider tile. One column
    fewer at each density roughly doubles the width a title gets.
-   Using !important because the base .grid rule also sets
-   grid-template-columns and would otherwise win on specificity. */
-#seasonal-grid,
-#category-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
-[data-density="compact"]  #seasonal-grid,
-[data-density="compact"]  #category-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
-[data-density="spacious"] #seasonal-grid,
-[data-density="spacious"] #category-grid { grid-template-columns: repeat(1, minmax(0, 1fr)) !important; }
+   This used to be an id-selector override carrying !important on all three
+   lines. The !important was never doing anything (an id already outranks the
+   .grid class), and because it only named #seasonal-grid and #category-grid,
+   the other three grids kept the old counts and the tablet breakpoint below
+   couldn't reach two of them. */
 
 /* Belt and suspenders: force every direct child of these grids to stay
    inside its column no matter what intrinsic width it advertises. Without
@@ -762,13 +760,6 @@
   font-weight: 600;
 }
 .back-to-current:hover { text-decoration: underline; }
-.sort-row {
-  padding: 16px var(--gutter) 0;
-  display: flex; gap: 8px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.sort-row::-webkit-scrollbar { display: none; }
 .chip {
   flex-shrink: 0;
   background: var(--surface);
@@ -942,6 +933,11 @@
 /* Cover images on the detail page are tappable — the pointer cursor cue
    plus a subtle scale on hover signals they open a fullscreen viewer. */
 .detail-cover {
+  width: 110px; height: 160px;
+  border-radius: var(--radius-sm);
+  background-size: cover; background-position: center;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  flex-shrink: 0;
   cursor: zoom-in;
   transition: transform 0.15s ease;
 }
@@ -987,14 +983,6 @@
 }
 .lightbox-close:hover { background: rgba(255, 255, 255, 0.22); transform: scale(1.06); }
 
-/* Override — needs the actual .detail-cover rules to still apply below */
-.detail-cover {
-  width: 110px; height: 160px;
-  border-radius: var(--radius-sm);
-  background-size: cover; background-position: center;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-  flex-shrink: 0;
-}
 .detail-titleblock { flex: 1; min-width: 0; padding-bottom: 6px; }
 .detail-title {
   font-size: 18px; font-weight: 800;
@@ -1621,7 +1609,7 @@
 .activity-card {
   display: flex;
   gap: var(--mini-gap);
-  padding: var(--mini-pad-y) var(--mini-pad-x);
+  padding: var(--mini-pad-y) var(--gutter);
   border-bottom: 1px solid var(--border);
   align-items: flex-start;
   /* Same treatment as .card / .list-row-wrap — the Social feed is the
@@ -1891,7 +1879,7 @@
 .list-row {
   display: flex;
   gap: var(--row-gap);
-  padding: var(--row-pad-y) var(--row-pad-x);
+  padding: var(--row-pad-y) var(--gutter);
   cursor: pointer;
   align-items: center;
   background: var(--bg);

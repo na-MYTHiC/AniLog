@@ -11,7 +11,6 @@
   --text: #f4f4f7;
   --text-dim: #8a8a99;
   --text-faint: #5a5a68;
-  --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
   --radius: 14px;
   --radius-sm: 10px;
   --topbar-h: 56px;
@@ -33,12 +32,10 @@
   --grid-cols: 2;
   --grid-gap: 14px;
   --grid-pad-y: 16px;
-  --grid-pad-x: var(--gutter);
   /* List row sizing — drives My List row scale with density */
   --row-cover-w: 92px;
   --row-cover-h: 130px;
   --row-pad-y: 16px;
-  --row-pad-x: var(--gutter);
   --row-gap: 16px;
   --row-title-size: 18px;
   --row-meta-size: 14px;
@@ -60,7 +57,6 @@
   --mini-cover-w: 44px;
   --mini-cover-h: 62px;
   --mini-pad-y: 12px;
-  --mini-pad-x: var(--gutter);
   --mini-gap: 12px;
   --mini-title: 14px;
   --mini-meta: 11.5px;
@@ -102,11 +98,9 @@
   --grid-cols: 3;
   --grid-gap: 8px;
   --grid-pad-y: 10px;
-  --grid-pad-x: var(--gutter);
   --row-cover-w: 70px;
   --row-cover-h: 100px;
   --row-pad-y: 12px;
-  --row-pad-x: var(--gutter);
   --row-gap: 14px;
   --row-title-size: 15px;
   --row-meta-size: 12px;
@@ -120,7 +114,6 @@
   --mini-cover-w: 38px;
   --mini-cover-h: 54px;
   --mini-pad-y: 10px;
-  --mini-pad-x: var(--gutter);
   --mini-gap: 10px;
   --mini-title: 13px;
   --mini-meta: 11px;
@@ -147,14 +140,12 @@
   --section-title-size: 22px;
   --section-pad-y: 20px;
   --section-head-gap: 12px;
-  --grid-cols: 2;
+  --grid-cols: 1;
   --grid-gap: 22px;
   --grid-pad-y: 24px;
-  --grid-pad-x: var(--gutter);
   --row-cover-w: 116px;
   --row-cover-h: 166px;
   --row-pad-y: 20px;
-  --row-pad-x: var(--gutter);
   --row-gap: 20px;
   --row-title-size: 20px;
   --row-meta-size: 16px;
@@ -168,7 +159,6 @@
   --mini-cover-w: 52px;
   --mini-cover-h: 74px;
   --mini-pad-y: 15px;
-  --mini-pad-x: var(--gutter);
   --mini-gap: 14px;
   --mini-title: 15.5px;
   --mini-meta: 12.5px;
@@ -192,7 +182,6 @@
   --text: #14141c;
   --text-dim: #65657a;
   --text-faint: #a0a0b0;
-  --shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   --body-bg: radial-gradient(ellipse at center, #e0e0e8 0%, #b8b8c0 70%);
 }
 
@@ -205,7 +194,6 @@
   --text: #f4f4f7;
   --text-dim: #888894;
   --text-faint: #4a4a52;
-  --shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
   --body-bg: #000000;
 }
 
@@ -298,7 +286,11 @@ html, body {
   }
   :root {
     --grid-cols: 3;
-    --grid-pad-x: 24px;
+    /* Was --grid-pad-x, which only widened grid gutters. That token is gone
+       (it was a pure alias of --gutter), so widen the gutter itself — the
+       extra room on a 720px frame should apply to rows and headers too, not
+       just grids. */
+    --gutter: 24px;
   }
   [data-density="compact"] { --grid-cols: 4; }
   [data-density="spacious"] { --grid-cols: 3; }
