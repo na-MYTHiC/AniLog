@@ -25,6 +25,16 @@ const ANILIST = 'https://graphql.anilist.co';
 // outage would dump a backlog of stale alerts onto the lock screen.
 const MAX_AGE_SECONDS = 6 * 60 * 60;
 
+// ---- Test mode ----
+// Set by the workflow's "resend_today" dispatch input. Widens the window to a
+// day, ignores the already-sent marker, and — crucially — does NOT advance
+// that marker, so a test can't make the next real run skip anything.
+const RESEND_TODAY = process.env.RESEND_TODAY === 'true';
+const TEST_AGE_SECONDS = 24 * 60 * 60;
+// A quiet day shouldn't leave the test ambiguous, so a resend with nothing to
+// resend sends this instead. Proves the whole chain end to end.
+const TEST_MAX_SEND = 20;
+
 function readState() {
   try {
     return JSON.parse(fs.readFileSync(STATE_PATH, 'utf8'));
@@ -46,17 +56,28 @@ function readPublicKey() {
   return match ? match[1] : '';
 }
 
+// 404/410 mean the subscription is dead (app deleted, push reset). Nothing to
+// do automatically — it lives in a secret this can't edit — so say so clearly
+// enough to act on.
+function reportSendError(err) {
+  if (err.statusCode === 404 || err.statusCode === 410) {
+    console.error('A subscription has expired — re-enable push in the app and update PUSH_SUBSCRIPTION.');
+  } else {
+    console.error(`Send failed (${err.statusCode || 'unknown'}): ${err.message}`);
+  }
+}
+
 function parseSubscriptions(raw) {
   const parsed = JSON.parse(raw);
   return Array.isArray(parsed) ? parsed : [parsed];
 }
 
-async function fetchNotifications(token) {
+async function fetchNotifications(token, perPage) {
   // resetNotificationCount:false — reading here must not clear the badge the
   // user sees in the app.
   const query = `
     query {
-      Page(page: 1, perPage: 15) {
+      Page(page: 1, perPage: ${perPage}) {
         notifications(resetNotificationCount: false) {
           __typename
           ... on AiringNotification {
@@ -135,20 +156,50 @@ async function main() {
   webpush.setVapidDetails('https://na-mythic.github.io/AniLog/', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 
   const state = readState();
-  const notifications = await fetchNotifications(ANILIST_TOKEN);
-  if (!notifications.length) {
-    console.log('No notifications returned.');
-    return;
-  }
+  const subs = parseSubscriptions(PUSH_SUBSCRIPTION);
 
-  const cutoff = Math.floor(Date.now() / 1000) - MAX_AGE_SECONDS;
-  const fresh = notifications
-    .filter((n) => n && n.id > state.lastId && (n.createdAt || 0) >= cutoff)
+  if (RESEND_TODAY) console.log('TEST MODE: resending the last 24h, ignoring the sent marker.');
+
+  const notifications = await fetchNotifications(ANILIST_TOKEN, RESEND_TODAY ? 50 : 15);
+  if (!notifications.length) console.log('AniList returned no notifications at all.');
+
+  const cutoff = Math.floor(Date.now() / 1000) - (RESEND_TODAY ? TEST_AGE_SECONDS : MAX_AGE_SECONDS);
+  let fresh = notifications
+    .filter((n) => n && (RESEND_TODAY || n.id > state.lastId) && (n.createdAt || 0) >= cutoff)
     .sort((a, b) => a.id - b.id);   // oldest first, so lastId ends up correct
 
   // Advance the marker to the newest id we SAW, not just the ones we sent —
   // otherwise anything skipped by the age cutoff gets re-examined forever.
   const newestSeen = Math.max(...notifications.map((n) => n.id || 0), state.lastId);
+
+  if (RESEND_TODAY && fresh.length > TEST_MAX_SEND) {
+    console.log(`${fresh.length} in the last 24h — sending the newest ${TEST_MAX_SEND} so the phone isn't buried.`);
+    fresh = fresh.slice(-TEST_MAX_SEND);
+  }
+
+  // A quiet day would otherwise end the test with "nothing to send", which
+  // proves nothing. Send a synthetic one so the result is never ambiguous.
+  if (RESEND_TODAY && !fresh.length) {
+    console.log('Nothing on AniList in the last 24h — sending a synthetic test notification instead.');
+    const stamp = new Date().toISOString().replace('T', ' ').slice(0, 16);
+    const payload = {
+      title: 'AniLog test',
+      body: `Push is working. Sent ${stamp} UTC.`,
+      tag: `test-${Date.now()}`,
+      url: './',
+    };
+    let ok = 0;
+    for (const sub of subs) {
+      try {
+        await webpush.sendNotification(sub, JSON.stringify(payload));
+        ok += 1;
+      } catch (err) {
+        reportSendError(err);
+      }
+    }
+    console.log(`Test notification sent to ${ok}/${subs.length} subscription(s).`);
+    return;   // never touches the marker
+  }
 
   if (!fresh.length) {
     console.log('Nothing new to send.');
@@ -156,31 +207,33 @@ async function main() {
     return;
   }
 
-  const subs = parseSubscriptions(PUSH_SUBSCRIPTION);
   let sent = 0;
 
   for (const n of fresh) {
     const payload = toPayload(n);
     if (!payload) continue;
     payload.url = './';
+    // Android collapses same-tag notifications. On a resend the tags match
+    // ones already delivered, so without this the test would look like
+    // nothing arrived.
+    if (RESEND_TODAY) payload.tag = `${payload.tag}-retest-${Date.now()}`;
     for (const sub of subs) {
       try {
         await webpush.sendNotification(sub, JSON.stringify(payload));
         sent += 1;
       } catch (err) {
-        // 404/410 mean the subscription is dead (app deleted, push reset).
-        // Nothing to do automatically — it's stored in a secret we can't edit
-        // from here — so say so clearly enough to act on.
-        if (err.statusCode === 404 || err.statusCode === 410) {
-          console.error('A subscription has expired — re-enable push in the app and update PUSH_SUBSCRIPTION.');
-        } else {
-          console.error(`Send failed (${err.statusCode || 'unknown'}): ${err.message}`);
-        }
+        reportSendError(err);
       }
     }
   }
 
   console.log(`Sent ${sent} notification(s) across ${subs.length} subscription(s).`);
+  // A test must not move the marker, or it would suppress the real send of
+  // anything it just replayed.
+  if (RESEND_TODAY) {
+    console.log('Test mode — leaving the sent marker untouched.');
+    return;
+  }
   writeState({ lastId: newestSeen });
 }
 

@@ -55,8 +55,26 @@ Settings → Secrets and variables → Actions:
 | `PUSH_SUBSCRIPTION` | App → Profile → **Enable push notifications** → Copy. One blob per device; for several devices store a JSON array of them. |
 
 Order doesn't matter. Until all three exist the workflow exits 0 with a line
-saying which are missing, so no run goes red mid-setup. Once they're in, hit
-**Run workflow** on the Actions tab to test without waiting for the cron.
+saying which are missing, so no run goes red mid-setup.
+
+### Testing it
+
+Actions → **Send AniLog push notifications** → **Run workflow**. Two ways to
+run it:
+
+- **Left unticked** — a normal run. Sends anything new from the last 6 hours,
+  same as the cron. Usually logs "Nothing new to send", which is a pass but
+  an unsatisfying one.
+- **`resend_today` ticked** — replays everything from the last 24 hours,
+  ignoring what's already been sent, capped at 20 so a busy day can't bury
+  the phone. If AniList has nothing at all in that window it sends one
+  synthetic "AniLog test" notification instead, so the run always tells you
+  something definite.
+
+A test run never advances `push-state.json`, so it can't cause the next real
+run to skip anything. Replayed notifications also get a unique tag suffix —
+Android collapses same-tag notifications, so without it a resend of something
+already delivered would silently do nothing visible.
 
 Two of the three are copyable from the phone itself, which is the point: push
 gets set up on the device that receives it, and a phone has no devtools
