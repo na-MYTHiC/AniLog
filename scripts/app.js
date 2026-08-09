@@ -2201,59 +2201,114 @@ let detailReqId = 0;
 // Fetches the below-the-fold sections and fills in the placeholders left by
 // openMedia. Every write re-checks that the user is still on the same anime,
 // since this resolves well after the core render.
-async function loadDetailExtras(mediaId, body, pending) {
+// Placeholders for the below-the-fold sections, shown the moment the detail
+// renders. Previously these stayed `hidden` until their data arrived, so the
+// page looked finished — streaming links and the trailer come from the CORE
+// query and were already there — while three sections were still missing, then
+// appeared and shoved everything down. A skeleton says "more is coming here"
+// and reserves the right amount of room.
+function showDetailSkeletons(body) {
+  const relCarousel = body.querySelector('[data-relations-carousel]');
+  const recsCarousel = body.querySelector('[data-recs-carousel]');
+  const charsRow = body.querySelector('[data-chars-row]');
+  if (relCarousel) { skeletonFill(relCarousel, 4); body.querySelector('[data-relations-section]').hidden = false; }
+  if (recsCarousel) { skeletonFill(recsCarousel, 4); body.querySelector('[data-recs-section]').hidden = false; }
+  if (charsRow) {
+    charsRow.innerHTML = Array(4).fill(`
+      <div class="character-card">
+        <div class="character-image skeleton"></div>
+        <div class="skeleton" style="height: 11px; width: 80%; margin: 6px auto 0; border-radius: 4px;"></div>
+      </div>
+    `).join('');
+    body.querySelector('[data-chars-section]').hidden = false;
+  }
+}
+
+// A section that never got data shouldn't sit there as a permanent skeleton.
+// Hide it and drop the placeholders — leaving them in a hidden container keeps
+// dead nodes (and their shimmer animation) alive for nothing.
+function clearSection(body, sectionSel) {
+  const section = body.querySelector(sectionSel);
+  if (!section) return;
+  section.hidden = true;
+  const holder = section.querySelector('.carousel, .character-row');
+  if (holder) holder.innerHTML = '';
+}
+
+async function loadDetailExtras(mediaId, body, pendingCards, pendingChars) {
   const myReq = detailReqId;
   const stale = () => myReq !== detailReqId || !currentMedia || currentMedia.id !== mediaId;
 
-  let extras = null;
-  try {
-    // openMedia normally hands us the request it already started; only fetch
-    // here when called without one.
-    const q = `query ($id: Int) { Media(id: $id) { ${MEDIA_DETAIL_EXTRAS} } }`;
-    const data = await (pending || anilist(q, { id: mediaId }));
-    extras = data?.Media;
-  } catch (e) { /* leave the sections hidden */ }
-  if (!extras || stale()) return;
+  // The two halves are independent — awaiting them together would put the
+  // light one back behind the heavy one, which is the whole thing being fixed.
+  await Promise.all([
+    renderDetailCards(mediaId, body, stale, pendingCards),
+    renderDetailCharacters(mediaId, body, stale, pendingChars),
+  ]);
+}
 
-  // Fold the extras into currentMedia. openCharacter looks the tapped
-  // character up there, but currentMedia is built from the CORE query and
-  // characters live only in this second request — so the lookup missed and
-  // the function returned silently, making every character tap do nothing.
-  // Broken since the query was split in v4.37. Safe here: stale() has just
-  // confirmed currentMedia is still this media.
-  Object.assign(currentMedia, extras);
+// Characters: the heavy half (12 characters, each with a voiceActors array).
+async function renderDetailCharacters(mediaId, body, stale, pending) {
+  let data = null;
+  try {
+    const q = `query ($id: Int) { Media(id: $id) { ${MEDIA_DETAIL_CHARACTERS} } }`;
+    data = (await (pending || anilist(q, { id: mediaId })))?.Media;
+  } catch (e) { /* fall through to clearing the skeleton */ }
+  if (stale()) return;
+
+  const charEdges = data?.characters?.edges || [];
+  const charsRow = body.querySelector('[data-chars-row]');
+  if (!charEdges.length || !charsRow) return clearSection(body, '[data-chars-section]');
+
+  // openCharacter looks the tapped character up on currentMedia, which is
+  // built from the CORE query — without this the lookup misses and every
+  // character tap silently does nothing (the v4.37 regression).
+  Object.assign(currentMedia, data);
+
+  charsRow.innerHTML = charEdges.map((e) => `
+    <div class="character-card" data-character-id="${e.node.id}">
+      <div class="character-image">${coverImg(e.node.image?.large)}</div>
+      <div class="character-name">${escapeHtml(e.node.name?.userPreferred || '')}</div>
+      <div class="character-role">${e.role ? escapeHtml(e.role.toLowerCase()) : ''}</div>
+    </div>
+  `).join('');
+  body.querySelector('[data-chars-section]').hidden = false;
+  // Wired here rather than in openMedia because the cards don't exist until
+  // now. Runs once per openMedia, so handlers can't stack.
+  charsRow.addEventListener('click', (ev) => {
+    const card = ev.target.closest('.character-card');
+    if (!card) return;
+    const cid = parseInt(card.dataset.characterId, 10);
+    if (!isNaN(cid)) openCharacter(cid);
+  });
+}
+
+// Relations + recommendations: the light half, and the one the user actually
+// hits first on the way down the page.
+async function renderDetailCards(mediaId, body, stale, pending) {
+  let data = null;
+  try {
+    const q = `query ($id: Int) { Media(id: $id) { ${MEDIA_DETAIL_CARDS} } }`;
+    data = (await (pending || anilist(q, { id: mediaId })))?.Media;
+  } catch (e) { /* fall through to clearing the skeletons */ }
+  if (stale()) return;
+  if (!data) {
+    clearSection(body, '[data-recs-section]');
+    clearSection(body, '[data-relations-section]');
+    return;
+  }
+  Object.assign(currentMedia, data);
 
   // Recommendations
-  const recs = (extras.recommendations?.edges || [])
+  const recs = (data.recommendations?.edges || [])
     .map((e) => e.node?.mediaRecommendation)
     .filter((r) => r?.type === 'ANIME');
-  const recsSection = body.querySelector('[data-recs-section]');
   const recsCarousel = body.querySelector('[data-recs-carousel]');
-  if (recsSection && recsCarousel && recs.length) {
+  if (recs.length && recsCarousel) {
     recsCarousel.innerHTML = recs.map(renderCard).join('');
-    recsSection.hidden = false;
-  }
-
-  // Characters — wired here rather than in openMedia because the cards don't
-  // exist until now. Runs once per openMedia, so handlers can't stack.
-  const charEdges = extras.characters?.edges || [];
-  const charsSection = body.querySelector('[data-chars-section]');
-  const charsRow = body.querySelector('[data-chars-row]');
-  if (charsSection && charsRow && charEdges.length) {
-    charsRow.innerHTML = charEdges.map((e) => `
-      <div class="character-card" data-character-id="${e.node.id}">
-        <div class="character-image">${coverImg(e.node.image?.large)}</div>
-        <div class="character-name">${escapeHtml(e.node.name?.userPreferred || '')}</div>
-        <div class="character-role">${e.role ? escapeHtml(e.role.toLowerCase()) : ''}</div>
-      </div>
-    `).join('');
-    charsSection.hidden = false;
-    charsRow.addEventListener('click', (ev) => {
-      const card = ev.target.closest('.character-card');
-      if (!card) return;
-      const cid = parseInt(card.dataset.characterId, 10);
-      if (!isNaN(cid)) openCharacter(cid);
-    });
+    body.querySelector('[data-recs-section]').hidden = false;
+  } else {
+    clearSection(body, '[data-recs-section]');
   }
 
   // Relations — expandRelations walks PREQUEL/SEQUEL outward so the whole
@@ -2262,10 +2317,19 @@ async function loadDetailExtras(mediaId, body, pending) {
   const relCarousel = body.querySelector('[data-relations-carousel]');
   if (!relSection || !relCarousel) return;
 
-  const direct = filterRelations(extras.relations?.edges);
+  const direct = filterRelations(data.relations?.edges);
   if (direct.length) {
     relCarousel.innerHTML = direct.map(renderRelationCard).join('');
     relSection.hidden = false;
+  } else {
+    // Nothing showable yet — drop the skeleton rather than leaving it up while
+    // the walk runs. It matters even when relations came back non-empty: a show
+    // whose only relation is its source manga filters down to nothing here, and
+    // the walk will never find an anime either, so the section would otherwise
+    // sit there full of placeholders forever. paint() re-shows it if the walk
+    // does turn something up.
+    relCarousel.innerHTML = '';
+    relSection.hidden = true;
   }
   // Paint each level of the walk as it lands rather than waiting for the whole
   // chain — a long franchise used to sit on the direct relations for seconds.
@@ -2275,7 +2339,7 @@ async function loadDetailExtras(mediaId, body, pending) {
     relSection.hidden = false;
   };
   try {
-    paint(await expandRelations(extras.relations?.edges, mediaId, paint));
+    paint(await expandRelations(data.relations?.edges, mediaId, paint));
   } catch (e) { /* the direct list above stays as the fallback */ }
 }
 
@@ -2300,8 +2364,10 @@ async function openMedia(id) {
   // it. They're independent, and chaining them cost a full round trip before
   // relations/characters/recommendations could even begin loading. The catch
   // keeps this from becoming an unhandled rejection when we bail out below.
-  const extrasQ = `query ($id: Int) { Media(id: $id) { ${MEDIA_DETAIL_EXTRAS} } }`;
-  const extrasPending = anilist(extrasQ, { id }).catch(() => null);
+  const cardsPending = anilist(
+    `query ($id: Int) { Media(id: $id) { ${MEDIA_DETAIL_CARDS} } }`, { id }).catch(() => null);
+  const charsPending = anilist(
+    `query ($id: Int) { Media(id: $id) { ${MEDIA_DETAIL_CHARACTERS} } }`, { id }).catch(() => null);
 
   const q = `query ($id: Int) { Media(id: $id) { ${MEDIA_DETAIL_CORE} } }`;
   const data = await anilist(q, { id });
@@ -2461,7 +2527,10 @@ async function openMedia(id) {
   // Relations / recommendations / characters are ~89% of the full detail
   // payload but all sit below the fold, so they're fetched separately once
   // the visible part is already on screen.
-  loadDetailExtras(m.id, body, extrasPending);
+  // Skeletons first so the gap below the fold reads as "loading" instead of
+  // "finished, but missing three sections".
+  showDetailSkeletons(body);
+  loadDetailExtras(m.id, body, cardsPending, charsPending);
 
   // Wire up genre pills → genre overlay
   body.querySelectorAll('.genre-pill').forEach(pill => {

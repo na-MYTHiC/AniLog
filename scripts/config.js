@@ -100,8 +100,12 @@ const MEDIA_DETAIL_CORE = `
   endDate { year month day }
 `;
 
-// Below-the-fold sections, fetched separately right after the core render.
-const MEDIA_DETAIL_EXTRAS = `
+// Below-the-fold sections. Split in two so the light half doesn't wait on the
+// heavy one: 12 characters each carrying a voiceActors array is several times
+// the payload of relations and recommendations combined, and while they shared
+// a query those two carousels couldn't paint until every voice actor had been
+// serialised. Fetched in parallel; each section renders when its own lands.
+const MEDIA_DETAIL_CHARACTERS = `
   id
   characters(sort: ROLE, perPage: 12) {
     edges {
@@ -119,6 +123,10 @@ const MEDIA_DETAIL_EXTRAS = `
       }
     }
   }
+`;
+
+const MEDIA_DETAIL_CARDS = `
+  id
   relations {
     edges {
       relationType
