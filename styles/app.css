@@ -112,13 +112,16 @@
 .notif-bell:hover { background: var(--surface-2); }
 .notif-bell:active { transform: scale(0.94); }
 
-/* Search's search bar and Seasonal's season-switcher both run their own
-   controls to the right edge (the "next season" arrow especially sits
-   right where the bell floats) — hide the bell on those two tabs instead
-   of it sitting on top of tappable controls. :has() reacts to the same
-   .active class switchTab() already toggles, so no extra JS needed. */
+/* The bell belongs to Home only. Search's search bar and Seasonal's
+   season-switcher both run their own controls to the right edge (the "next
+   season" arrow sits exactly where the bell floats), and Social and Profile
+   are their own destinations that a floating control from another screen
+   just clutters. :has() reacts to the same .active class switchTab() already
+   toggles, so no extra JS needed. */
 .app:has(#tab-search.active) .notif-bell,
-.app:has(#tab-seasonal.active) .notif-bell {
+.app:has(#tab-seasonal.active) .notif-bell,
+.app:has(#tab-social.active) .notif-bell,
+.app:has(#tab-profile.active) .notif-bell {
   display: none;
 }
 
