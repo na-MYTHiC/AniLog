@@ -104,7 +104,7 @@ async function fetchNotifications(token, perPage) {
   // socket for 60s before the gateway returned 504. The 20s timeout leaves
   // room for all three attempts inside one job.
   const ATTEMPTS = 3;
-  let lastTransient = null;
+  let lastFailure = null;
 
   for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
     let res;
@@ -121,38 +121,45 @@ async function fetchNotifications(token, perPage) {
       });
     } catch (e) {
       // Timeout, DNS, connection reset — all upstream, all worth retrying.
-      lastTransient = new UpstreamError(`AniList unreachable: ${e.message}`);
+      lastFailure = new UpstreamError(`AniList unreachable: ${e.message}`);
       if (attempt < ATTEMPTS) { await sleep(attempt * 3000); continue; }
-      throw lastTransient;
+      throw lastFailure;
     }
 
-    // 429 and 5xx are AniList having a moment. Everything else (401 on a dead
-    // token, 400 on a bad query) is our problem and should fail loudly.
-    if (res.status === 429 || res.status >= 500) {
-      // Drain the body. An unread response keeps its socket in undici's pool
-      // with the event loop pinned open, so the process hangs at the end
-      // instead of exiting — which on a runner means the job sits there until
-      // the workflow timeout rather than finishing in seconds.
-      await res.arrayBuffer().catch(() => {});
-      lastTransient = new UpstreamError(`AniList responded ${res.status}`);
+    if (!res.ok) {
+      // Always read the body before deciding. It has to be drained anyway —
+      // an unread response keeps its socket in undici's pool with the event
+      // loop pinned open, so the process hangs at the end instead of exiting.
+      // Reading it as text costs nothing extra and is the difference between
+      // "AniList responded 400" and knowing why.
+      const detail = (await res.text().catch(() => '')).replace(/\s+/g, ' ').trim().slice(0, 300);
+      const where = `AniList responded ${res.status}${detail ? ` — ${detail}` : ''}`;
+
+      // 401/403 mean the token is dead: retrying can only produce the same
+      // answer, so fail immediately and loudly.
+      if (res.status === 401 || res.status === 403) throw new Error(where);
+
+      // Everything else gets retried, including 400. A 400 is supposed to mean
+      // a malformed query, but this query is a constant — and run #76 got one
+      // and failed while the identical request succeeded on the runs either
+      // side of it. Whatever AniList means by that, it isn't "your query is
+      // wrong", and one attempt shouldn't decide.
+      lastFailure = res.status === 429 || res.status >= 500
+        ? new UpstreamError(where)   // recovers on its own; a green run
+        : new Error(where);          // if it survives every retry, it's ours
       if (attempt < ATTEMPTS) {
         const retryAfter = parseInt(res.headers.get('retry-after') || '0', 10);
         await sleep(retryAfter > 0 ? Math.min(retryAfter, 30) * 1000 : attempt * 3000);
         continue;
       }
-      throw lastTransient;
-    }
-
-    if (!res.ok) {
-      await res.arrayBuffer().catch(() => {});
-      throw new Error(`AniList responded ${res.status}`);
+      throw lastFailure;
     }
     const json = await res.json();
     if (json.errors) throw new Error(`AniList: ${json.errors[0]?.message || 'query failed'}`);
     return json.data?.Page?.notifications || [];
   }
 
-  throw lastTransient || new UpstreamError('AniList unreachable');
+  throw lastFailure || new UpstreamError('AniList unreachable');
 }
 
 // Where tapping the notification should land. The app has exactly two
