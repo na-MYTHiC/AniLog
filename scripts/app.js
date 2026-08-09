@@ -1067,9 +1067,11 @@ function openListEditSheet(media, entry) {
   document.getElementById('list-edit-progress-total').textContent =
     editingTotal ? `/ ${editingTotal}` : 'eps';
   syncProgressButtons();
-  document.getElementById('list-edit-title').textContent = isNew
-    ? `Add to list — ${pickTitle(media.title) || 'Anime'}`
-    : pickTitle(media.title) || 'Edit Entry';
+  // Heading says what the sheet does; the anime goes underneath. Putting the
+  // title in the h3 made it two wrapped lines of 18px bold for anything
+  // longer than a few words.
+  document.getElementById('list-edit-title').textContent = isNew ? 'Add to list' : 'Edit entry';
+  document.getElementById('list-edit-sub').textContent = pickTitle(media.title) || 'Anime';
   document.querySelectorAll('#list-edit-status .chip').forEach(c => {
     c.classList.toggle('active', c.dataset.status === entry.status);
   });

@@ -383,14 +383,14 @@
         <div class="settings-row">
           <div>
             <div class="settings-label">App version</div>
-            <div class="settings-sub" id="update-status">v4.65</div>
+            <div class="settings-sub" id="update-status">v4.66</div>
           </div>
           <button class="btn-secondary" id="update-check-btn">Check for updates</button>
         </div>
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v4.65 · Powered by AniList
+        AniLog · v4.66 · Powered by AniList
       </div>
     </section>
 
@@ -572,13 +572,15 @@
     <div class="modal">
       <div class="modal-grip"></div>
       <h3 id="list-edit-title">Edit Entry</h3>
-      <p style="text-align: center; font-size: 12px; color: var(--text-dim); margin: -4px 0 18px;">Set your progress, change status, or remove from your list</p>
+      <!-- Which anime, rather than boilerplate about what the sheet does -->
+      <p class="modal-sub" id="list-edit-sub"></p>
 
       <!-- Direct episode entry. Swiping a row is +/-1, so jumping to episode
            47 used to mean 47 swipes. -->
       <div class="progress-editor" id="list-edit-progress-wrap">
         <button class="progress-step" id="progress-minus" aria-label="One episode back">−</button>
         <div class="progress-field">
+          <span class="progress-label">Episodes</span>
           <input class="progress-input" id="list-edit-progress" type="number"
                  inputmode="numeric" min="0" step="1" value="0" aria-label="Episodes watched">
           <span class="progress-total" id="list-edit-progress-total"></span>
@@ -586,7 +588,7 @@
         <button class="progress-step" id="progress-plus" aria-label="One episode forward">+</button>
       </div>
 
-      <div class="sort-row" id="list-edit-status" style="padding: 0 0 12px; flex-wrap: wrap;">
+      <div class="status-grid" id="list-edit-status">
         <div class="chip" data-status="CURRENT">Watching</div>
         <div class="chip" data-status="PLANNING">Planning</div>
         <div class="chip" data-status="COMPLETED">Completed</div>
