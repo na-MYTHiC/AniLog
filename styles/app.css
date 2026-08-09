@@ -523,7 +523,10 @@
 .progress-step:disabled { opacity: 0.4; cursor: default; transform: none; }
 .progress-field {
   flex: 1;
-  display: flex; align-items: baseline; justify-content: center;
+  /* center, not baseline: baseline aligns the three different type sizes to
+     a shared line and leaves the whole group sitting high in the 44px box.
+     The number and its "/ total" keep a shared baseline via .progress-value. */
+  display: flex; align-items: center; justify-content: center;
   gap: 4px;
   background: var(--surface-2);
   border-radius: var(--radius-sm);
@@ -2108,4 +2111,11 @@
   font-size: 12.5px;
   font-weight: 600;
   color: var(--text-dim);
+}
+
+/* Keeps "12" and "/ 28" on one baseline while the pair centres as a unit. */
+.progress-value {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
 }
