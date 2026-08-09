@@ -72,6 +72,13 @@ function parseSubscriptions(raw) {
   return Array.isArray(parsed) ? parsed : [parsed];
 }
 
+// Thrown when AniList is the problem rather than this setup. Distinguished so
+// main() can exit quietly instead of failing the workflow — see the bottom of
+// the file.
+class UpstreamError extends Error {}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 async function fetchNotifications(token, perPage) {
   // resetNotificationCount:false — reading here must not clear the badge the
   // user sees in the app.
@@ -92,20 +99,60 @@ async function fetchNotifications(token, perPage) {
       }
     }`;
 
-  const res = await fetch(ANILIST, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ query }),
-  });
+  // Retry transient failures. Without this a single bad minute at AniList
+  // killed the whole run: one request, no timeout, and the job sat on an open
+  // socket for 60s before the gateway returned 504. The 20s timeout leaves
+  // room for all three attempts inside one job.
+  const ATTEMPTS = 3;
+  let lastTransient = null;
 
-  if (!res.ok) throw new Error(`AniList responded ${res.status}`);
-  const json = await res.json();
-  if (json.errors) throw new Error(`AniList: ${json.errors[0]?.message || 'query failed'}`);
-  return json.data?.Page?.notifications || [];
+  for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+    let res;
+    try {
+      res = await fetch(ANILIST, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ query }),
+        signal: AbortSignal.timeout(20000),
+      });
+    } catch (e) {
+      // Timeout, DNS, connection reset — all upstream, all worth retrying.
+      lastTransient = new UpstreamError(`AniList unreachable: ${e.message}`);
+      if (attempt < ATTEMPTS) { await sleep(attempt * 3000); continue; }
+      throw lastTransient;
+    }
+
+    // 429 and 5xx are AniList having a moment. Everything else (401 on a dead
+    // token, 400 on a bad query) is our problem and should fail loudly.
+    if (res.status === 429 || res.status >= 500) {
+      // Drain the body. An unread response keeps its socket in undici's pool
+      // with the event loop pinned open, so the process hangs at the end
+      // instead of exiting — which on a runner means the job sits there until
+      // the workflow timeout rather than finishing in seconds.
+      await res.arrayBuffer().catch(() => {});
+      lastTransient = new UpstreamError(`AniList responded ${res.status}`);
+      if (attempt < ATTEMPTS) {
+        const retryAfter = parseInt(res.headers.get('retry-after') || '0', 10);
+        await sleep(retryAfter > 0 ? Math.min(retryAfter, 30) * 1000 : attempt * 3000);
+        continue;
+      }
+      throw lastTransient;
+    }
+
+    if (!res.ok) {
+      await res.arrayBuffer().catch(() => {});
+      throw new Error(`AniList responded ${res.status}`);
+    }
+    const json = await res.json();
+    if (json.errors) throw new Error(`AniList: ${json.errors[0]?.message || 'query failed'}`);
+    return json.data?.Page?.notifications || [];
+  }
+
+  throw lastTransient || new UpstreamError('AniList unreachable');
 }
 
 // Where tapping the notification should land. The app has exactly two
@@ -268,5 +315,17 @@ async function main() {
 
 main().catch((err) => {
   console.error(err.message);
+  // AniList being down is not a broken setup, and this runs on a schedule —
+  // the marker hasn't moved, so the next run picks up whatever was missed.
+  // Failing the job here just emails "all jobs have failed" for a hiccup
+  // nobody needs to act on. A red run should mean something is genuinely
+  // wrong: expired token, bad VAPID key, malformed subscription.
+  if (err instanceof UpstreamError) {
+    console.error('Transient upstream failure — skipping this run, the next one will catch up.');
+    // Exit explicitly rather than returning. Falling off the end waits for the
+    // event loop to drain, and a half-finished HTTP client can keep it alive
+    // indefinitely — a hung job is worse than the failed one this replaces.
+    process.exit(0);
+  }
   process.exit(1);
 });

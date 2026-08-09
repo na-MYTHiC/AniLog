@@ -27,6 +27,11 @@ concurrency:
 jobs:
   push:
     runs-on: ubuntu-latest
+    # The sender's own timeouts cap a run at roughly 70s even when AniList is
+    # unreachable. This is the backstop: with `concurrency` set to not cancel,
+    # one wedged run would otherwise sit for the default six hours and block
+    # every tick behind it.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
