@@ -50,6 +50,22 @@
   --va-row-pad-y: 12px;
   --va-name-size: 15px;
   --va-show-size: 12.5px;
+  /* Secondary rows — Social feed, notifications, the voice-actor list on a
+     character. Lighter than My List's --row-* scale but they were fixed at
+     one size, so the density setting did nothing to the longest lists in the
+     app. One shared set, since all three are the same shape: a thumbnail, a
+     couple of lines, sometimes a cover. */
+  --mini-avatar: 44px;
+  --mini-cover-w: 44px;
+  --mini-cover-h: 62px;
+  --mini-pad-y: 12px;
+  --mini-pad-x: 20px;
+  --mini-gap: 12px;
+  --mini-title: 14px;
+  --mini-meta: 11.5px;
+  /* Character carousel on a media page — a column count, like --grid-cols */
+  --char-cols: 4;
+  --char-gap: 10px;
 }
 
 [data-density="compact"] {
@@ -79,6 +95,16 @@
   --va-row-pad-y: 11px;
   --va-name-size: 14px;
   --va-show-size: 12px;
+  --mini-avatar: 38px;
+  --mini-cover-w: 38px;
+  --mini-cover-h: 54px;
+  --mini-pad-y: 10px;
+  --mini-pad-x: 16px;
+  --mini-gap: 10px;
+  --mini-title: 13px;
+  --mini-meta: 11px;
+  --char-cols: 5;
+  --char-gap: 8px;
 }
 
 [data-density="spacious"] {
@@ -108,6 +134,16 @@
   --va-row-pad-y: 14px;
   --va-name-size: 16px;
   --va-show-size: 13px;
+  --mini-avatar: 52px;
+  --mini-cover-w: 52px;
+  --mini-cover-h: 74px;
+  --mini-pad-y: 15px;
+  --mini-pad-x: 22px;
+  --mini-gap: 14px;
+  --mini-title: 15.5px;
+  --mini-meta: 12.5px;
+  --char-cols: 3;
+  --char-gap: 12px;
 }
 
 [data-theme="light"] {

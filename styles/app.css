@@ -149,8 +149,8 @@
   font-size: 14px;
 }
 .notif-item {
-  display: flex; gap: 12px;
-  padding: 12px 20px;
+  display: flex; gap: var(--mini-gap);
+  padding: var(--mini-pad-y) var(--mini-pad-x);
   cursor: pointer;
   border-bottom: 1px solid var(--border);
   transition: background 0.15s ease;
@@ -160,27 +160,27 @@
 .notif-item.unread { background: var(--accent-soft); }
 .notif-item.unread:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 .notif-avatar {
-  width: 40px; height: 40px;
+  width: var(--mini-avatar); height: var(--mini-avatar);
   border-radius: 50%;
   background: var(--surface-2) center/cover no-repeat;
   flex-shrink: 0;
 }
 .notif-cover {
-  width: 40px; height: 56px;
+  width: var(--mini-cover-w); height: var(--mini-cover-h);
   border-radius: 6px;
   background: var(--surface-2) center/cover no-repeat;
   flex-shrink: 0;
 }
 .notif-body-col { flex: 1; min-width: 0; }
 .notif-text {
-  font-size: 13.5px;
+  font-size: var(--mini-title);
   color: var(--text);
   line-height: 1.4;
 }
 .notif-text strong { font-weight: 700; }
 .notif-time {
   margin-top: 3px;
-  font-size: 11px;
+  font-size: var(--mini-meta);
   color: var(--text-dim);
 }
 .notif-dot {
@@ -1228,7 +1228,7 @@
    Card width is calc'd from the carousel's content width so the math
    stays right on any phone width. */
 .character-row {
-  display: flex; gap: 10px;
+  display: flex; gap: var(--char-gap);
   overflow-x: auto;
   padding: 4px 0 8px;
   scroll-snap-type: x mandatory;
@@ -1237,8 +1237,9 @@
 .character-row::-webkit-scrollbar { display: none; }
 .character-card {
   flex-shrink: 0;
-  /* (100% - 3 gaps of 10px) / 4 — exactly 4 cards fit, no 5th peeking */
-  width: calc((100% - 30px) / 4);
+  /* Exactly --char-cols fit with no partial card peeking, at any density:
+     subtract the gaps between them, divide by the count. */
+  width: calc((100% - (var(--char-cols) - 1) * var(--char-gap)) / var(--char-cols));
   cursor: pointer;
   text-align: center;
   scroll-snap-align: start;
@@ -1357,8 +1358,8 @@
 }
 .va-row {
   display: flex; align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
+  gap: var(--mini-gap);
+  padding: var(--mini-pad-y) 14px;
   cursor: pointer;
   border-bottom: 1px solid var(--border);
   transition: background 0.15s ease;
@@ -1366,7 +1367,7 @@
 .va-row:last-child { border-bottom: none; }
 .va-row:hover { background: var(--surface-2); }
 .va-image {
-  width: 44px; height: 44px;
+  width: var(--mini-avatar); height: var(--mini-avatar);
   border-radius: 50%;
   background: var(--surface-2);
   background-size: cover; background-position: center;
@@ -1374,7 +1375,7 @@
 }
 .va-info { flex: 1; min-width: 0; }
 .va-name {
-  font-size: 14px;
+  font-size: var(--mini-title);
   font-weight: 600;
   color: var(--text);
   white-space: nowrap;
@@ -1382,7 +1383,7 @@
   text-overflow: ellipsis;
 }
 .va-lang {
-  font-size: 11px;
+  font-size: var(--mini-meta);
   color: var(--text-dim);
   margin-top: 2px;
 }
@@ -1659,8 +1660,8 @@
 /* Activity card — compact 3-line layout, cover floats on the right */
 .activity-card {
   display: flex;
-  gap: 12px;
-  padding: 12px 20px;
+  gap: var(--mini-gap);
+  padding: var(--mini-pad-y) var(--mini-pad-x);
   border-bottom: 1px solid var(--border);
   align-items: flex-start;
   /* Same treatment as .card / .list-row-wrap — the Social feed is the
@@ -1674,8 +1675,8 @@
 }
 .activity-card:last-child { border-bottom: none; }
 .activity-avatar {
-  width: 40px;
-  height: 40px;
+  width: var(--mini-avatar);
+  height: var(--mini-avatar);
   border-radius: 50%;
   overflow: hidden;
   background-color: var(--surface-2);
@@ -1730,8 +1731,8 @@
 }
 /* Small anime cover thumbnail on the right of the card — taps to detail */
 .activity-thumb {
-  width: 44px;
-  height: 62px;
+  width: var(--mini-cover-w);
+  height: var(--mini-cover-h);
   border-radius: 6px;
   overflow: hidden;
   flex-shrink: 0;
