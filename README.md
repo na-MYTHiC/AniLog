@@ -112,6 +112,17 @@ GitHub Pages, served from the `main` branch root.
 
 Bump **both** `VERSION` in `sw.js` and the version string in `index.html`'s
 footer on every deploy — the service worker keys its cache off `VERSION`, so
-without a bump clients keep serving the old build. With a bump, a single
-refresh is enough: the registration in `index.html` reloads once when the new
-worker takes over.
+without a bump clients keep serving the old build.
+
+How a client picks the new build up: `sw.js` calls `skipWaiting()` on install,
+so the new worker always takes over, and the page decides what to do about it
+in the `controllerchange` handler. Within 8 seconds of page load it reloads
+silently (the app was just opened — nothing to preserve); after that it raises
+the update banner and lets the user choose, rather than yanking the page away
+mid-scroll.
+
+Do **not** move that decision into the worker by dropping `skipWaiting()`.
+v4.49 tried it, and it stranded every client running older code: the new
+worker sat in `waiting` with nothing able to release it, and the app reported
+an update it could never apply. Whatever gates the update has to live on the
+page, where new code can always override old.

@@ -378,14 +378,14 @@
         <div class="settings-row">
           <div>
             <div class="settings-label">App version</div>
-            <div class="settings-sub" id="update-status">v4.49</div>
+            <div class="settings-sub" id="update-status">v4.50</div>
           </div>
           <button class="btn-secondary" id="update-check-btn">Check for updates</button>
         </div>
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v4.49 · Powered by AniList
+        AniLog · v4.50 · Powered by AniList
       </div>
     </section>
 
@@ -677,18 +677,20 @@
 // JS/CSS. Reloading once when the new worker takes over means a single
 // refresh is always enough.
 //
-// The new worker no longer takes over on its own (sw.js does not call
-// skipWaiting on install). It installs, then waits, and the banner asks
-// first — so the reload never lands mid-scroll unannounced.
+// The worker always activates (sw.js calls skipWaiting). What varies is
+// whether we reload immediately or ask first, and that turns on how long the
+// page has been up:
 //
-// This lives inline and ahead of app.js so a worker that is already waiting
-// at parse time isn't missed. The banner itself is drawn by app.js, which
-// reads __anilogWaitingWorker on load; anything found before app.js exists
-// is picked up there, anything found after comes through the hook.
-window.__anilogWaitingWorker = null;
-function anilogUpdateReady(worker) {
-  if (!worker || window.__anilogWaitingWorker === worker) return;
-  window.__anilogWaitingWorker = worker;
+//   within a few seconds of load — the app was just opened, nothing is on
+//     screen worth preserving, so reload silently. Invisible.
+//   later — the user is mid-scroll. Raise the banner and let them choose.
+//
+// Holding the worker back instead (v4.50) was a trap: a client running older
+// code had no way to release it, so the update could never apply.
+window.__anilogUpdatePending = false;
+function anilogUpdateReady() {
+  if (window.__anilogUpdatePending) return;
+  window.__anilogUpdatePending = true;
   if (typeof window.anilogShowUpdateBanner === 'function') window.anilogShowUpdateBanner();
 }
 
@@ -697,12 +699,20 @@ if ('serviceWorker' in navigator && navigator.serviceWorker) {
   // first-ever install, where controllerchange fires as a normal part of
   // setup and must NOT trigger a reload.
   const hadController = !!navigator.serviceWorker.controller;
+  const loadedAt = Date.now();
+  const QUIET_RELOAD_MS = 8000;
   let reloading = false;
+
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!hadController || reloading) return; // guard against reload loops
-    reloading = true;
-    window.location.reload();
+    if (Date.now() - loadedAt < QUIET_RELOAD_MS) {
+      reloading = true;
+      window.location.reload();
+      return;
+    }
+    anilogUpdateReady();
   });
+
   window.addEventListener('load', () => {
     // updateViaCache:'none' makes the browser bypass its HTTP cache when it
     // checks sw.js for a new version. GitHub Pages serves sw.js with
@@ -711,26 +721,16 @@ if ('serviceWorker' in navigator && navigator.serviceWorker) {
     // check is the ONLY thing that notices a new build.
     navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
       .then((reg) => {
-        // Already waiting from a previous visit.
-        if (reg.waiting && navigator.serviceWorker.controller) anilogUpdateReady(reg.waiting);
-
-        // Installed during this visit. 'installed' with a controller present
-        // means an update; without one it's the first-ever install, which is
-        // not something to announce.
-        reg.addEventListener('updatefound', () => {
-          const incoming = reg.installing;
-          if (!incoming) return;
-          incoming.addEventListener('statechange', () => {
-            if (incoming.state === 'installed' && navigator.serviceWorker.controller) {
-              anilogUpdateReady(incoming);
-            }
-          });
-        });
+        // Shouldn't happen now that install skips waiting, but a worker left
+        // waiting by an older build would otherwise stay stuck forever.
+        if (reg.waiting && navigator.serviceWorker.controller) {
+          reg.waiting.postMessage({ type: 'anilog-skip-waiting' });
+        }
 
         // An installed PWA can sit "open" for days without a cold start, so
         // re-check whenever it comes back to the foreground. Cheap: it's a
         // conditional request that 304s unless sw.js actually changed. This
-        // is the "auto-check on open" the banner reacts to.
+        // is the auto-check on open.
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });

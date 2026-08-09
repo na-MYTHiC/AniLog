@@ -15,7 +15,7 @@
 //   - For everything else (AniList GraphQL, AniList images), bypass —
 //     we don't want stale data or 1+ GB of cover-image storage.
 
-const VERSION = 'anilog-v65';
+const VERSION = 'anilog-v66';
 const SHELL = [
   './',
   './index.html',
@@ -52,15 +52,17 @@ self.addEventListener('install', (event) => {
       ))
     )
   );
-  // Deliberately NOT skipWaiting() here. A worker that activates the moment
-  // it installs reloads the page out from under whoever is reading it, and
-  // leaves no window in which to offer a choice. Instead it waits, the page
-  // shows the update banner, and skipWaiting happens on the message below —
-  // so the reload is always something the user asked for.
+  // Activate as soon as this installs. v4.49 tried holding back so the page
+  // could offer a choice first, and that created a trap: any client running
+  // older code had no way to release the waiting worker, so it sat there
+  // forever while the app reported an update it could never apply. Deciding
+  // WHEN to reload is the page's job (see index.html) — the worker taking
+  // over is not the disruptive part, the navigation is.
+  self.skipWaiting();
 });
 
-// Sent by the banner's Reload button. Activating drives controllerchange in
-// index.html, which performs the single reload.
+// Defensive: if a worker ever does end up waiting, the page can release it
+// rather than being stuck again.
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'anilog-skip-waiting') self.skipWaiting();
 });
@@ -94,8 +96,14 @@ self.addEventListener('push', (event) => {
     icon: payload.icon || './icon-192.png',
     badge: './icon-192.png',
     // Same tag collapses repeats of the same event instead of stacking
-    // duplicates if the sender retries.
+    // duplicates if the sender retries. renotify makes a replacement alert
+    // again rather than swapping in silently — without it, a repeat of a tag
+    // already on screen updates the text and nothing else.
     tag: payload.tag || 'anilog',
+    renotify: true,
+    // Android decides heads-up display from the channel's importance, which
+    // this cannot override. It does control the buzz.
+    vibrate: [80, 40, 80],
     data: {
       url: payload.url || './',
       mediaId: payload.mediaId || null,

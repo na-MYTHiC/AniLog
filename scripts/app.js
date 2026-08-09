@@ -2706,8 +2706,8 @@ refreshPushStatus();
 // ---- Update banner ----
 // The registration in index.html finds updates (on load, and on every
 // foreground); this draws the result. Kept separate so a worker that was
-// already waiting before app.js parsed still gets announced — index.html
-// stashes it on __anilogWaitingWorker and we pick it up at the bottom.
+// already applied before app.js parsed still gets announced — index.html
+// stashes a flag on __anilogUpdatePending and we pick it up at the bottom.
 function showUpdateBanner() {
   const el = document.getElementById('update-banner');
   if (el) el.hidden = false;
@@ -2723,23 +2723,14 @@ document.getElementById('update-banner-dismiss')?.addEventListener('click', () =
 
 document.getElementById('update-banner-reload')?.addEventListener('click', () => {
   const btn = document.getElementById('update-banner-reload');
-  if (btn) { btn.disabled = true; btn.textContent = 'Updating…'; }
-
-  const worker = window.__anilogWaitingWorker;
-  // Telling it to skip waiting activates it, which fires controllerchange in
-  // index.html, which reloads. Going straight to location.reload() here would
-  // just re-serve the old cached shell — the old worker would still be in
-  // control.
-  if (worker) worker.postMessage({ type: 'anilog-skip-waiting' });
-
-  // Belt and braces: if controllerchange hasn't landed shortly (no waiting
-  // worker found, or the message went nowhere), reload anyway rather than
-  // leaving a dead button.
-  setTimeout(() => { window.location.reload(); }, 2500);
+  if (btn) { btn.disabled = true; btn.textContent = 'Reloading…'; }
+  // The new worker is already in control by the time this banner exists, so
+  // a plain reload picks up the new shell from its cache. Nothing to wait on.
+  window.location.reload();
 });
 
-// A worker that finished installing before this script ran.
-if (window.__anilogWaitingWorker) showUpdateBanner();
+// An update that landed before this script ran.
+if (window.__anilogUpdatePending) showUpdateBanner();
 
 // ---- Manual update check ----
 // The registration in index.html already calls reg.update() on every
@@ -2779,8 +2770,8 @@ async function checkForUpdate() {
       // The worker waits now rather than taking over, so this hands off to
       // the banner instead of claiming a reload is already happening.
       if (status) status.textContent = 'Update ready — see the banner';
-      if (reg.waiting) anilogUpdateReady(reg.waiting);
-      showUpdateBanner();
+      if (reg.waiting) reg.waiting.postMessage({ type: 'anilog-skip-waiting' });
+      anilogUpdateReady();
     } else {
       if (status) status.textContent = 'Up to date';
       showToast('You’re on the latest version');
