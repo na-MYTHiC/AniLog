@@ -218,7 +218,13 @@
 }
 .content::-webkit-scrollbar { display: none; }
 
-.tab { display: none; padding-bottom: calc(var(--bottombar-h) + 20px); animation: fadeIn 0.18s ease-out; }
+/* Just a breathing gap under the last card — NOT room for the bottom bar.
+   .bottombar is a flex sibling of .content inside the column, so .content is
+   already sized to exclude it; reserving --bottombar-h here as well left a
+   nav-bar-sized void you could scroll into past the end of every list. Most
+   visible on My List, which renders everything at once and then simply
+   stopped, with 88px of nothing beneath it. */
+.tab { display: none; padding-bottom: 20px; animation: fadeIn 0.18s ease-out; }
 .tab.active { display: block; }
 
 /* Tighter timing + shorter travel matches iOS-native crossfade feel. Both
