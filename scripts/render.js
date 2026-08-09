@@ -302,24 +302,25 @@ function skeletonFillRows(el, n) {
 //
 // Nothing renders for a show that isn't on a list, so an unbadged card means
 // "not added" without having to say so.
+// Labels only. These carried a colour each (green Watching, blue Planning
+// and so on), which meant six fixed hues sitting next to ten user-selectable
+// accents and two themes — a palette the app doesn't control, clashing with
+// one it does. The word already says which list it is, so the pill is drawn
+// in theme tokens and the colour is gone.
 const LIST_STATUS_BADGES = {
-  CURRENT:   { c: '#4cc76e', label: 'Watching' },
-  PLANNING:  { c: '#3fa9f5', label: 'Planning' },
-  COMPLETED: { c: '#8b7cff', label: 'Completed' },
-  PAUSED:    { c: '#f0a742', label: 'Paused' },
-  DROPPED:   { c: '#e8607a', label: 'Dropped' },
-  REPEATING: { c: '#35c8c0', label: 'Rewatch' },
+  CURRENT:   'Watching',
+  PLANNING:  'Planning',
+  COMPLETED: 'Completed',
+  PAUSED:    'Paused',
+  DROPPED:   'Dropped',
+  REPEATING: 'Rewatch',
 };
 
 function cardBadges(m) {
   const out = [];
   if (m.episodes) out.push(`<span class="card-badge">${m.episodes} ep</span>`);
   const st = LIST_STATUS_BADGES[m.mediaListEntry?.status];
-  if (st) {
-    // Tint from the status colour so the pill reads as its own thing without
-    // needing a second palette; color-mix keeps it legible on both themes.
-    out.push(`<span class="card-badge card-badge-on" style="--badge-c:${st.c};">${st.label}</span>`);
-  }
+  if (st) out.push(`<span class="card-badge card-badge-on">${st}</span>`);
   return out.length ? `<div class="card-badges">${out.join('')}</div>` : '';
 }
 

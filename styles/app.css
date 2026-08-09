@@ -2152,17 +2152,16 @@
   color: var(--text-dim);
   white-space: nowrap;
 }
-/* On a list: tinted from --badge-c, set per status by the renderer. */
+/* On a list. Distinguished from the episode pill by weight, not hue: full
+   text colour on the raised surface, against dim text on the recessed one.
+   Everything here is a theme token, so it follows all ten accents and both
+   themes instead of fighting them. */
 .card-badge-on {
-  background: color-mix(in srgb, var(--badge-c) 20%, transparent);
-  color: var(--badge-c);
-}
-/* These six colours are picked to sit on a dark card. On the light theme the
-   same value on a pale tint is barely legible, so darken the text and lighten
-   the fill rather than keep a second palette. */
-[data-theme="light"] .card-badge-on {
-  background: color-mix(in srgb, var(--badge-c) 15%, transparent);
-  color: color-mix(in srgb, var(--badge-c) 62%, #000);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  /* Keep both pills the same height despite this one having a border. */
+  padding: 2px calc(var(--badge-pad-x) - 1px);
+  color: var(--text);
 }
 
 /* Search-tab carousel cards are 76px wide — deliberately, to show ~4 at a
