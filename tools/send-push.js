@@ -5,17 +5,21 @@
 // endpoint — a phone can't schedule its own push. This is that something, and
 // on a public repo it costs nothing.
 //
-// Env:
-//   ANILIST_TOKEN      AniList access token (secret) — reads YOUR notifications
-//   VAPID_PUBLIC_KEY   public half (repo variable — not secret)
-//   VAPID_PRIVATE_KEY  private half (secret)
-//   PUSH_SUBSCRIPTION  one subscription JSON, or a JSON array of them (secret)
+// Env (all three are repo secrets — nothing else to configure):
+//   ANILIST_TOKEN      AniList access token — reads YOUR notifications
+//   VAPID_PRIVATE_KEY  private half of the VAPID keypair
+//   PUSH_SUBSCRIPTION  one subscription JSON, or a JSON array of them
+//
+// The public half is not an input: it's read out of scripts/config.js, which
+// already has to carry it for the client. Keeping one copy means the pair can
+// never half-update.
 
 const fs = require('fs');
 const path = require('path');
 const webpush = require('web-push');
 
 const STATE_PATH = path.join(__dirname, 'push-state.json');
+const CONFIG_PATH = path.join(__dirname, '..', 'scripts', 'config.js');
 const ANILIST = 'https://graphql.anilist.co';
 // Nothing older than this is ever sent — otherwise the first run after a long
 // outage would dump a backlog of stale alerts onto the lock screen.
@@ -31,6 +35,15 @@ function readState() {
 
 function writeState(state) {
   fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2) + '\n');
+}
+
+// Pulled out of the client config by regex rather than by requiring the file:
+// config.js is a classic script that assigns bare globals, so `require` would
+// throw. One line, one source of truth.
+function readPublicKey() {
+  const src = fs.readFileSync(CONFIG_PATH, 'utf8');
+  const match = src.match(/const\s+VAPID_PUBLIC_KEY\s*=\s*'([^']*)'/);
+  return match ? match[1] : '';
 }
 
 function parseSubscriptions(raw) {
@@ -99,13 +112,24 @@ function toPayload(n) {
 }
 
 async function main() {
-  const { ANILIST_TOKEN, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, PUSH_SUBSCRIPTION } = process.env;
-  const missing = Object.entries({ ANILIST_TOKEN, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, PUSH_SUBSCRIPTION })
+  const { ANILIST_TOKEN, VAPID_PRIVATE_KEY, PUSH_SUBSCRIPTION } = process.env;
+  const VAPID_PUBLIC_KEY = readPublicKey();
+
+  const missing = Object.entries({ ANILIST_TOKEN, VAPID_PRIVATE_KEY, PUSH_SUBSCRIPTION })
     .filter(([, v]) => !v)
     .map(([k]) => k);
+
+  // Not configured yet is a normal state, not a failure — exiting 0 keeps the
+  // Actions tab green while the secrets are still being filled in, instead of
+  // mailing a failure notice every 15 minutes.
   if (missing.length) {
-    console.error(`Missing: ${missing.join(', ')}. See the setup notes in README.`);
-    process.exit(1);
+    console.log(`Push not configured yet — missing secret(s): ${missing.join(', ')}.`);
+    console.log('See the setup notes in README.md. Nothing to do; exiting cleanly.');
+    return;
+  }
+  if (!VAPID_PUBLIC_KEY) {
+    console.log('No VAPID_PUBLIC_KEY in scripts/config.js — nothing to send with. Exiting cleanly.');
+    return;
   }
 
   webpush.setVapidDetails('https://na-mythic.github.io/AniLog/', VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);

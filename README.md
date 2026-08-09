@@ -44,25 +44,29 @@ something to POST to the push endpoint on a schedule — a device can't schedule
 its own. That sender is `.github/workflows/anilog-push.yml`, which is free:
 GitHub doesn't bill Actions minutes on public repositories.
 
-Setup, once:
+The public VAPID key lives in `scripts/config.js` and is already committed —
+it's meant to ship in the client. Setup is three repo **secrets**, added at
+Settings → Secrets and variables → Actions:
 
-1. `bash tools/gen-vapid.sh` — generates a VAPID keypair locally with OpenSSL
-   (Git Bash has it; no Node needed). The private key never leaves the machine.
-2. Paste the **public** key into `VAPID_PUBLIC_KEY` in `scripts/config.js`,
-   and add it as a repo **variable** of the same name so the workflow can read
-   it. It isn't secret — it ships in the client either way.
-3. Add repo **secrets**: `VAPID_PRIVATE_KEY`, and `ANILIST_TOKEN` (the sender
-   reads your notifications, so it needs your token).
-4. Open the app → Profile → **Enable push notifications**, then copy the
-   subscription blob it shows into a `PUSH_SUBSCRIPTION` secret. To cover more
-   than one device, store a JSON array of blobs.
-5. Add a repo variable `PUSH_ENABLED` = `true`. The workflow no-ops until then,
-   so the Actions tab isn't full of failures mid-setup.
+| Secret | Where it comes from |
+| --- | --- |
+| `VAPID_PRIVATE_KEY` | `bash tools/gen-vapid.sh` — prints both halves. Must pair with the public key in `config.js`; regenerating means replacing both and re-enrolling every device. |
+| `ANILIST_TOKEN` | Your AniList access token. The sender reads *your* notifications, so it needs it. |
+| `PUSH_SUBSCRIPTION` | App → Profile → **Enable push notifications** → Copy. One blob per device; for several devices store a JSON array of them. |
+
+Order doesn't matter. Until all three exist the workflow exits 0 with a line
+saying which are missing, so no run goes red mid-setup. Once they're in, hit
+**Run workflow** on the Actions tab to test without waiting for the cron.
 
 Notes:
 
 - **Android / Chrome** accepts push in an ordinary browser tab — installing to
-  the Home Screen makes it more reliable but isn't required.
+  the Home Screen makes it more reliable but isn't required. On Android 13+,
+  Chrome itself also needs notification permission at the OS level, or the
+  in-app grant silently goes nowhere.
+- Scheduled workflows are best-effort: GitHub delays them under load, so
+  `*/15` means "roughly every 15 minutes", occasionally worse. It also
+  disables the schedule after 60 days without repo activity.
 - **iOS only allows Web Push for a Home Screen PWA**, never a Safari tab. The
   Profile screen detects that case specifically (by user agent) and explains it
   rather than offering a button that can't work; Android never hits that path.

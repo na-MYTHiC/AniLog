@@ -32,7 +32,11 @@ const ANILIST = 'https://graphql.anilist.co';
 // public. Generate a pair with `bash tools/gen-vapid.sh`, paste the public key
 // here and add the private one as the VAPID_PRIVATE_KEY GitHub secret.
 // Empty means push is simply unavailable and the UI says so.
-const VAPID_PUBLIC_KEY = '';
+//
+// This line is the single source of truth: tools/send-push.js parses the key
+// straight out of this file rather than taking it from a repo variable, so the
+// two halves can't drift apart (a mismatch fails every send with a 403).
+const VAPID_PUBLIC_KEY = 'BMGOxfc34-MFbwRPYpiyp8IJy-atWV67MB3ZnppJPj-4yQp2nJK4vkmItgopjrni7ZgKLaNpJgUj4-eQqbPo6xs';
 
 const MEDIA_FRAGMENT = `
   id

@@ -22,9 +22,6 @@ concurrency:
 jobs:
   push:
     runs-on: ubuntu-latest
-    # Skip entirely until the secrets exist, so the Actions tab isn't full of
-    # red X's before setup is finished.
-    if: ${{ vars.PUSH_ENABLED == 'true' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -34,10 +31,13 @@ jobs:
 
       - run: npm install web-push@3.6.7 --no-save
 
+      # Before the secrets are set this exits 0 with a note saying which are
+      # missing, so setup can be finished in any order without a run ever
+      # going red. The public VAPID key isn't passed in — the script reads it
+      # from scripts/config.js.
       - name: Check AniList and send
         env:
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
-          VAPID_PUBLIC_KEY: ${{ vars.VAPID_PUBLIC_KEY }}
           ANILIST_TOKEN: ${{ secrets.ANILIST_TOKEN }}
           PUSH_SUBSCRIPTION: ${{ secrets.PUSH_SUBSCRIPTION }}
         run: node tools/send-push.js
