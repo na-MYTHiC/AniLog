@@ -1949,7 +1949,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 8px 10px 14px;
+  padding: 8px 6px 8px 13px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -1960,19 +1960,19 @@
 .update-banner-text {
   flex: 1;
   min-width: 0;
-  font-size: 13px;
-  line-height: 1.35;
+  font-size: 12.5px;
+  line-height: 1.3;
 }
 .update-banner-text strong { display: block; color: var(--text); }
-.update-banner-text span { color: var(--text-dim); font-size: 12px; }
+.update-banner-text span { color: var(--text-dim); font-size: 11.5px; }
 
 /* width:auto — .btn-primary is full-width by default, which would push the
    text and dismiss control out of the row. */
 .update-banner-btn {
   width: auto;
   flex-shrink: 0;
-  padding: 8px 14px;
-  font-size: 13px;
+  padding: 7px 13px;
+  font-size: 12.5px;
 }
 .update-banner-close {
   flex-shrink: 0;

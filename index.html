@@ -378,14 +378,14 @@
         <div class="settings-row">
           <div>
             <div class="settings-label">App version</div>
-            <div class="settings-sub" id="update-status">v4.51</div>
+            <div class="settings-sub" id="update-status">v4.52</div>
           </div>
           <button class="btn-secondary" id="update-check-btn">Check for updates</button>
         </div>
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v4.51 · Powered by AniList
+        AniLog · v4.52 · Powered by AniList
       </div>
     </section>
 
@@ -396,7 +396,7 @@
   <div class="update-banner" id="update-banner" role="status" hidden>
     <div class="update-banner-text">
       <strong>Update available</strong>
-      <span>Reload to switch to the new version.</span>
+      <span>Tap reload to apply it.</span>
     </div>
     <button class="btn-primary update-banner-btn" id="update-banner-reload">Reload</button>
     <button class="update-banner-close" id="update-banner-dismiss" aria-label="Dismiss update banner">&times;</button>
@@ -689,16 +689,17 @@
 // JS/CSS. Reloading once when the new worker takes over means a single
 // refresh is always enough.
 //
-// The worker always activates (sw.js calls skipWaiting). What varies is
-// whether we reload immediately or ask first, and that turns on how long the
-// page has been up:
+// The worker always activates (sw.js calls skipWaiting); the page never
+// reloads on its own. Every update raises the banner and waits for a tap.
 //
-//   within a few seconds of load — the app was just opened, nothing is on
-//     screen worth preserving, so reload silently. Invisible.
-//   later — the user is mid-scroll. Raise the banner and let them choose.
+// v4.50 reloaded silently when the update landed within 8s of page load, on
+// the theory that a just-opened app has nothing worth preserving. In practice
+// that covered nearly every update — the check runs on load and the worker
+// activates a second or two later — so the banner essentially never appeared
+// and updates stayed exactly as invisible as before.
 //
-// Holding the worker back instead (v4.51) was a trap: a client running older
-// code had no way to release it, so the update could never apply.
+// Nothing can strand: ignore the banner and the next cold start is served
+// from the new worker's cache regardless.
 window.__anilogUpdatePending = false;
 function anilogUpdateReady() {
   if (window.__anilogUpdatePending) return;
@@ -709,19 +710,11 @@ function anilogUpdateReady() {
 if ('serviceWorker' in navigator && navigator.serviceWorker) {
   // Captured before registering: if there's no controller yet this is a
   // first-ever install, where controllerchange fires as a normal part of
-  // setup and must NOT trigger a reload.
+  // setup and is not an update to announce.
   const hadController = !!navigator.serviceWorker.controller;
-  const loadedAt = Date.now();
-  const QUIET_RELOAD_MS = 8000;
-  let reloading = false;
 
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!hadController || reloading) return; // guard against reload loops
-    if (Date.now() - loadedAt < QUIET_RELOAD_MS) {
-      reloading = true;
-      window.location.reload();
-      return;
-    }
+    if (!hadController) return;
     anilogUpdateReady();
   });
 
