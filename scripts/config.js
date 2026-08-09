@@ -53,6 +53,11 @@ const MEDIA_FRAGMENT = `
   episodes
   season
   seasonYear
+  # Which of the viewer's lists this is on, for the corner badge on cards.
+  # Costs one small object per media and no extra request; AniList resolves
+  # it against the token already on the call, and returns null when signed
+  # out — so the badge simply doesn't render.
+  mediaListEntry { status }
 `;
 
 // The detail query is split in two because the whole thing is ~29KB and only

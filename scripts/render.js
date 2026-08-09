@@ -294,6 +294,32 @@ function skeletonFillRows(el, n) {
 
 // ============ CARD / ROW RENDERERS ============
 
+// ============ LIST STATUS BADGE ============
+// A corner mark on a cover saying "this is already on one of your lists, and
+// which". Kept to a small glyph on the same dark chip the score uses, top-LEFT
+// so it never collides with the score at top-right. Icon rather than a word:
+// at this size a label would be unreadable, and a bare dot wouldn't say which
+// list. Colour carries the meaning, the glyph confirms it for anyone who
+// can't separate the hues.
+const LIST_STATUS_BADGES = {
+  CURRENT:   { c: '#4cc76e', label: 'Watching',   d: 'M8 5l11 7-11 7z' },
+  PLANNING:  { c: '#3fa9f5', label: 'Planning',   d: 'M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z' },
+  COMPLETED: { c: '#8b7cff', label: 'Completed',  d: 'M20 6L9 17l-5-5' },
+  PAUSED:    { c: '#f0a742', label: 'Paused',     d: 'M10 4v16M16 4v16' },
+  DROPPED:   { c: '#e8607a', label: 'Dropped',    d: 'M18 6L6 18M6 6l12 12' },
+  REPEATING: { c: '#35c8c0', label: 'Rewatching', d: 'M17 2l4 4-4 4M3 12V10a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 12v2a4 4 0 0 1-4 4H3' },
+};
+
+function listStatusBadge(entry) {
+  const b = LIST_STATUS_BADGES[entry?.status];
+  if (!b) return '';
+  // COMPLETED's tick is the only glyph that wants a filled look; the rest
+  // read better as strokes, so one stroke treatment covers all six.
+  return `<div class="card-status" style="color:${b.c};" title="On your list: ${b.label}" aria-label="On your list: ${b.label}">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="${b.d}"/></svg>
+  </div>`;
+}
+
 function renderCard(m) {
   if (!m) return '';
   const score = m.averageScore ? `<div class="card-score">★ ${(m.averageScore / 10).toFixed(1)}</div>` : '';
@@ -303,6 +329,7 @@ function renderCard(m) {
     <div class="card" data-media-id="${m.id}" onclick="openMedia(${m.id})">
       <div class="card-image" style="background-color:${m.coverImage?.color || 'var(--surface-2)'};">
         ${coverImg(m.coverImage?.large)}
+        ${listStatusBadge(m.mediaListEntry)}
         ${score}
       </div>
       <div class="card-title">${escapeHtml(pickTitle(m.title) || 'Unknown')}</div>

@@ -2124,3 +2124,25 @@
   align-items: baseline;
   gap: 4px;
 }
+
+/* Corner mark on a cover: which of your lists this show is already on.
+   Same dark chip as the score so it reads as part of the card's furniture
+   rather than a sticker on top of it.
+   BOTTOM-left, not top-left: .card-score sits top-right at a fixed 12px
+   regardless of card size, and on the Search tab's narrowest carousel cards
+   (76px) it left no room — badge and score overlapped by 4px. The bottom
+   edge is always free, so this can't collide at any card width or density. */
+.card-status {
+  position: absolute; bottom: 6px; left: 6px;
+  width: var(--card-badge); height: var(--card-badge);
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 6px;
+  pointer-events: none;
+}
+.card-status svg {
+  width: 62%; height: 62%;
+  display: block;
+}
