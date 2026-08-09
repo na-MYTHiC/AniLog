@@ -1330,14 +1330,6 @@
   background-size: cover; background-position: center;
 }
 .char-show-info { flex: 1; min-width: 0; }
-.char-show-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-  color: var(--text-faint);
-  margin-bottom: 3px;
-}
 .char-show-title {
   font-size: 14px;
   font-weight: 700;
@@ -1432,7 +1424,7 @@
 .va-role-row {
   display: flex; align-items: center;
   gap: 12px;
-  padding: 10px 16px;
+  padding: var(--va-row-pad-y) 16px;
   cursor: pointer;
   border-bottom: 1px solid var(--border);
   transition: background 0.15s ease;
@@ -1445,7 +1437,7 @@
    character art badly and made the two look like different kinds of thing. */
 .va-role-char,
 .va-role-cover {
-  width: 44px; height: 62px;
+  width: var(--va-img-w); height: var(--va-img-h);
   flex-shrink: 0;
   border-radius: 8px;
   background: var(--surface-2);
@@ -1453,7 +1445,7 @@
 }
 .va-role-info { flex: 1; min-width: 0; }
 .va-role-name {
-  font-size: 14px;
+  font-size: var(--va-name-size);
   font-weight: 700;
   line-height: 1.25;
   color: var(--text);
@@ -1475,7 +1467,7 @@
 }
 .va-role-show {
   margin-top: 3px;
-  font-size: 11.5px;
+  font-size: var(--va-show-size);
   color: var(--text-dim);
   line-height: 1.3;
   display: -webkit-box;

@@ -1980,7 +1980,6 @@ function openCharacter(charId) {
       <div class="char-show-row" id="char-show-row" role="button" tabindex="0">
         <div class="char-show-cover" style="background-image:url('${currentMedia?.coverImage?.large || ''}');"></div>
         <div class="char-show-info">
-          <div class="char-show-label">Appears in</div>
           <div class="char-show-title">${escapeHtml(showTitle)}</div>
           ${showMeta ? `<div class="char-show-meta">${escapeHtml(showMeta)}</div>` : ''}
         </div>
