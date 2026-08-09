@@ -831,6 +831,9 @@ function updateAuthUI() {
     if (homeEmpty) homeEmpty.style.display = '';
     if (myGrid) myGrid.style.display = 'none';
   }
+
+  // Signing in or out changes whether there's a token to reveal.
+  refreshTokenReveal();
 }
 
 
@@ -2560,19 +2563,58 @@ async function enablePush() {
   }
 }
 
-document.getElementById('push-enable-btn')?.addEventListener('click', enablePush);
-document.getElementById('push-copy-btn')?.addEventListener('click', async () => {
-  const field = document.getElementById('push-subscription');
+// Clipboard writes need a user gesture and fail outright on http:// origins,
+// so every copy path falls back to selecting the text for a manual copy.
+async function copyField(id, label) {
+  const field = document.getElementById(id);
   if (!field?.value) return;
   try {
     await navigator.clipboard.writeText(field.value);
-    showToast('Copied');
+    showToast(`${label} copied`);
   } catch (e) {
-    field.select();   // clipboard blocked — let the user copy by hand
+    field.select();
     showToast('Press and hold to copy');
   }
+}
+
+document.getElementById('push-enable-btn')?.addEventListener('click', enablePush);
+document.getElementById('push-copy-btn')?.addEventListener('click', () => copyField('push-subscription', 'Subscription'));
+
+// The scheduled sender needs the AniList token as a GitHub secret. On desktop
+// you'd read it out of localStorage with the console; a phone has no console,
+// which is exactly where push is being set up. Only useful while signed in.
+function refreshTokenReveal() {
+  const wrap = document.getElementById('token-reveal-wrap');
+  if (wrap) wrap.hidden = !state.accessToken;
+  // Never leave a signed-out session's token sitting in the DOM.
+  if (!state.accessToken) {
+    const valueWrap = document.getElementById('token-value-wrap');
+    const field = document.getElementById('token-value');
+    const btn = document.getElementById('token-reveal-btn');
+    if (valueWrap) valueWrap.hidden = true;
+    if (field) field.value = '';
+    if (btn) btn.textContent = 'Show AniList token for setup';
+  }
+}
+
+document.getElementById('token-reveal-btn')?.addEventListener('click', () => {
+  const valueWrap = document.getElementById('token-value-wrap');
+  const field = document.getElementById('token-value');
+  const btn = document.getElementById('token-reveal-btn');
+  if (!valueWrap || !field) return;
+  if (!valueWrap.hidden) {
+    valueWrap.hidden = true;
+    if (btn) btn.textContent = 'Show AniList token for setup';
+    return;
+  }
+  field.value = state.accessToken || '';
+  valueWrap.hidden = false;
+  if (btn) btn.textContent = 'Hide token';
 });
+document.getElementById('token-copy-btn')?.addEventListener('click', () => copyField('token-value', 'Token'));
+
 refreshPushStatus();
+refreshTokenReveal();
 
 // A push tapped while the app is already open asks the page to open that
 // anime, rather than the SW navigating and throwing away the loaded app.

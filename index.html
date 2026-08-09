@@ -318,6 +318,20 @@
             <textarea id="push-subscription" class="signin-token-input" rows="4" readonly></textarea>
             <button class="btn-secondary" id="push-copy-btn" style="margin-top: 8px;">Copy</button>
           </div>
+          <!-- The sender also needs the AniList token, and on a phone there's
+               no console to read it out of localStorage with. Hidden until
+               tapped so a shoulder-surfer doesn't get it for free. -->
+          <div id="token-reveal-wrap" hidden>
+            <button class="btn-secondary" id="token-reveal-btn">Show AniList token for setup</button>
+            <div id="token-value-wrap" hidden style="margin-top: 8px;">
+              <div class="settings-sub" style="margin-bottom: 6px;">
+                Copy this into the <strong>ANILIST_TOKEN</strong> GitHub secret.
+                It grants full access to your AniList account — treat it like a password.
+              </div>
+              <textarea id="token-value" class="signin-token-input" rows="3" readonly></textarea>
+              <button class="btn-secondary" id="token-copy-btn" style="margin-top: 8px;">Copy token</button>
+            </div>
+          </div>
         </div>
       </div>
 

@@ -51,12 +51,16 @@ Settings → Secrets and variables → Actions:
 | Secret | Where it comes from |
 | --- | --- |
 | `VAPID_PRIVATE_KEY` | `bash tools/gen-vapid.sh` — prints both halves. Must pair with the public key in `config.js`; regenerating means replacing both and re-enrolling every device. |
-| `ANILIST_TOKEN` | Your AniList access token. The sender reads *your* notifications, so it needs it. |
+| `ANILIST_TOKEN` | App → Profile → **Show AniList token for setup** → Copy token. The sender reads *your* notifications, so it needs it. |
 | `PUSH_SUBSCRIPTION` | App → Profile → **Enable push notifications** → Copy. One blob per device; for several devices store a JSON array of them. |
 
 Order doesn't matter. Until all three exist the workflow exits 0 with a line
 saying which are missing, so no run goes red mid-setup. Once they're in, hit
 **Run workflow** on the Actions tab to test without waiting for the cron.
+
+Two of the three are copyable from the phone itself, which is the point: push
+gets set up on the device that receives it, and a phone has no devtools
+console to read `localStorage` with.
 
 Notes:
 
