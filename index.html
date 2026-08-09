@@ -378,18 +378,29 @@
         <div class="settings-row">
           <div>
             <div class="settings-label">App version</div>
-            <div class="settings-sub" id="update-status">v4.48</div>
+            <div class="settings-sub" id="update-status">v4.49</div>
           </div>
           <button class="btn-secondary" id="update-check-btn">Check for updates</button>
         </div>
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v4.48 · Powered by AniList
+        AniLog · v4.49 · Powered by AniList
       </div>
     </section>
 
   </main>
+
+  <!-- Raised by app.js when a new service worker has installed and is
+       waiting. Persistent by design: it's a decision, not a notification. -->
+  <div class="update-banner" id="update-banner" role="status" hidden>
+    <div class="update-banner-text">
+      <strong>Update available</strong>
+      <span>Reload to switch to the new version.</span>
+    </div>
+    <button class="btn-primary update-banner-btn" id="update-banner-reload">Reload</button>
+    <button class="update-banner-close" id="update-banner-dismiss" aria-label="Dismiss update banner">&times;</button>
+  </div>
 
   <nav class="bottombar">
     <button class="nav-btn active" data-tab="home" aria-label="Home">
@@ -660,13 +671,28 @@
 // Register the service worker so AniLog can be installed as a PWA
 // and survive offline. Best-effort — silently ignored if unsupported.
 //
-// The reload below fixes the classic "needs two refreshes" PWA trap: the
-// SW serves assets cache-first, so on the refresh that discovers a new
-// deploy the page has ALREADY rendered with the old cached JS/CSS. The
-// new SW installs, skipWaiting()s and claims clients in the background —
-// but only the NEXT refresh would actually show the new build. Reloading
-// once on controllerchange means a single refresh is always enough.
-if ('serviceWorker' in navigator) {
+// The reload on controllerchange fixes the classic "needs two refreshes"
+// PWA trap: the SW serves assets cache-first, so on the refresh that
+// discovers a new deploy the page has ALREADY rendered with the old cached
+// JS/CSS. Reloading once when the new worker takes over means a single
+// refresh is always enough.
+//
+// The new worker no longer takes over on its own (sw.js does not call
+// skipWaiting on install). It installs, then waits, and the banner asks
+// first — so the reload never lands mid-scroll unannounced.
+//
+// This lives inline and ahead of app.js so a worker that is already waiting
+// at parse time isn't missed. The banner itself is drawn by app.js, which
+// reads __anilogWaitingWorker on load; anything found before app.js exists
+// is picked up there, anything found after comes through the hook.
+window.__anilogWaitingWorker = null;
+function anilogUpdateReady(worker) {
+  if (!worker || window.__anilogWaitingWorker === worker) return;
+  window.__anilogWaitingWorker = worker;
+  if (typeof window.anilogShowUpdateBanner === 'function') window.anilogShowUpdateBanner();
+}
+
+if ('serviceWorker' in navigator && navigator.serviceWorker) {
   // Captured before registering: if there's no controller yet this is a
   // first-ever install, where controllerchange fires as a normal part of
   // setup and must NOT trigger a reload.
@@ -685,9 +711,26 @@ if ('serviceWorker' in navigator) {
     // check is the ONLY thing that notices a new build.
     navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
       .then((reg) => {
+        // Already waiting from a previous visit.
+        if (reg.waiting && navigator.serviceWorker.controller) anilogUpdateReady(reg.waiting);
+
+        // Installed during this visit. 'installed' with a controller present
+        // means an update; without one it's the first-ever install, which is
+        // not something to announce.
+        reg.addEventListener('updatefound', () => {
+          const incoming = reg.installing;
+          if (!incoming) return;
+          incoming.addEventListener('statechange', () => {
+            if (incoming.state === 'installed' && navigator.serviceWorker.controller) {
+              anilogUpdateReady(incoming);
+            }
+          });
+        });
+
         // An installed PWA can sit "open" for days without a cold start, so
         // re-check whenever it comes back to the foreground. Cheap: it's a
-        // conditional request that 304s unless sw.js actually changed.
+        // conditional request that 304s unless sw.js actually changed. This
+        // is the "auto-check on open" the banner reacts to.
         document.addEventListener('visibilitychange', () => {
           if (document.visibilityState === 'visible') reg.update().catch(() => {});
         });

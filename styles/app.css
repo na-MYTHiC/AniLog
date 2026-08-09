@@ -1934,3 +1934,54 @@
   font-weight: 700;
 }
 
+
+/* ============ UPDATE BANNER ============
+   Shares the toast lane above the bottom bar, but is not a toast: it waits
+   for a decision instead of timing out, so it keeps pointer events and sits
+   just under the toast stack's z-index. */
+.update-banner {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--bottombar-h) + env(safe-area-inset-bottom, 0px) + 12px);
+  width: min(440px, calc(100% - 32px));
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 8px 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4);
+}
+.update-banner[hidden] { display: none; }
+
+.update-banner-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.update-banner-text strong { display: block; color: var(--text); }
+.update-banner-text span { color: var(--text-dim); font-size: 12px; }
+
+/* width:auto — .btn-primary is full-width by default, which would push the
+   text and dismiss control out of the row. */
+.update-banner-btn {
+  width: auto;
+  flex-shrink: 0;
+  padding: 8px 14px;
+  font-size: 13px;
+}
+.update-banner-close {
+  flex-shrink: 0;
+  background: none;
+  border: 0;
+  color: var(--text-faint);
+  font-size: 20px;
+  line-height: 1;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.update-banner-close:active { opacity: 0.6; }

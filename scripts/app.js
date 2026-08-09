@@ -2703,6 +2703,44 @@ document.getElementById('token-github-btn')?.addEventListener('click',
 
 refreshPushStatus();
 
+// ---- Update banner ----
+// The registration in index.html finds updates (on load, and on every
+// foreground); this draws the result. Kept separate so a worker that was
+// already waiting before app.js parsed still gets announced — index.html
+// stashes it on __anilogWaitingWorker and we pick it up at the bottom.
+function showUpdateBanner() {
+  const el = document.getElementById('update-banner');
+  if (el) el.hidden = false;
+}
+window.anilogShowUpdateBanner = showUpdateBanner;
+
+document.getElementById('update-banner-dismiss')?.addEventListener('click', () => {
+  const el = document.getElementById('update-banner');
+  if (el) el.hidden = true;
+  // Not remembered: the next foreground check raises it again. Dismiss means
+  // "not now", and an update that stays pending should keep asking.
+});
+
+document.getElementById('update-banner-reload')?.addEventListener('click', () => {
+  const btn = document.getElementById('update-banner-reload');
+  if (btn) { btn.disabled = true; btn.textContent = 'Updating…'; }
+
+  const worker = window.__anilogWaitingWorker;
+  // Telling it to skip waiting activates it, which fires controllerchange in
+  // index.html, which reloads. Going straight to location.reload() here would
+  // just re-serve the old cached shell — the old worker would still be in
+  // control.
+  if (worker) worker.postMessage({ type: 'anilog-skip-waiting' });
+
+  // Belt and braces: if controllerchange hasn't landed shortly (no waiting
+  // worker found, or the message went nowhere), reload anyway rather than
+  // leaving a dead button.
+  setTimeout(() => { window.location.reload(); }, 2500);
+});
+
+// A worker that finished installing before this script ran.
+if (window.__anilogWaitingWorker) showUpdateBanner();
+
 // ---- Manual update check ----
 // The registration in index.html already calls reg.update() on every
 // foreground, so this is never *required* — but "background it and wait" is
@@ -2738,8 +2776,11 @@ async function checkForUpdate() {
     reg.removeEventListener('updatefound', onFound);
 
     if (found || reg.installing || reg.waiting) {
-      if (status) status.textContent = 'Update found — reloading…';
-      showToast('Updating…');
+      // The worker waits now rather than taking over, so this hands off to
+      // the banner instead of claiming a reload is already happening.
+      if (status) status.textContent = 'Update ready — see the banner';
+      if (reg.waiting) anilogUpdateReady(reg.waiting);
+      showUpdateBanner();
     } else {
       if (status) status.textContent = 'Up to date';
       showToast('You’re on the latest version');

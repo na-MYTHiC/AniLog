@@ -15,7 +15,7 @@
 //   - For everything else (AniList GraphQL, AniList images), bypass —
 //     we don't want stale data or 1+ GB of cover-image storage.
 
-const VERSION = 'anilog-v64';
+const VERSION = 'anilog-v65';
 const SHELL = [
   './',
   './index.html',
@@ -52,7 +52,17 @@ self.addEventListener('install', (event) => {
       ))
     )
   );
-  self.skipWaiting();
+  // Deliberately NOT skipWaiting() here. A worker that activates the moment
+  // it installs reloads the page out from under whoever is reading it, and
+  // leaves no window in which to offer a choice. Instead it waits, the page
+  // shows the update banner, and skipWaiting happens on the message below —
+  // so the reload is always something the user asked for.
+});
+
+// Sent by the banner's Reload button. Activating drives controllerchange in
+// index.html, which performs the single reload.
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'anilog-skip-waiting') self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
