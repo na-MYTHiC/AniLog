@@ -253,17 +253,30 @@ html, body {
    on their own, so the override is gone — it was pinning one tab to a fixed
    gap while every other tab moved with the density setting. */
 
-/* Search tab carousels — show ~4 cards per row at a time, like the
-   character row on the detail page. Override the density-driven --card-w
-   inside the carousel scope so we don't affect grids or other carousels. */
+/* Search tab carousels — exactly 4 cards per row, not 4-and-a-bit.
+   --card-w was a flat 76px, which on a 412px screen left a half-card
+   peeking past the edge and made every card narrower than it needed to be.
+   Deriving the width from the container instead means 4 cards and the 3 gaps
+   between them fill the row precisely, at any screen width: each card gets
+   the leftover space rather than a guessed constant. */
 #tab-search .carousel {
-  --card-w: 76px;
-  --card-h: 108px;
   --card-gap: 12px;
+  --card-w: calc((100% - 3 * var(--card-gap)) / 4);
   --card-title-size: 11px;
   --card-meta-size: 10px;
   --card-title-mt: 6px;
   gap: var(--card-gap);
+}
+/* Height follows the width instead of a fixed --card-h, keeping cover
+   proportions right now that the width is fluid. 1:1.46 matches the grid.
+   width:100% is load-bearing: .card-image otherwise inherits
+   width: var(--card-w), and now that --card-w is a percentage of the row it
+   would resolve a second time against the card — a quarter of a quarter,
+   collapsing the cover to 18px. */
+#tab-search .carousel .card-image {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1.46;
 }
 
 /* Tablet — slightly wider mobile frame, more grid columns */

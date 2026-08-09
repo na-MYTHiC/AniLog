@@ -354,20 +354,21 @@
   gap: var(--grid-gap);
   padding: var(--grid-pad-y) var(--grid-pad-x);
 }
-/* Seasonal feels too coarse with the default 2-column layout — bump up
-   the column count so tiles land closer to the carousel card size on
-   the Search tab. Each density gets +1 column. */
-/* Seasonal grid + Search 'See All' (category) grid share the same denser
-   column layout — 3 across on Cozy, 4 on Compact, 2 on Spacious — so the
-   tiles aren't huge compared to the carousels on the Search pre-search.
+/* Seasonal grid + Search "See All" (category) grid share a column count:
+   3 on Compact, 2 on Cozy, 1 on Spacious.
+   Was 4 / 3 / 2, chosen to keep tiles close to the carousel card size. That
+   made a Compact tile 89px wide, where almost every real AniList title hit
+   the two-line clamp and got cut — "Daemons of the Shadow Realm" has no
+   short form to fall back on, so the only fix is a wider tile. One column
+   fewer at each density roughly doubles the width a title gets.
    Using !important because the base .grid rule also sets
    grid-template-columns and would otherwise win on specificity. */
 #seasonal-grid,
-#category-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+#category-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
 [data-density="compact"]  #seasonal-grid,
-[data-density="compact"]  #category-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+[data-density="compact"]  #category-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
 [data-density="spacious"] #seasonal-grid,
-[data-density="spacious"] #category-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+[data-density="spacious"] #category-grid { grid-template-columns: repeat(1, minmax(0, 1fr)) !important; }
 
 /* Belt and suspenders: force every direct child of these grids to stay
    inside its column no matter what intrinsic width it advertises. Without
@@ -2130,7 +2131,7 @@
    The line under a card's title. Replaced "TV · 12 ep": the format was noise
    on an anime-only app, and this is where list membership belongs — legible,
    out of the artwork, and impossible to collide with the score overlay.
-   Wraps rather than truncates, because the narrowest carousel card is 76px
+   Wraps rather than truncates, because the narrowest carousel card is 84px
    and half a clipped word is worse than a second line. */
 .card-badges {
   margin-top: 4px;
@@ -2156,10 +2157,10 @@
    exactly like the episode pill, and only the word differs. The class stays
    because the narrow-carousel rule below selects on it. */
 
-/* Search-tab carousel cards are 76px wide — deliberately, to show ~4 at a
-   time. "12 ep" and "Completed" together need ~85px, so both badges wrapped
-   to a second line on every single card. The list status is the reason this
-   row exists; episode count is available the moment you tap through. So in
-   that one narrow context, the status stands alone. */
+/* Search-tab carousel cards are 84px — exactly a quarter of the row. Both
+   pills still don't fit: re-enabling the episode one wrapped all 45 rows on
+   the tab, measured. The list status is the reason this row exists and the
+   episode count is one tap away, so in that narrow context the status stands
+   alone. */
 #tab-search .carousel .card-badge:not(.card-badge-on) { display: none; }
 #tab-search .carousel .card-badges:empty { display: none; }
