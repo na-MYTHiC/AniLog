@@ -79,7 +79,7 @@
   --hero-gap: 14px;
   --hero-name: 18px;
   --hero-sub: 12px;
-  --card-badge: 21px;
+  --badge-pad-x: 5px;
 }
 
 [data-density="compact"] {
@@ -125,7 +125,7 @@
   --hero-gap: 12px;
   --hero-name: 16px;
   --hero-sub: 11.5px;
-  --card-badge: 18px;
+  --badge-pad-x: 4px;
 }
 
 [data-density="spacious"] {
@@ -171,7 +171,7 @@
   --hero-gap: 16px;
   --hero-name: 20px;
   --hero-sub: 13px;
-  --card-badge: 24px;
+  --badge-pad-x: 6px;
 }
 
 [data-theme="light"] {

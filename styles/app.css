@@ -2125,24 +2125,50 @@
   gap: 4px;
 }
 
-/* Corner mark on a cover: which of your lists this show is already on.
-   Same dark chip as the score so it reads as part of the card's furniture
-   rather than a sticker on top of it.
-   BOTTOM-left, not top-left: .card-score sits top-right at a fixed 12px
-   regardless of card size, and on the Search tab's narrowest carousel cards
-   (76px) it left no room — badge and score overlapped by 4px. The bottom
-   edge is always free, so this can't collide at any card width or density. */
-.card-status {
-  position: absolute; bottom: 6px; left: 6px;
-  width: var(--card-badge); height: var(--card-badge);
-  display: flex; align-items: center; justify-content: center;
-  background: rgba(0, 0, 0, 0.78);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border-radius: 6px;
-  pointer-events: none;
+
+/* ============ CARD BADGES ============
+   The line under a card's title. Replaced "TV · 12 ep": the format was noise
+   on an anime-only app, and this is where list membership belongs — legible,
+   out of the artwork, and impossible to collide with the score overlay.
+   Wraps rather than truncates, because the narrowest carousel card is 76px
+   and half a clipped word is worse than a second line. */
+.card-badges {
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
 }
-.card-status svg {
-  width: 62%; height: 62%;
-  display: block;
+.card-badge {
+  font-size: var(--card-meta-size);
+  font-weight: 700;
+  line-height: 1.1;
+  /* Horizontal padding scales down with density so "12 ep" + "Completed" —
+     the longest pair — still fits on one line at Compact, where a grid card
+     is only ~89px wide. At a flat 6px it didn't, and some cards in a row
+     grew a second line while their neighbours didn't. */
+  padding: 3px var(--badge-pad-x);
+  border-radius: 5px;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  white-space: nowrap;
 }
+/* On a list: tinted from --badge-c, set per status by the renderer. */
+.card-badge-on {
+  background: color-mix(in srgb, var(--badge-c) 20%, transparent);
+  color: var(--badge-c);
+}
+/* These six colours are picked to sit on a dark card. On the light theme the
+   same value on a pale tint is barely legible, so darken the text and lighten
+   the fill rather than keep a second palette. */
+[data-theme="light"] .card-badge-on {
+  background: color-mix(in srgb, var(--badge-c) 15%, transparent);
+  color: color-mix(in srgb, var(--badge-c) 62%, #000);
+}
+
+/* Search-tab carousel cards are 76px wide — deliberately, to show ~4 at a
+   time. "12 ep" and "Completed" together need ~85px, so both badges wrapped
+   to a second line on every single card. The list status is the reason this
+   row exists; episode count is available the moment you tap through. So in
+   that one narrow context, the status stands alone. */
+#tab-search .carousel .card-badge:not(.card-badge-on) { display: none; }
+#tab-search .carousel .card-badges:empty { display: none; }

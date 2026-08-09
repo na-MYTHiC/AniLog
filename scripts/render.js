@@ -294,46 +294,46 @@ function skeletonFillRows(el, n) {
 
 // ============ CARD / ROW RENDERERS ============
 
-// ============ LIST STATUS BADGE ============
-// A corner mark on a cover saying "this is already on one of your lists, and
-// which". Kept to a small glyph on the same dark chip the score uses, top-LEFT
-// so it never collides with the score at top-right. Icon rather than a word:
-// at this size a label would be unreadable, and a bare dot wouldn't say which
-// list. Colour carries the meaning, the glyph confirms it for anyone who
-// can't separate the hues.
+// ============ CARD BADGES ============
+// Under the title rather than over the cover: an icon sitting on the artwork
+// was both hard to read and in the way. These are words, in the line where
+// the format ("TV") used to be — that told you almost nothing, while episode
+// count and list membership are what you actually scan for.
+//
+// Nothing renders for a show that isn't on a list, so an unbadged card means
+// "not added" without having to say so.
 const LIST_STATUS_BADGES = {
-  CURRENT:   { c: '#4cc76e', label: 'Watching',   d: 'M8 5l11 7-11 7z' },
-  PLANNING:  { c: '#3fa9f5', label: 'Planning',   d: 'M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z' },
-  COMPLETED: { c: '#8b7cff', label: 'Completed',  d: 'M20 6L9 17l-5-5' },
-  PAUSED:    { c: '#f0a742', label: 'Paused',     d: 'M10 4v16M16 4v16' },
-  DROPPED:   { c: '#e8607a', label: 'Dropped',    d: 'M18 6L6 18M6 6l12 12' },
-  REPEATING: { c: '#35c8c0', label: 'Rewatching', d: 'M17 2l4 4-4 4M3 12V10a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 12v2a4 4 0 0 1-4 4H3' },
+  CURRENT:   { c: '#4cc76e', label: 'Watching' },
+  PLANNING:  { c: '#3fa9f5', label: 'Planning' },
+  COMPLETED: { c: '#8b7cff', label: 'Completed' },
+  PAUSED:    { c: '#f0a742', label: 'Paused' },
+  DROPPED:   { c: '#e8607a', label: 'Dropped' },
+  REPEATING: { c: '#35c8c0', label: 'Rewatch' },
 };
 
-function listStatusBadge(entry) {
-  const b = LIST_STATUS_BADGES[entry?.status];
-  if (!b) return '';
-  // COMPLETED's tick is the only glyph that wants a filled look; the rest
-  // read better as strokes, so one stroke treatment covers all six.
-  return `<div class="card-status" style="color:${b.c};" title="On your list: ${b.label}" aria-label="On your list: ${b.label}">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="${b.d}"/></svg>
-  </div>`;
+function cardBadges(m) {
+  const out = [];
+  if (m.episodes) out.push(`<span class="card-badge">${m.episodes} ep</span>`);
+  const st = LIST_STATUS_BADGES[m.mediaListEntry?.status];
+  if (st) {
+    // Tint from the status colour so the pill reads as its own thing without
+    // needing a second palette; color-mix keeps it legible on both themes.
+    out.push(`<span class="card-badge card-badge-on" style="--badge-c:${st.c};">${st.label}</span>`);
+  }
+  return out.length ? `<div class="card-badges">${out.join('')}</div>` : '';
 }
 
 function renderCard(m) {
   if (!m) return '';
   const score = m.averageScore ? `<div class="card-score">★ ${(m.averageScore / 10).toFixed(1)}</div>` : '';
-  const count = m.episodes ? ` · ${m.episodes} ep` : '';
-  const meta = m.format ? `<div class="card-meta">${m.format.replace(/_/g, ' ')}${count}</div>` : '';
   return `
     <div class="card" data-media-id="${m.id}" onclick="openMedia(${m.id})">
       <div class="card-image" style="background-color:${m.coverImage?.color || 'var(--surface-2)'};">
         ${coverImg(m.coverImage?.large)}
-        ${listStatusBadge(m.mediaListEntry)}
         ${score}
       </div>
       <div class="card-title">${escapeHtml(pickTitle(m.title) || 'Unknown')}</div>
-      ${meta}
+      ${cardBadges(m)}
     </div>
   `;
 }
