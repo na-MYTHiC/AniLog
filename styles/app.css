@@ -261,7 +261,13 @@
   overflow-x: auto;
   margin: 0 20px;
   padding: 0 0 4px;
-  scroll-snap-type: x mandatory;
+  /* proximity, NOT mandatory. Mandatory means the scroll port has to come to
+     rest on a snap point no matter what, so Chrome hands a flick to the snap
+     animation instead of the momentum curve — every flick, however hard,
+     glides to a nearby card at the same speed and stops. Proximity only
+     snaps when the fling was going to land near a card edge anyway, so a
+     gentle swipe still tidies up but a hard flick keeps its momentum. */
+  scroll-snap-type: x proximity;
   scrollbar-width: none;
 }
 /* When a carousel sits inside a detail-section, the section already
@@ -1239,7 +1245,8 @@
   display: flex; gap: var(--char-gap);
   overflow-x: auto;
   padding: 4px 0 8px;
-  scroll-snap-type: x mandatory;
+  /* Same reasoning as .carousel above — mandatory snapping eats the fling. */
+  scroll-snap-type: x proximity;
   scrollbar-width: none;
 }
 .character-row::-webkit-scrollbar { display: none; }
