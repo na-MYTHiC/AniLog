@@ -225,6 +225,16 @@
    visible on My List, which renders everything at once and then simply
    stopped, with 88px of nothing beneath it. */
 .tab { display: none; padding-bottom: 20px; animation: fadeIn 0.18s ease-out; }
+
+/* Home ends flush: My List is a continuous run of edge-to-edge rows, so a gap
+   under the last one reads as unfinished rather than as breathing room. The
+   other tabs keep the 20px — they end on a centred "— end of list —" caption
+   that needs air, or on grid cards with their own gutters.
+   The signed-out CTA is unaffected: .empty carries 60px of its own padding. */
+#tab-home { padding-bottom: 0; }
+/* The bottom bar's own border-top terminates the list; keeping this one too
+   stacks two hairlines into one thick-looking rule. */
+.list-rows .list-row-wrap:last-child { border-bottom: none; }
 .tab.active { display: block; }
 
 /* Tighter timing + shorter travel matches iOS-native crossfade feel. Both
