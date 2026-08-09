@@ -51,6 +51,10 @@ const MEDIA_FRAGMENT = `
   averageScore
   format
   episodes
+  # Episode currently counting down. Aired = this minus one, which is the
+  # only way to get a count for an ongoing show that hasn't announced a
+  # total — those had no badge at all before.
+  nextAiringEpisode { episode }
   season
   seasonYear
   # Which of the viewer's lists this is on, for the corner badge on cards.

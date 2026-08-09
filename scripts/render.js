@@ -316,9 +316,30 @@ const LIST_STATUS_BADGES = {
   REPEATING: 'Rewatch',
 };
 
+// Episodes you can actually watch right now, not the announced total.
+//
+// nextAiringEpisode only exists while a show is airing, so its presence is
+// the "is this ongoing" signal and episode-1 is what has aired. Falling back
+// to the total covers finished shows (no countdown) and airing ones with no
+// published schedule. Ongoing shows with no announced total used to fail both
+// halves of that and render no badge at all.
+//
+// Zero is dropped rather than shown: a show whose first episode is still
+// pending says more by having no badge than by claiming "0 ep".
+function episodesOut(m) {
+  const next = m.nextAiringEpisode?.episode;
+  // A countdown is authoritative — return even when it works out to zero,
+  // rather than falling through to the total. `aired || m.episodes` did fall
+  // through, so a show still waiting on episode 1 advertised its full
+  // announced run as already out.
+  if (Number.isFinite(next)) return Math.max(next - 1, 0);
+  return m.episodes || 0;
+}
+
 function cardBadges(m) {
   const out = [];
-  if (m.episodes) out.push(`<span class="card-badge">${m.episodes} ep</span>`);
+  const eps = episodesOut(m);
+  if (eps) out.push(`<span class="card-badge">${eps} ep</span>`);
   const st = LIST_STATUS_BADGES[m.mediaListEntry?.status];
   if (st) out.push(`<span class="card-badge card-badge-on">${st}</span>`);
   return out.length ? `<div class="card-badges">${out.join('')}</div>` : '';
