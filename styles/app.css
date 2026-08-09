@@ -1275,10 +1275,9 @@
 }
 
 /* Character overlay hero */
-/* Horizontal, not a centred 120px portrait. The page is about a character
-   IN a show, and the old hero filled most of the first screen while saying
-   nothing about which show. Portrait is a rounded rectangle so it reads as
-   the same kind of object as the show cover below it. */
+/* Horizontal, not a centred 120px portrait — that filled most of the first
+   screen to say one name. Rounded rectangle rather than a circle because
+   character art is framed as a portrait and a circle crops it badly. */
 .char-hero {
   display: flex; align-items: center;
   gap: 14px;
@@ -1308,45 +1307,6 @@
   font-weight: 700;
 }
 
-/* Which show this is from. Same inset/rounded frame as .va-list so the page
-   reads as two matched cards plus a list, rather than three unrelated
-   treatments stacked up. */
-.char-show-row {
-  display: flex; align-items: center;
-  gap: 12px;
-  margin: 0 20px 10px;
-  padding: 10px 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-.char-show-row:active { background: var(--surface-2); }
-.char-show-cover {
-  width: 40px; height: 56px;
-  flex-shrink: 0;
-  border-radius: 6px;
-  background: var(--surface-2);
-  background-size: cover; background-position: center;
-}
-.char-show-info { flex: 1; min-width: 0; }
-.char-show-title {
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.25;
-  /* Two lines then ellipsis — long AniList titles otherwise push the row
-     taller than the cover and break the alignment. */
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.char-show-meta {
-  font-size: 11px;
-  color: var(--text-dim);
-  margin-top: 2px;
-}
 
 /* Voice actor list */
 .va-list {
