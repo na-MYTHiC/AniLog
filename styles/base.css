@@ -28,7 +28,8 @@
   --card-title-mt: 8px;
   --card-radius: 10px;
   --section-title-size: 18px;
-  --section-pad-y: 22px;
+  --section-pad-y: 14px;
+  --section-head-gap: 10px;
   --grid-cols: 2;
   --grid-gap: 14px;
   --grid-pad-y: 16px;
@@ -84,7 +85,7 @@
      Measured on a 412px frame; the `auto` in contain-intrinsic-size replaces
      it with the real height once a card has rendered, so this only has to be
      close. See the .card rule for why the old value was so wrong. */
-  --card-est-h: 325px;
+  --card-est-h: 310px;
 }
 
 [data-density="compact"] {
@@ -96,7 +97,8 @@
   --card-title-mt: 5px;
   --card-radius: 8px;
   --section-title-size: 15px;
-  --section-pad-y: 12px;
+  --section-pad-y: 8px;
+  --section-head-gap: 8px;
   --grid-cols: 3;
   --grid-gap: 8px;
   --grid-pad-y: 10px;
@@ -131,7 +133,7 @@
   --hero-name: 16px;
   --hero-sub: 11.5px;
   --badge-pad-x: 4px;
-  --card-est-h: 230px;
+  --card-est-h: 218px;
 }
 
 [data-density="spacious"] {
@@ -143,7 +145,8 @@
   --card-title-mt: 11px;
   --card-radius: 14px;
   --section-title-size: 22px;
-  --section-pad-y: 32px;
+  --section-pad-y: 20px;
+  --section-head-gap: 12px;
   --grid-cols: 2;
   --grid-gap: 22px;
   --grid-pad-y: 24px;

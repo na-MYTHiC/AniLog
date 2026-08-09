@@ -238,11 +238,16 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-.section { padding: var(--section-pad-y) 0 8px; }
+/* Search-tab row wrapper (the only place .section is used). The vertical
+   budget between one carousel's cards and the next row's is this bottom
+   padding + the next section's top padding + the header gap, so all three
+   scale with density together — the header gap used to be a flat 14px that
+   ignored the setting entirely. */
+.section { padding: var(--section-pad-y) 0 4px; }
 .section-header {
   padding: 0 var(--gutter);
   display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 14px;
+  margin-bottom: var(--section-head-gap);
 }
 .section-title {
   font-size: var(--section-title-size);
@@ -258,6 +263,9 @@
      from the screen edges. With padding, scrolled-into-view cards
      ran flush with the screen edge — they now stop at the margin. */
   display: flex; gap: var(--card-gap);
+  /* Cards size to their own content; without this, stretch makes the tallest
+     card set the height of every other one. */
+  align-items: flex-start;
   overflow-x: auto;
   margin: 0 20px;
   padding: 0 0 4px;
@@ -282,20 +290,27 @@
   scroll-snap-align: start;
   cursor: pointer;
   transition: transform 0.2s ease;
-  /* Let the browser skip rendering offscreen cards entirely. Reserves the
-     card-height footprint so the scrollbar doesn't jump as items enter
-     and leave the viewport. `contain: layout style paint` keeps the card
-     as a self-contained painting unit so a hover doesn't invalidate the
-     rest of the grid. */
-  content-visibility: auto;
-  /* --card-h is the COVER height for a carousel card, not the height of a
-     whole grid card — a grid cover is width-driven (padding-bottom: 146%)
-     and there's a title and badges under it. Offscreen cards were being
-     reserved 132-264px when they really occupy 231-592px, so the scroll
-     extent was up to 55% short and a fast flick landed nowhere near where
-     it aimed. --card-est-h is measured per density instead. */
-  contain-intrinsic-size: auto var(--card-est-h);
+  /* Self-contained painting unit, so a hover doesn't invalidate its
+     neighbours. Note this is layout/style/paint, NOT size — the card's
+     height still comes from its contents. */
   contain: layout style paint;
+}
+
+/* content-visibility belongs to GRID cards only.
+   A grid can hold hundreds of cards, so skipping the offscreen ones is a real
+   win — and --card-est-h reserves the right room for them (a grid cover is
+   width-driven at padding-bottom: 146%, with a title and badges under it, so
+   it lands at 230-590px depending on density).
+   Applying the same thing to carousels was a mistake: a carousel card is only
+   84px wide and about 157px tall, but every card scrolled off the right-hand
+   edge claimed the grid figure, and because .carousel is a flex row with the
+   default align-items: stretch, that pulled EVERY card — visible ones
+   included — up to 325px. The result was a search tab where each row was
+   twice as tall as its artwork, separated by a band of empty space. A
+   carousel holds twelve cards; there was nothing to gain here anyway. */
+.grid .card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--card-est-h);
 }
 .card:active { transform: scale(0.96); }
 
