@@ -2703,6 +2703,55 @@ document.getElementById('token-github-btn')?.addEventListener('click',
 
 refreshPushStatus();
 
+// ---- Manual update check ----
+// The registration in index.html already calls reg.update() on every
+// foreground, so this is never *required* — but "background it and wait" is
+// an act of faith, and the honest answer to "did it update?" should be a
+// button that says so. Also the only way to tell "already latest" apart from
+// "the check silently failed", which is what drove people to reinstall.
+//
+// No reload here: a new worker calls skipWaiting(), and the controllerchange
+// listener in index.html does the single reload once it takes over.
+async function checkForUpdate() {
+  const btn = document.getElementById('update-check-btn');
+  const status = document.getElementById('update-status');
+  // Checking the value, not the key: some embedded webviews expose the
+  // property as undefined, where `'serviceWorker' in navigator` is still true.
+  if (!navigator.serviceWorker) {
+    if (status) status.textContent = 'Updates need a browser with service workers';
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = 'Checking…'; }
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) {
+      if (status) status.textContent = 'Not installed as an app yet';
+      return;
+    }
+    // updatefound is the reliable signal — by the time update() resolves, a
+    // skipWaiting() worker may already have moved past reg.installing.
+    let found = false;
+    const onFound = () => { found = true; };
+    reg.addEventListener('updatefound', onFound);
+    await reg.update();
+    await new Promise((r) => setTimeout(r, 700));
+    reg.removeEventListener('updatefound', onFound);
+
+    if (found || reg.installing || reg.waiting) {
+      if (status) status.textContent = 'Update found — reloading…';
+      showToast('Updating…');
+    } else {
+      if (status) status.textContent = 'Up to date';
+      showToast('You’re on the latest version');
+    }
+  } catch (e) {
+    if (status) status.textContent = 'Check failed — are you online?';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Check for updates'; }
+  }
+}
+document.getElementById('update-check-btn')?.addEventListener('click', checkForUpdate);
+
 // ---- Where a tapped push lands ----
 // Two routes in, because the app may or may not already be running:
 //
