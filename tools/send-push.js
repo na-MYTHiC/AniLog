@@ -84,10 +84,10 @@ async function fetchNotifications(token, perPage) {
             id createdAt episode
             media { id title { userPreferred english romaji } coverImage { large } }
           }
-          ... on FollowingNotification    { id createdAt context user { name } }
-          ... on ActivityLikeNotification { id createdAt context user { name } }
-          ... on ActivityReplyNotification { id createdAt context user { name } }
-          ... on ActivityMentionNotification { id createdAt context user { name } }
+          ... on FollowingNotification       { id createdAt context user { id name avatar { large } } }
+          ... on ActivityLikeNotification    { id createdAt context user { id name avatar { large } } }
+          ... on ActivityReplyNotification   { id createdAt context user { id name avatar { large } } }
+          ... on ActivityMentionNotification { id createdAt context user { id name avatar { large } } }
         }
       }
     }`;
@@ -108,8 +108,34 @@ async function fetchNotifications(token, perPage) {
   return json.data?.Page?.notifications || [];
 }
 
+// Where tapping the notification should land. The app has exactly two
+// destinations — a media page and a user profile — and no single-activity
+// view, so an activity notification opens the person who caused it. That's
+// what tapping the same row inside the app does (handleNotifTap in app.js);
+// push should not behave differently.
+//
+// Encoded into the URL as well as the data payload because a cold start has
+// no page to message: the service worker can only call openWindow(url), so a
+// target that lives solely in postMessage is lost whenever the app is closed
+// — which is most of the time, and the whole point of push.
+function targetUrl(p) {
+  if (p.mediaId) return `./?media=${p.mediaId}`;
+  if (p.userId) return `./?user=${p.userId}&name=${encodeURIComponent(p.userName || '')}`;
+  return './';
+}
+
 function toPayload(n) {
   const title = n.media?.title?.english || n.media?.title?.userPreferred || n.media?.title?.romaji;
+  const u = n.user;
+  const fromUser = (body, tag) => ({
+    title: 'AniLog',
+    body,
+    tag,
+    icon: u?.avatar?.large,
+    userId: u?.id || null,
+    userName: u?.name || null,
+  });
+
   switch (n.__typename) {
     case 'AiringNotification':
       return {
@@ -120,13 +146,13 @@ function toPayload(n) {
         mediaId: n.media?.id || null,
       };
     case 'FollowingNotification':
-      return { title: 'AniLog', body: `${n.user?.name} started following you.`, tag: `follow-${n.id}` };
+      return fromUser(`${u?.name} started following you.`, `follow-${n.id}`);
     case 'ActivityLikeNotification':
-      return { title: 'AniLog', body: `${n.user?.name} liked your activity.`, tag: `like-${n.id}` };
+      return fromUser(`${u?.name} liked your activity.`, `like-${n.id}`);
     case 'ActivityReplyNotification':
-      return { title: 'AniLog', body: `${n.user?.name} replied to your activity.`, tag: `reply-${n.id}` };
+      return fromUser(`${u?.name} replied to your activity.`, `reply-${n.id}`);
     case 'ActivityMentionNotification':
-      return { title: 'AniLog', body: `${n.user?.name} mentioned you.`, tag: `mention-${n.id}` };
+      return fromUser(`${u?.name} mentioned you.`, `mention-${n.id}`);
     default:
       return null;
   }
@@ -212,7 +238,7 @@ async function main() {
   for (const n of fresh) {
     const payload = toPayload(n);
     if (!payload) continue;
-    payload.url = './';
+    payload.url = targetUrl(payload);
     // Android collapses same-tag notifications. On a resend the tags match
     // ones already delivered, so without this the test would look like
     // nothing arrived.

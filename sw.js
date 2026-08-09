@@ -15,7 +15,7 @@
 //   - For everything else (AniList GraphQL, AniList images), bypass —
 //     we don't want stale data or 1+ GB of cover-image storage.
 
-const VERSION = 'anilog-v61';
+const VERSION = 'anilog-v62';
 const SHELL = [
   './',
   './index.html',
@@ -86,7 +86,12 @@ self.addEventListener('push', (event) => {
     // Same tag collapses repeats of the same event instead of stacking
     // duplicates if the sender retries.
     tag: payload.tag || 'anilog',
-    data: { url: payload.url || './', mediaId: payload.mediaId || null },
+    data: {
+      url: payload.url || './',
+      mediaId: payload.mediaId || null,
+      userId: payload.userId || null,
+      userName: payload.userName || null,
+    },
   };
   event.waitUntil(self.registration.showNotification(title, options));
 });
@@ -99,14 +104,19 @@ self.addEventListener('notificationclick', (event) => {
     const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     // Prefer focusing a window that's already open — launching a second copy
     // of an installed PWA is jarring and loses whatever state was there.
+    const data = event.notification.data || {};
     for (const client of clients) {
       if ('focus' in client) {
         await client.focus();
-        // Tell the page which anime to open, rather than navigating (which
-        // would throw away the loaded app).
-        if (event.notification.data?.mediaId) {
-          client.postMessage({ type: 'anilog-open-media', mediaId: event.notification.data.mediaId });
-        }
+        // Tell the page what to open, rather than navigating (which would
+        // throw away the loaded app). Sent even with no target — the page
+        // ignores a message it can't act on.
+        client.postMessage({
+          type: 'anilog-open',
+          mediaId: data.mediaId || null,
+          userId: data.userId || null,
+          userName: data.userName || null,
+        });
         return;
       }
     }

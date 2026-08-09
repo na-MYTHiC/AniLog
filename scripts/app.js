@@ -2690,13 +2690,50 @@ document.getElementById('token-copy-btn')?.addEventListener('click', () => copyF
 
 refreshPushStatus();
 
-// A push tapped while the app is already open asks the page to open that
-// anime, rather than the SW navigating and throwing away the loaded app.
+// ---- Where a tapped push lands ----
+// Two routes in, because the app may or may not already be running:
+//
+//   running  — the SW focuses the window and posts a message, so the loaded
+//              app is reused instead of navigated away from.
+//   closed   — the SW can only call openWindow(url), so the target rides in
+//              the query string and gets picked up on boot below.
+//
+// Both funnel through openFromNotification, which mirrors handleNotifTap:
+// media notifications open the anime, everything else opens the person who
+// caused it. AniList has no single-activity view in this app, so the profile
+// is the closest real destination — landing on Home was the bug.
+function openFromNotification({ mediaId, userId, userName }) {
+  if (mediaId) return openMedia(mediaId);
+  if (userId) return openUser(userId, userName || '');
+}
+
 navigator.serviceWorker?.addEventListener('message', (e) => {
-  if (e.data?.type === 'anilog-open-media' && e.data.mediaId) {
-    openMedia(e.data.mediaId);
-  }
+  const d = e.data || {};
+  // anilog-open-media is the pre-v4.46 shape; a worker from the previous
+  // build can still be the one that posts, since it controls the page until
+  // the update reload lands.
+  if (d.type === 'anilog-open') openFromNotification(d);
+  else if (d.type === 'anilog-open-media' && d.mediaId) openMedia(d.mediaId);
 });
+
+// Cold start from a notification tap: ./?media=123 or ./?user=456&name=Foo.
+(function openFromLaunchUrl() {
+  const params = new URLSearchParams(window.location.search || '');
+  const mediaId = parseInt(params.get('media') || '', 10) || null;
+  const userId = parseInt(params.get('user') || '', 10) || null;
+  if (!mediaId && !userId) return;
+
+  // Drop the params before opening, so a refresh doesn't reopen the overlay
+  // and the URL doesn't stay dirty.
+  history.replaceState(null, '', window.location.pathname);
+
+  // Deferred: the overlay handlers below this line aren't wired yet.
+  setTimeout(() => {
+    try {
+      openFromNotification({ mediaId, userId, userName: params.get('name') || '' });
+    } catch (e) { /* boot continues regardless */ }
+  }, 0);
+})();
 
 // ============ NOTIFICATIONS ============
 // AniList exposes Viewer.unreadNotificationCount for the badge and
