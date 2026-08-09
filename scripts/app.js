@@ -1954,12 +1954,39 @@ function openCharacter(charId) {
   const vas = edge.voiceActors || [];
   document.getElementById('character-title').textContent = char.name?.userPreferred || 'Character';
   const body = document.getElementById('character-body');
+
+  // The show this character belongs to. You arrived from its detail page, so
+  // it's still open underneath — the row doubles as the way back to it. Two
+  // small cards side by side rather than one big portrait: the page is about
+  // a character IN a show, and the old centred 120px avatar said nothing
+  // about which show.
+  const showTitle = pickTitle(currentMedia?.title) || '';
+  const showMeta = [
+    // Underscores out, case left alone — capitalize() would turn TV into
+    // "Tv" and OVA into "Ova". Matches how cards render format.
+    currentMedia?.format ? currentMedia.format.replace(/_/g, ' ') : '',
+    currentMedia?.season ? `${capitalize(currentMedia.season)} ${currentMedia.seasonYear}` : (currentMedia?.startDate?.year || ''),
+  ].filter(Boolean).join(' · ');
+
   body.innerHTML = `
     <div class="char-hero">
       <div class="char-hero-image" style="background-image:url('${char.image?.large || ''}');"></div>
-      <div class="char-hero-name">${escapeHtml(char.name?.userPreferred || '')}</div>
-      ${edge.role ? `<div class="char-hero-role">${escapeHtml(edge.role.toLowerCase())} character</div>` : ''}
+      <div class="char-hero-info">
+        <div class="char-hero-name">${escapeHtml(char.name?.userPreferred || '')}</div>
+        ${edge.role ? `<div class="char-hero-role">${escapeHtml(edge.role.toLowerCase())} character</div>` : ''}
+      </div>
     </div>
+    ${showTitle ? `
+      <div class="char-show-row" id="char-show-row" role="button" tabindex="0">
+        <div class="char-show-cover" style="background-image:url('${currentMedia?.coverImage?.large || ''}');"></div>
+        <div class="char-show-info">
+          <div class="char-show-label">Appears in</div>
+          <div class="char-show-title">${escapeHtml(showTitle)}</div>
+          ${showMeta ? `<div class="char-show-meta">${escapeHtml(showMeta)}</div>` : ''}
+        </div>
+        <svg class="va-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+      </div>
+    ` : ''}
     ${vas.length ? `
       <div class="detail-section" style="border-top: none; padding-top: 20px;">
         <h4>Voice Actors</h4>
@@ -1984,6 +2011,11 @@ function openCharacter(charId) {
     row.addEventListener('click', () => {
       openVA(parseInt(row.dataset.vaId, 10), row.dataset.vaName);
     });
+  });
+  // Closing is the whole action — the show's detail page is the layer
+  // directly beneath, so this returns to it rather than loading it again.
+  body.querySelector('#char-show-row')?.addEventListener('click', () => {
+    closeOverlay('character-overlay');
   });
   document.getElementById('character-overlay').classList.add('visible');
 }
