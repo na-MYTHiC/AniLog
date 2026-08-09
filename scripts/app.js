@@ -419,6 +419,8 @@ syncSegState('density-seg', 'density', state.density);
 syncSegState('landing-seg', 'landing', state.landing);
 syncSegState('lang-seg', 'lang', state.preferEnglish ? 'english' : 'default');
 syncSegState('relations-seg', 'relations', state.strictRelations ? 'strict' : 'all');
+syncSegState('rotation-seg', 'rotation', state.allowRotation ? 'auto' : 'locked');
+applyOrientation();
 Object.entries(state.notifs).forEach(([key, on]) => {
   const seg = document.querySelector(`.seg[data-notif="${key}"]`);
   if (!seg) return;
@@ -2423,6 +2425,44 @@ document.querySelectorAll('#lang-seg .seg-btn').forEach(b => {
       if (v) doSearch(v);
     }
     if (state.activeTab === 'seasonal') loadSeasonal();
+  });
+});
+
+// Screen Orientation API only grants a lock to an installed PWA — in an
+// ordinary browser tab lock() rejects and rotation stays with the OS. Rather
+// than let that look like a broken setting, the failure rewrites the hint
+// text to say why. The manifest's "orientation": "portrait" is what actually
+// holds the installed app upright at launch; this is the runtime override.
+async function applyOrientation() {
+  const hint = document.getElementById('rotation-sub');
+  const orientation = window.screen?.orientation;
+  if (!orientation) {
+    if (hint) hint.textContent = 'Your browser can’t control rotation';
+    return;
+  }
+  try {
+    if (state.allowRotation) {
+      orientation.unlock();
+      if (hint) hint.textContent = 'Follows however you tilt the phone';
+    } else {
+      await orientation.lock('portrait');
+      if (hint) hint.textContent = 'Keep the app upright';
+    }
+  } catch (e) {
+    if (hint) {
+      hint.textContent = state.allowRotation
+        ? 'Follows however you tilt the phone'
+        : 'Add AniLog to your Home Screen to lock this — browser tabs always follow the phone';
+    }
+  }
+}
+
+document.querySelectorAll('#rotation-seg .seg-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    syncSegState('rotation-seg', 'rotation', b.dataset.rotation);
+    state.allowRotation = b.dataset.rotation === 'auto';
+    savePrefs();
+    applyOrientation();
   });
 });
 

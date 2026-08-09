@@ -41,6 +41,10 @@ const state = {
   notifs: { episode: true, reply: true, like: true },
   preferEnglish: true,
   strictRelations: true,
+  // Portrait by default — the layout is a phone layout, and landscape mostly
+  // just crops it. The manifest locks the installed PWA at launch; this pref
+  // is what lets someone override that at runtime.
+  allowRotation: false,
   listStatus: 'CURRENT',
   listSort: 'MEDIA_AVERAGE_SCORE_DESC',
   recentSearches: [],
