@@ -2152,17 +2152,9 @@
   color: var(--text-dim);
   white-space: nowrap;
 }
-/* On a list. Distinguished from the episode pill by weight, not hue: full
-   text colour on the raised surface, against dim text on the recessed one.
-   Everything here is a theme token, so it follows all ten accents and both
-   themes instead of fighting them. */
-.card-badge-on {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  /* Keep both pills the same height despite this one having a border. */
-  padding: 2px calc(var(--badge-pad-x) - 1px);
-  color: var(--text);
-}
+/* .card-badge-on carries no styling of its own — the status pill is drawn
+   exactly like the episode pill, and only the word differs. The class stays
+   because the narrow-carousel rule below selects on it. */
 
 /* Search-tab carousel cards are 76px wide — deliberately, to show ~4 at a
    time. "12 ep" and "Completed" together need ~85px, so both badges wrapped
