@@ -1988,3 +1988,75 @@
   cursor: pointer;
 }
 .update-banner-close:active { opacity: 0.6; }
+
+/* ============ SEASON / YEAR JUMP PICKER ============ */
+
+/* The title is a button now, but must still read as the heading it was —
+   no chrome, just the caret marking it as tappable. */
+.seasonal-title-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 0;
+  padding: 2px 4px;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  max-width: 100%;
+}
+.seasonal-title-btn:active { background: var(--surface-2); }
+.seasonal-title-caret { color: var(--text-dim); flex-shrink: 0; }
+
+.season-chips {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin: 10px 0 14px;
+}
+.season-chip {
+  padding: 10px 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.season-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-on);
+}
+
+/* Scrolls inside the sheet — the list runs to 1960, so the sheet itself must
+   not grow with it. */
+.season-years {
+  max-height: 42vh;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  scrollbar-width: none;
+}
+.season-years::-webkit-scrollbar { display: none; }
+.season-year {
+  padding: 11px 2px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.season-year:active { background: var(--border); }
+.season-year.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-on);
+  font-weight: 800;
+}

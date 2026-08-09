@@ -738,6 +738,82 @@ document.getElementById('season-next').addEventListener('click', () => {
   loadSeasonal();
 });
 
+// ============ SEASON / YEAR JUMP PICKER ============
+// The arrows step one season at a time, which is right for browsing but
+// hopeless for "show me 2013" — that's 50-odd taps. Tapping the title opens
+// this instead.
+//
+// Interaction: a season chip only sets the pending choice and leaves the
+// sheet open, because picking a season alone is rarely the whole intent. A
+// year applies both and closes, so the common case (jump to a year) stays a
+// single tap. The heading tracks the pending pair so it's always clear what
+// tapping a year will actually load.
+
+// AniList has scattered entries earlier than this, but seasonYear only
+// became meaningful once seasonal broadcasting was tracked properly; a list
+// stretching to 1917 would be mostly empty results to scroll past.
+const SEASON_PICKER_MIN_YEAR = 1960;
+
+let seasonPickSeason = null;
+
+function seasonPickerYears() {
+  // Next year included: autumn is when the following winter gets announced.
+  const newest = Math.max(state.seasonYear + 1, seasonalView.year);
+  const years = [];
+  for (let y = newest; y >= SEASON_PICKER_MIN_YEAR; y--) years.push(y);
+  return years;
+}
+
+function renderSeasonPicker() {
+  document.getElementById('season-modal-title').textContent =
+    `${capitalize(seasonPickSeason)} ${seasonalView.year}`;
+
+  document.getElementById('season-chips').innerHTML = SEASONS_ORDER.map((s) => `
+    <button class="season-chip${s === seasonPickSeason ? ' active' : ''}" data-season="${s}">
+      ${capitalize(s)}
+    </button>
+  `).join('');
+
+  document.getElementById('season-years').innerHTML = seasonPickerYears().map((y) => `
+    <button class="season-year${y === seasonalView.year ? ' active' : ''}" data-year="${y}">${y}</button>
+  `).join('');
+}
+
+function openSeasonModal() {
+  seasonPickSeason = seasonalView.season;
+  renderSeasonPicker();
+  document.getElementById('season-modal').classList.add('visible');
+  // Land on the current year rather than at the top of a 60-entry list.
+  const active = document.querySelector('#season-years .season-year.active');
+  if (active) active.scrollIntoView({ block: 'center' });
+}
+
+function closeSeasonModal() {
+  document.getElementById('season-modal').classList.remove('visible');
+}
+window.closeSeasonModal = closeSeasonModal;
+
+document.getElementById('seasonal-picker-btn')?.addEventListener('click', openSeasonModal);
+
+// Delegated: both lists are re-rendered on every chip tap.
+document.getElementById('season-chips')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.season-chip');
+  if (!btn) return;
+  seasonPickSeason = btn.dataset.season;
+  renderSeasonPicker();
+});
+
+document.getElementById('season-years')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.season-year');
+  if (!btn) return;
+  const year = parseInt(btn.dataset.year, 10);
+  if (!year) return;
+  seasonalView.season = seasonPickSeason;
+  seasonalView.year = year;
+  closeSeasonModal();
+  loadSeasonal();
+});
+
 // ============ SORT PICKER MODAL (shared) ============
 
 
