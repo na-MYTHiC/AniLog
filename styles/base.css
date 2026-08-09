@@ -80,6 +80,11 @@
   --hero-name: 18px;
   --hero-sub: 12px;
   --badge-pad-x: 5px;
+  /* Reserved height for an offscreen grid card (cover + title + badges).
+     Measured on a 412px frame; the `auto` in contain-intrinsic-size replaces
+     it with the real height once a card has rendered, so this only has to be
+     close. See the .card rule for why the old value was so wrong. */
+  --card-est-h: 325px;
 }
 
 [data-density="compact"] {
@@ -126,6 +131,7 @@
   --hero-name: 16px;
   --hero-sub: 11.5px;
   --badge-pad-x: 4px;
+  --card-est-h: 230px;
 }
 
 [data-density="spacious"] {
@@ -172,6 +178,7 @@
   --hero-name: 20px;
   --hero-sub: 13px;
   --badge-pad-x: 6px;
+  --card-est-h: 590px;
 }
 
 [data-theme="light"] {

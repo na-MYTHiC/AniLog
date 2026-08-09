@@ -1001,13 +1001,23 @@ async function bumpProgress(entry, delta, wrap) {
   const oldProgress = entry.progress || 0;
   entry.progress = newProgress;
 
-  // Optimistic re-render of just this row
-  const fresh = renderListEntryRow(entry);
+  // Optimistic re-render of just this row. Swap the CONTENTS, not the node:
+  // the swipe that triggered this is mid-snap-back on `.list-row`, and
+  // replacing that element throws the running transition away — the row
+  // teleports home instead of easing there. Rewriting its innards leaves the
+  // animating element (and its already-attached handlers) untouched.
   const tmp = document.createElement('div');
-  tmp.innerHTML = fresh;
-  const newWrap = tmp.firstElementChild;
-  wrap.replaceWith(newWrap);
-  attachListRowHandlers(newWrap, entry);
+  tmp.innerHTML = renderListEntryRow(entry);
+  const freshRow = tmp.querySelector('.list-row');
+  const row = wrap.querySelector('.list-row');
+  if (freshRow && row) {
+    row.innerHTML = freshRow.innerHTML;
+  } else {
+    // Shape changed out from under us — fall back to a whole-row swap.
+    const newWrap = tmp.firstElementChild;
+    wrap.replaceWith(newWrap);
+    attachListRowHandlers(newWrap, entry);
+  }
 
   // If user just completed the show (progress === total), auto-bump to COMPLETED status
   const becomesCompleted = total !== Infinity && newProgress === total && entry.status !== 'COMPLETED';
@@ -2191,14 +2201,16 @@ let detailReqId = 0;
 // Fetches the below-the-fold sections and fills in the placeholders left by
 // openMedia. Every write re-checks that the user is still on the same anime,
 // since this resolves well after the core render.
-async function loadDetailExtras(mediaId, body) {
+async function loadDetailExtras(mediaId, body, pending) {
   const myReq = detailReqId;
   const stale = () => myReq !== detailReqId || !currentMedia || currentMedia.id !== mediaId;
 
   let extras = null;
   try {
+    // openMedia normally hands us the request it already started; only fetch
+    // here when called without one.
     const q = `query ($id: Int) { Media(id: $id) { ${MEDIA_DETAIL_EXTRAS} } }`;
-    const data = await anilist(q, { id: mediaId });
+    const data = await (pending || anilist(q, { id: mediaId }));
     extras = data?.Media;
   } catch (e) { /* leave the sections hidden */ }
   if (!extras || stale()) return;
@@ -2255,13 +2267,15 @@ async function loadDetailExtras(mediaId, body) {
     relCarousel.innerHTML = direct.map(renderRelationCard).join('');
     relSection.hidden = false;
   }
+  // Paint each level of the walk as it lands rather than waiting for the whole
+  // chain — a long franchise used to sit on the direct relations for seconds.
+  const paint = (edges) => {
+    if (stale() || !edges.length) return;
+    relCarousel.innerHTML = edges.map(renderRelationCard).join('');
+    relSection.hidden = false;
+  };
   try {
-    const expanded = await expandRelations(extras.relations?.edges, mediaId);
-    if (stale()) return;
-    if (expanded.length) {
-      relCarousel.innerHTML = expanded.map(renderRelationCard).join('');
-      relSection.hidden = false;
-    }
+    paint(await expandRelations(extras.relations?.edges, mediaId, paint));
   } catch (e) { /* the direct list above stays as the fallback */ }
 }
 
@@ -2282,6 +2296,13 @@ async function openMedia(id) {
   overlay.classList.add('visible');
 
   const myReq = ++detailReqId;
+  // Start the below-the-fold query alongside the core one rather than after
+  // it. They're independent, and chaining them cost a full round trip before
+  // relations/characters/recommendations could even begin loading. The catch
+  // keeps this from becoming an unhandled rejection when we bail out below.
+  const extrasQ = `query ($id: Int) { Media(id: $id) { ${MEDIA_DETAIL_EXTRAS} } }`;
+  const extrasPending = anilist(extrasQ, { id }).catch(() => null);
+
   const q = `query ($id: Int) { Media(id: $id) { ${MEDIA_DETAIL_CORE} } }`;
   const data = await anilist(q, { id });
   if (myReq !== detailReqId) return;   // a newer openMedia superseded this one
@@ -2440,7 +2461,7 @@ async function openMedia(id) {
   // Relations / recommendations / characters are ~89% of the full detail
   // payload but all sit below the fold, so they're fetched separately once
   // the visible part is already on screen.
-  loadDetailExtras(m.id, body);
+  loadDetailExtras(m.id, body, extrasPending);
 
   // Wire up genre pills → genre overlay
   body.querySelectorAll('.genre-pill').forEach(pill => {

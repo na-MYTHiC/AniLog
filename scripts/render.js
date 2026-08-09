@@ -380,10 +380,67 @@ function sortRelationsByDate(edges) {
   });
 }
 
+// Fields each relation card needs. Shared by the batched walk below and its
+// per-id fallback so the two can't drift apart.
+const RELATION_EDGE_FIELDS = `
+  relationType
+  node {
+    id type
+    title { userPreferred english romaji }
+    coverImage { large color }
+    averageScore format episodes season seasonYear
+    startDate { year month day }
+  }
+`;
+
+// One request for a whole BFS level. Falls back to the old per-id queries if
+// the batch form fails for any reason, so a franchise still resolves — just
+// slower — rather than the section coming up empty.
+async function fetchRelationEdges(ids) {
+  const BATCH = 25;   // keep each query under AniList's complexity ceiling
+  const chunks = [];
+  for (let i = 0; i < ids.length; i += BATCH) chunks.push(ids.slice(i, i + BATCH));
+
+  const batched = `query ($ids: [Int]) {
+    Page(perPage: ${BATCH}) {
+      media(id_in: $ids) {
+        id
+        relations { edges { ${RELATION_EDGE_FIELDS} } }
+      }
+    }
+  }`;
+
+  try {
+    const pages = await Promise.all(chunks.map((chunk) =>
+      // Low priority: this runs below the fold, and yielding the fast lane
+      // keeps a tap on another card responsive while the walk continues.
+      anilist(batched, { ids: chunk }, { priority: 'low' })
+    ));
+    const media = pages.flatMap((d) => d?.Page?.media || []);
+    // A non-empty frontier that comes back with nothing means the batch form
+    // isn't doing what we think it is — take the fallback rather than
+    // silently reporting the franchise as one season long.
+    if (media.length) return media.flatMap((m) => m.relations?.edges || []);
+    if (!ids.length) return [];
+  } catch (e) { /* fall through */ }
+
+  const single = `query ($id: Int) { Media(id: $id) { relations { edges { ${RELATION_EDGE_FIELDS} } } } }`;
+  const responses = await Promise.all(ids.map(async (id) => {
+    try {
+      const data = await anilist(single, { id }, { priority: 'low' });
+      return data?.Media?.relations?.edges || [];
+    } catch (e) { return []; }
+  }));
+  return responses.flat();
+}
+
 // Walk PREQUEL/SEQUEL chains outward from the source media to surface every
-// season in the franchise. Each step costs one AniList call; capped by depth.
+// season in the franchise. One AniList call per level of the walk (not per
+// neighbour), capped by depth. `onProgress` is handed the results so far after
+// every level, so the carousel fills in as the chain resolves instead of
+// staying on the direct relations until the whole walk finishes.
 // Returns a flat list of edges (with the same shape as direct relations).
-async function expandRelations(directEdges, sourceMediaId) {
+async function expandRelations(directEdges, sourceMediaId, onProgress) {
   const chainTypes = ['PREQUEL', 'SEQUEL'];
   const broadTypes = state.strictRelations
     ? chainTypes
@@ -411,44 +468,28 @@ async function expandRelations(directEdges, sourceMediaId) {
   while (frontier.length && depth < MAX_DEPTH) {
     const toFetch = frontier.filter(id => !visited.has(id));
     toFetch.forEach(id => visited.add(id));
+    if (!toFetch.length) break;
     const next = [];
 
-    const responses = await Promise.all(toFetch.map(async (id) => {
-      const q = `query ($id: Int) {
-        Media(id: $id) {
-          relations {
-            edges {
-              relationType
-              node {
-                id type
-                title { userPreferred english romaji }
-                coverImage { large color }
-                averageScore format episodes season seasonYear
-                startDate { year month day }
-              }
-            }
-          }
-        }
-      }`;
-      const data = await anilist(q, { id });
-      return data?.Media?.relations?.edges || [];
-    }));
+    const edges = await fetchRelationEdges(toFetch);
 
-    for (const edges of responses) {
-      for (const edge of edges) {
-        const n = edge.node;
-        if (!n || n.type !== 'ANIME' || visited.has(n.id)) continue;
-        if (broadTypes.includes(edge.relationType) && !collected.has(n.id)) {
-          collected.set(n.id, edge);
-        }
-        // Only PREQUEL/SEQUEL continue the chain — side stories don't recurse
-        if (chainTypes.includes(edge.relationType)) {
-          next.push(n.id);
-        }
+    for (const edge of edges) {
+      const n = edge.node;
+      if (!n || n.type !== 'ANIME' || visited.has(n.id)) continue;
+      if (broadTypes.includes(edge.relationType) && !collected.has(n.id)) {
+        collected.set(n.id, edge);
+      }
+      // Only PREQUEL/SEQUEL continue the chain — side stories don't recurse
+      if (chainTypes.includes(edge.relationType)) {
+        next.push(n.id);
       }
     }
     frontier = next;
     depth++;
+    if (onProgress && collected.size) {
+      try { onProgress(sortRelationsByDate(Array.from(collected.values()))); }
+      catch (e) { /* a painting failure shouldn't abandon the walk */ }
+    }
   }
 
   return sortRelationsByDate(Array.from(collected.values()));
