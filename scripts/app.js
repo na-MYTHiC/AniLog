@@ -2178,6 +2178,14 @@ async function loadDetailExtras(mediaId, body) {
   } catch (e) { /* leave the sections hidden */ }
   if (!extras || stale()) return;
 
+  // Fold the extras into currentMedia. openCharacter looks the tapped
+  // character up there, but currentMedia is built from the CORE query and
+  // characters live only in this second request — so the lookup missed and
+  // the function returned silently, making every character tap do nothing.
+  // Broken since the query was split in v4.37. Safe here: stale() has just
+  // confirmed currentMedia is still this media.
+  Object.assign(currentMedia, extras);
+
   // Recommendations
   const recs = (extras.recommendations?.edges || [])
     .map((e) => e.node?.mediaRecommendation)
