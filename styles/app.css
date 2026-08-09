@@ -1281,10 +1281,13 @@
    (My List, Social, notifications, a VA's roles) runs edge to edge with
    hairline separators. */
 .va-list { padding-top: 2px; }
+/* Same metrics as .va-role-row on the voice-actor screen — the two pages are
+   the same idea in opposite directions (a character's actors / an actor's
+   characters), so a row on one should be a row on the other. */
 .va-row {
   display: flex; align-items: center;
   gap: var(--mini-gap);
-  padding: var(--mini-pad-y) var(--mini-pad-x);
+  padding: var(--va-row-pad-y) var(--gutter);
   cursor: pointer;
   border-bottom: 1px solid var(--border);
   transition: background 0.15s ease;
@@ -1292,15 +1295,17 @@
 .va-row:last-child { border-bottom: none; }
 .va-row:hover { background: var(--surface-2); }
 .va-image {
-  width: var(--mini-avatar); height: var(--mini-avatar);
-  border-radius: 50%;
+  /* Portrait frame at the role-row size, not a small circle: it now sits
+     opposite the same-sized character and cover art on the VA screen. */
+  width: var(--va-img-w); height: var(--va-img-h);
+  border-radius: 8px;
   background: var(--surface-2);
   background-size: cover; background-position: center;
   flex-shrink: 0;
 }
 .va-info { flex: 1; min-width: 0; }
 .va-name {
-  font-size: var(--mini-title);
+  font-size: var(--va-name-size);
   font-weight: 600;
   color: var(--text);
   white-space: nowrap;
@@ -1308,7 +1313,7 @@
   text-overflow: ellipsis;
 }
 .va-lang {
-  font-size: var(--mini-meta);
+  font-size: var(--va-show-size);
   color: var(--text-dim);
   margin-top: 2px;
 }

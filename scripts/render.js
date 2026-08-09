@@ -485,19 +485,36 @@ function renderListEntryRow(entry) {
 // person been in" meant reading rather than looking. Now a row carrying both
 // images: character on the left (who), show cover on the right (where).
 function renderVACharCard(edge) {
-  const char = edge?.node;
-  if (!char) return '';
-  // Prefer anime appearances (this is an anime-only app), fall back to first
-  const mediaList = edge.media || [];
-  const media = mediaList.find(m => m.type === 'ANIME') || mediaList[0];
+  if (!edge) return '';
+
+  // Accepts both shapes AniList can hand back for "who did this person play":
+  //   characterMedia — edge.node is the MEDIA, edge.characters the cast
+  //   characters     — edge.node is the CHARACTER, edge.media the shows
+  // The app queries the first; tolerating the second means a change of
+  // endpoint can't silently empty this screen again, which is exactly how
+  // it broke: every edge failed the media check and rendered an empty
+  // string, so the list looked blank with nothing logged.
+  let char, media, roleRaw;
+  if (edge.characters || edge.characterRole) {
+    media = edge.node;
+    char = (edge.characters || [])[0];
+    roleRaw = edge.characterRole;
+  } else {
+    char = edge.node;
+    const list = edge.media || [];
+    // Prefer anime appearances (this is an anime-only app), fall back to first
+    media = list.find(m => m.type === 'ANIME') || list[0];
+    roleRaw = edge.role;
+  }
   if (!media) return '';
-  const role = edge.role ? capitalize(edge.role) : '';
+
+  const role = roleRaw ? capitalize(roleRaw) : '';
   const mediaTitle = pickTitle(media.title);
   return `
-    <div class="va-role-row" data-media-id="${media.id}" data-char-id="${char.id}">
-      <div class="va-role-char">${coverImg(char.image?.large)}</div>
+    <div class="va-role-row" data-media-id="${media.id}" data-char-id="${char?.id || ''}">
+      <div class="va-role-char">${coverImg(char?.image?.large)}</div>
       <div class="va-role-info">
-        <div class="va-role-name">${escapeHtml(char.name?.userPreferred || '')}</div>
+        <div class="va-role-name">${escapeHtml(char?.name?.userPreferred || mediaTitle)}</div>
         ${role ? `<div class="va-role-tag">${escapeHtml(role)}</div>` : ''}
         <div class="va-role-show">${escapeHtml(mediaTitle)}</div>
       </div>

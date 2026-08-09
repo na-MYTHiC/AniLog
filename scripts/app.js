@@ -1998,10 +1998,13 @@ function openCharacter(charId) {
 // ============ STAFF (VOICE ACTOR) OVERLAY ============
 
 // Staff (VA) uses CharacterSort — different enum from MediaSort
+// characterMedia sorts by MediaSort, not CharacterSort — see loadStaff for
+// why we query that field. MAIN_ROLES has no MediaSort equivalent, so it
+// fetches by popularity and reorders the page client-side.
 const STAFF_SORT_OPTIONS = [
-  { value: 'FAVOURITES_DESC', label: 'Popular' },
-  { value: 'ROLE',            label: 'Main Roles' },
-  { value: 'ID_DESC',         label: 'Latest' },
+  { value: 'POPULARITY_DESC', label: 'Popular' },
+  { value: 'MAIN_ROLES',      label: 'Main Roles' },
+  { value: 'START_DATE_DESC', label: 'Newest' },
 ];
 function staffSortLabel(v) {
   return STAFF_SORT_OPTIONS.find(o => o.value === v)?.label || 'Sort';
@@ -2010,7 +2013,7 @@ function staffSortLabel(v) {
 async function openVA(id, name) {
   staffState.id = id;
   staffState.name = name;
-  staffState.sort = 'FAVOURITES_DESC';
+  staffState.sort = 'POPULARITY_DESC';
   document.getElementById('staff-title').textContent = name;
   document.getElementById('staff-sort-label').textContent = staffSortLabel(staffState.sort);
   loadStaffHero(id);
@@ -2074,31 +2077,46 @@ async function loadStaff() {
   if (!staffScroller) {
     const scrollEl = grid.closest('.overlay-body');
     staffScroller = setupInfiniteScroll(grid, scrollEl, async (page) => {
-      const q = `query ($id: Int, $sort: [CharacterSort], $page: Int) {
+      // characterMedia, not characters. Staff.characters returns a CHARACTER
+      // connection — its edges are shaped around the character, and the
+      // media on them isn't reliably populated. Every row needs a show, so
+      // the renderer dropped edges without one and the screen came up empty
+      // with no error to explain it. characterMedia is the media-shaped view
+      // of the same relationship: one edge per show, carrying the characters
+      // played in it, which is exactly a row.
+      //
+      // perPage 20: two screens' worth at any density, and each edge now
+      // carries a cover, so the page is heavier than the old character-only
+      // one. The observer prefetches 400px early, so a smaller page still
+      // arrives before the user reaches the end.
+      const q = `query ($id: Int, $sort: [MediaSort], $page: Int) {
         Staff(id: $id) {
-          characters(sort: $sort, page: $page, perPage: 30) {
+          characterMedia(sort: $sort, page: $page, perPage: 20) {
             pageInfo { hasNextPage }
             edges {
-              role
+              characterRole
+              characters { id name { userPreferred } image { large } }
               node {
                 id
-                name { userPreferred }
-                image { large }
-              }
-              media {
-                id
+                type
                 title { userPreferred english romaji }
                 coverImage { large color }
-                type
               }
             }
           }
         }
       }`;
-      const data = await anilist(q, { id: staffState.id, sort: [staffState.sort], page });
+      const apiSort = staffState.sort === 'MAIN_ROLES' ? 'POPULARITY_DESC' : staffState.sort;
+      const data = await anilist(q, { id: staffState.id, sort: [apiSort], page });
+      const conn = data?.Staff?.characterMedia;
+      let edges = conn?.edges || [];
+      if (staffState.sort === 'MAIN_ROLES') {
+        const rank = (e) => (e?.characterRole === 'MAIN' ? 0 : e?.characterRole === 'SUPPORTING' ? 1 : 2);
+        edges = edges.slice().sort((a, b) => rank(a) - rank(b));
+      }
       return {
-        items: data?.Staff?.characters?.edges || [],
-        hasMore: data?.Staff?.characters?.pageInfo?.hasNextPage || false,
+        items: edges,
+        hasMore: conn?.pageInfo?.hasNextPage || false,
       };
     }, renderVACharCard, null, (el) => skeletonFillVARoles(el, 8), 'No roles found.');
   }
@@ -3330,7 +3348,9 @@ function prefetchMedia(id) {
   // bytes and load behind the render anyway, so speculatively fetching them
   // for every card the user brushes past would waste most of that data.
   const q = `query ($id: Int) { Media(id: $id) { ${MEDIA_DETAIL_CORE} } }`;
-  anilist(q, { id }).catch(() => {});
+  // Low priority: a guess about what might be tapped must never sit in front
+  // of a request the user is actually waiting on.
+  anilist(q, { id }, { priority: 'low' }).catch(() => {});
 }
 function _mediaIdFromEvent(e) {
   const el = e.target?.closest?.('[data-media-id]');

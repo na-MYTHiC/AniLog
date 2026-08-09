@@ -181,7 +181,56 @@ function fetchWithTimeout(url, opts, ms) {
   return fetch(url, { ...opts, signal: ctrl.signal }).finally(() => clearTimeout(id));
 }
 
-async function anilist(query, variables = {}) {
+// ============ CONCURRENCY GATE ============
+// Cold boot fired seven requests inside 300ms — Viewer, the list, the idle
+// Seasonal preload and four speculative detail prefetches — all racing each
+// other on one mobile connection. AniList also rate-limits per minute, and a
+// 429 here costs a 1-10s sleep, so a burst can cost far more time than it
+// saves.
+//
+// Two lanes. Normal requests are what the user is waiting for. Low-priority
+// ones are speculative (prefetching a row they haven't tapped yet) and must
+// never delay the others: only one runs at a time, and only once no normal
+// request is queued behind it.
+const MAX_CONCURRENT = 4;
+const MAX_CONCURRENT_LOW = 1;
+let _active = 0;
+let _activeLow = 0;
+const _queue = [];   // { resolve, low }
+
+function _canStart(low) {
+  if (_active >= MAX_CONCURRENT) return false;
+  if (!low) return true;
+  // Speculative work waits for a free lane AND for the queue to be clear of
+  // anything the user is actually waiting on.
+  return _activeLow < MAX_CONCURRENT_LOW && !_queue.some((w) => !w.low);
+}
+
+function _acquire(low) {
+  if (_canStart(low)) {
+    _active += 1;
+    if (low) _activeLow += 1;
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => _queue.push({ resolve, low }));
+}
+
+function _release(low) {
+  _active -= 1;
+  if (low) _activeLow -= 1;
+  // Normal requests jump speculative ones already waiting.
+  let idx = _queue.findIndex((w) => !w.low);
+  if (idx === -1) idx = _queue.findIndex((w) => _canStart(w.low));
+  if (idx === -1) return;
+  const [next] = _queue.splice(idx, 1);
+  _active += 1;
+  if (next.low) _activeLow += 1;
+  next.resolve();
+}
+
+async function anilist(query, variables = {}, opts = {}) {
+  // opts.priority === 'low' marks speculative work — see the gate above.
+  const low = opts.priority === 'low';
   const isMutation = query.trim().startsWith('mutation');
   // Auth/pub split so we don't leak personal data across sign-in / sign-out
   const key = (state.accessToken ? 'auth:' : 'pub:') + query + JSON.stringify(variables);
@@ -221,11 +270,20 @@ async function anilist(query, variables = {}) {
   function runFetch() {
     const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
     if (state.accessToken) headers['Authorization'] = `Bearer ${state.accessToken}`;
-    return _executeRequest(key, query, variables, headers, isMutation);
+    return _executeRequest(key, query, variables, headers, isMutation, low);
   }
 }
 
-async function _executeRequest(key, query, variables, headers, isMutation) {
+async function _executeRequest(key, query, variables, headers, isMutation, low) {
+  await _acquire(low);
+  try {
+    return await _runAttempts(key, query, variables, headers, isMutation);
+  } finally {
+    _release(low);
+  }
+}
+
+async function _runAttempts(key, query, variables, headers, isMutation) {
   const MAX_ATTEMPTS = 3;
   // Rate-limit waits are tracked separately from real failures. A 429 means
   // "you're early, come back" — not "this request is failing" — so burning a
