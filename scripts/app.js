@@ -2863,6 +2863,53 @@ async function refreshPushStatus() {
   await refreshSetupCodes();
 }
 
+// Throw the current subscription away and register a fresh one.
+//
+// A push subscription can be revoked at the push service while the browser
+// still holds its local copy — an uninstall, a data clear, or Chrome simply
+// deciding to. getSubscription() doesn't check with the server, so it keeps
+// returning the dead one, the setup code looks correct, and every send bounces
+// with 410 Gone. enablePush() can't dig you out either: it only subscribes
+// when getSubscription() comes back empty, which this case never does.
+// Unsubscribing first is the only way to force a new endpoint.
+async function resetPushSubscription() {
+  if (!pushSupported() || !VAPID_PUBLIC_KEY) return;
+  const btn = document.getElementById('push-reset-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const old = await reg.pushManager.getSubscription();
+    const oldEndpoint = old?.endpoint || '';
+    if (old) await old.unsubscribe();
+
+    if (Notification.permission !== 'granted') {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        showToast('Notifications not allowed');
+        return;
+      }
+    }
+
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    });
+
+    setSetupCodesOpen(true);
+    await refreshPushStatus();
+    await refreshSetupCodes();
+    // Worth saying out loud: an unchanged endpoint means the push service
+    // handed back the same registration, so pasting it again won't help.
+    showToast(sub.endpoint === oldEndpoint
+      ? 'Same code came back — try again in a minute'
+      : 'New code ready — paste it into PUSH_SUBSCRIPTION');
+  } catch (e) {
+    showToast('Couldn’t generate a new code — try again');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Generate a new code'; }
+  }
+}
+
 async function enablePush() {
   if (!pushSupported() || !VAPID_PUBLIC_KEY) return;
   const btn = document.getElementById('push-enable-btn');
@@ -2918,6 +2965,7 @@ function copyAndOpenSecret(fieldId, secretName, label) {
 }
 
 document.getElementById('push-enable-btn')?.addEventListener('click', enablePush);
+document.getElementById('push-reset-btn')?.addEventListener('click', resetPushSubscription);
 document.getElementById('push-copy-btn')?.addEventListener('click', () => copyField('push-subscription', 'Subscription'));
 document.getElementById('push-github-btn')?.addEventListener('click',
   () => copyAndOpenSecret('push-subscription', 'PUSH_SUBSCRIPTION', 'Subscription'));

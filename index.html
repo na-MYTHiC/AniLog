@@ -338,6 +338,16 @@
               <textarea id="push-subscription" class="signin-token-input" rows="4" readonly></textarea>
               <button class="btn-primary" id="push-github-btn" style="margin-top: 8px;">Copy &amp; open GitHub secret</button>
               <button class="btn-secondary" id="push-copy-btn" style="margin-top: 8px;">Copy only</button>
+              <!-- The escape hatch for a subscription the push service has
+                   revoked. The browser keeps handing back its local copy, so
+                   the code above can look perfectly fine while every send
+                   bounces — and re-tapping Enable returns that same dead
+                   code. This throws it away and registers a new one. -->
+              <div class="settings-sub" style="margin-top: 14px;">
+                Notifications stopped arriving even though this code is filled in?
+                The subscription was probably cancelled by the phone. Get a new one:
+              </div>
+              <button class="btn-secondary" id="push-reset-btn" style="margin-top: 8px;">Generate a new code</button>
             </div>
             <div id="token-reveal-wrap" hidden style="margin-top: 16px;">
               <div class="settings-sub" style="margin-bottom: 6px;">
@@ -383,14 +393,14 @@
         <div class="settings-row">
           <div>
             <div class="settings-label">App version</div>
-            <div class="settings-sub" id="update-status">v4.79</div>
+            <div class="settings-sub" id="update-status">v4.80</div>
           </div>
           <button class="btn-secondary" id="update-check-btn">Check for updates</button>
         </div>
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v4.79 · Powered by AniList
+        AniLog · v4.80 · Powered by AniList
       </div>
     </section>
 
