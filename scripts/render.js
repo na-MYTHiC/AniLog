@@ -209,7 +209,7 @@ function applyTheme() {
   const themeColor = getComputedStyle(document.documentElement)
     .getPropertyValue('--bg').trim() || '#0d0d12';
   document.querySelector('meta[name="theme-color"]').setAttribute('content', themeColor);
-  // Icon is now a static black & white SVG (see icon.svg) — no theme-driven
+  // Icon is now a static black & white SVG (see assets/icons/icon.svg) — no theme-driven
   // override. The browser tab + apple-touch-icon point straight at the file.
 }
 function applyDensity() {

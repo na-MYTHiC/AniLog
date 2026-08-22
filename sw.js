@@ -15,7 +15,7 @@
 //   - For everything else (AniList GraphQL, AniList images), bypass —
 //     we don't want stale data or 1+ GB of cover-image storage.
 
-const VERSION = 'anilog-v98';
+const VERSION = 'anilog-v99';
 const SHELL = [
   './',
   './index.html',
@@ -27,14 +27,14 @@ const SHELL = [
   './scripts/render.js',
   './scripts/app.js',
   './manifest.json',
-  './icon.svg',
-  './icon-76.png',
-  './icon-120.png',
-  './icon-152.png',
-  './icon-167.png',
-  './icon-180.png',
-  './icon-192.png',
-  './icon-512.png',
+  './assets/icons/icon.svg',
+  './assets/icons/icon-76.png',
+  './assets/icons/icon-120.png',
+  './assets/icons/icon-152.png',
+  './assets/icons/icon-167.png',
+  './assets/icons/icon-180.png',
+  './assets/icons/icon-192.png',
+  './assets/icons/icon-512.png',
 ];
 
 self.addEventListener('install', (event) => {
@@ -93,8 +93,8 @@ self.addEventListener('push', (event) => {
   const title = payload.title || 'AniLog';
   const options = {
     body: payload.body || '',
-    icon: payload.icon || './icon-192.png',
-    badge: './icon-192.png',
+    icon: payload.icon || './assets/icons/icon-192.png',
+    badge: './assets/icons/icon-192.png',
     // Same tag collapses repeats of the same event instead of stacking
     // duplicates if the sender retries. renotify makes a replacement alert
     // again rather than swapping in silently — without it, a repeat of a tag

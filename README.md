@@ -8,22 +8,40 @@ on GitHub Pages.
 
 ```
 AniLog/
-├── index.html         # Thin shell — markup + <link>/<script> references
-├── sw.js              # Service worker — app-shell cache + update handling
-├── manifest.json      # PWA manifest (name, icons, display mode)
-├── icon.svg           # Source icon; icon-*.png are generated from it
+├── index.html              # Thin shell — markup + <link>/<script> references
+├── sw.js                   # Service worker — app-shell cache, push, updates
+├── manifest.json           # PWA manifest (name, icons, display mode)
 ├── styles/
-│   ├── base.css       # Design tokens (colors, density vars), themes, reset
-│   └── app.css        # Components, layouts, modals, overlays
+│   ├── base.css            # Design tokens (colour, density), themes, reset
+│   └── app.css             # Components, layouts, modals, overlays
 ├── scripts/
-│   ├── config.js      # Constants — themes, OAuth, GraphQL fragments, sort options
-│   ├── state.js       # State object + persistence + OAuth hash bootstrap
-│   ├── api.js         # AniList GraphQL client + signIn / signOut / fetchViewer
-│   ├── render.js      # Helpers (escapeHtml, pickTitle, ...) + render functions
-│   └── app.js         # All UI — tabs, overlays, modals, detail page, swipe, boot
-└── tools/
-    └── gen-icons.ps1  # Regenerates every icon-*.png natively at each size
+│   ├── config.js           # Constants — themes, OAuth, GraphQL fragments, sorts
+│   ├── state.js            # State object + persistence + OAuth hash bootstrap
+│   ├── api.js              # AniList GraphQL client + signIn / signOut / viewer
+│   ├── render.js           # Helpers (escapeHtml, pickTitle, …) + renderers
+│   └── app.js              # All UI — tabs, overlays, detail page, swipe, boot
+├── assets/
+│   └── icons/              # icon.svg (source) + the icon-*.png generated from it
+├── tools/
+│   ├── gen-icons.ps1       # Regenerates every icon-*.png natively at each size
+│   ├── gen-vapid.sh        # Prints a fresh VAPID keypair for push setup
+│   ├── send-push.js        # The scheduled sender (run by the workflow below)
+│   └── push-state.json     # Last notification id sent; written back by CI
+└── .github/workflows/
+    └── anilog-push.yml     # Cron that runs send-push.js every 15 minutes
 ```
+
+### Why three files sit at the root
+
+Not untidiness — each is pinned there:
+
+- **`index.html`** is what GitHub Pages serves as the site root.
+- **`sw.js`** must be at the root because a service worker can only control
+  URLs at or below its own path. Moved to `assets/sw.js` it would control
+  `/assets/` and nothing else, killing offline caching and push. Overriding
+  that needs a `Service-Worker-Allowed` header, which Pages cannot send.
+- **`manifest.json`** resolves `start_url` and `scope` relative to itself, so
+  it stays next to the page it describes.
 
 Scripts share a single global scope (classic `<script>` tags, no modules).
 Load order in `index.html` is significant — `config` → `state` → `api` →

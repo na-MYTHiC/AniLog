@@ -22,16 +22,16 @@
      installed from any modern browser and behave like a native app. -->
 <link rel="manifest" href="manifest.json">
 <!-- Modern browsers prefer the SVG favicon (sharper at any zoom) -->
-<link rel="icon" type="image/svg+xml" href="icon.svg">
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/svg+xml" href="assets/icons/icon.svg">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icons/icon-192.png">
 <!-- iOS reads apple-touch-icon. Pre-rendered PNG at every size iOS asks for
      so the home-screen icon stays razor-sharp instead of being a lossy
      SVG rasterization by Safari. -->
-<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
-<link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
-<link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
-<link rel="apple-touch-icon" sizes="120x120" href="icon-120.png">
-<link rel="apple-touch-icon" sizes="76x76"   href="icon-76.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/icons/icon-180.png">
+<link rel="apple-touch-icon" sizes="167x167" href="assets/icons/icon-167.png">
+<link rel="apple-touch-icon" sizes="152x152" href="assets/icons/icon-152.png">
+<link rel="apple-touch-icon" sizes="120x120" href="assets/icons/icon-120.png">
+<link rel="apple-touch-icon" sizes="76x76"   href="assets/icons/icon-76.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="AniLog">
@@ -393,23 +393,14 @@
         <div class="settings-row">
           <div>
             <div class="settings-label">App version</div>
-            <div class="settings-sub" id="update-status">v4.82</div>
+            <div class="settings-sub" id="update-status">v4.83</div>
           </div>
           <button class="btn-secondary" id="update-check-btn">Check for updates</button>
-        </div>
-        <!-- TEMPORARY. Reports what the OS actually hands the page about the
-             system bars, so the gesture-bar colour can be diagnosed from a
-             screenshot instead of guessed at. Remove once that's settled. -->
-        <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 8px;">
-          <button class="btn-secondary" id="display-info-btn">Show display info</button>
-          <pre id="display-info" hidden style="margin:0; white-space:pre-wrap; word-break:break-all;
-               font-size:11px; line-height:1.5; color:var(--text-dim);
-               background:var(--surface-2); border-radius:8px; padding:10px;"></pre>
         </div>
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v4.82 · Powered by AniList
+        AniLog · v4.83 · Powered by AniList
       </div>
     </section>
 

@@ -7,7 +7,7 @@
 # Run from any working directory:
 #   powershell -File tools/gen-icons.ps1
 #
-# Writes icon-{76,120,152,167,180,192,512}.png in the repo root.
+# Writes icon-{76,120,152,167,180,192,512}.png into assets/icons/.
 # Tile color is kept in sync with icon.svg — update both when tweaking.
 
 Add-Type -AssemblyName System.Drawing
@@ -75,7 +75,7 @@ foreach ($s in $sizes) {
   $wb.Dispose()
 
   $g.Dispose()
-  $out = Join-Path $root "icon-$s.png"
+  $out = Join-Path $root "assets/icons/icon-$s.png"
   $bmp.Save($out, [System.Drawing.Imaging.ImageFormat]::Png)
   $bmp.Dispose()
   Write-Host "Wrote $out"
