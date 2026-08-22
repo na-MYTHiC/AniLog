@@ -2964,6 +2964,62 @@ function copyAndOpenSecret(fieldId, secretName, label) {
   if (!win) showToast('Copied — popup blocked, open GitHub manually');
 }
 
+// TEMPORARY diagnostic — see the note in index.html. Reads the values that
+// decide whether the page can paint behind the Android gesture bar: the
+// safe-area insets the OS actually reports, the display mode Chrome granted,
+// and whether the layout viewport covers the full screen.
+function showDisplayInfo() {
+  const out = document.getElementById('display-info');
+  const btn = document.getElementById('display-info-btn');
+  if (!out) return;
+  if (!out.hidden) { out.hidden = true; if (btn) btn.textContent = 'Show display info'; return; }
+
+  // env() can only be read through a real property, so park each inset on a
+  // throwaway element and read it back.
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:fixed;left:-9999px;' +
+    'padding-top:env(safe-area-inset-top,0px);padding-right:env(safe-area-inset-right,0px);' +
+    'padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);';
+  document.body.appendChild(probe);
+  const cs = getComputedStyle(probe);
+  const insets = {
+    top: cs.paddingTop, right: cs.paddingRight,
+    bottom: cs.paddingBottom, left: cs.paddingLeft,
+  };
+  probe.remove();
+
+  const modes = ['fullscreen', 'standalone', 'minimal-ui', 'browser']
+    .filter((m) => matchMedia(`(display-mode: ${m})`).matches);
+  const app = document.getElementById('app');
+
+  out.textContent = [
+    `version        v${(document.getElementById('update-status')?.textContent || '').replace(/^v/, '')}`,
+    `safe-area      top ${insets.top}  bottom ${insets.bottom}`,
+    `               left ${insets.left}  right ${insets.right}`,
+    `display-mode   ${modes.join(', ') || 'unknown'}`,
+    `innerHeight    ${window.innerHeight}   screen ${screen.height}`,
+    `visualViewport ${Math.round(visualViewport?.height || 0)}`,
+    `dvh/vh         ${probeUnit('dvh')} / ${probeUnit('vh')}`,
+    `app height     ${app ? Math.round(app.getBoundingClientRect().height) : '?'}`,
+    `dpr            ${devicePixelRatio}`,
+    `theme-color    ${document.querySelector('meta[name="theme-color"]')?.content}`,
+    `--bg           ${getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()}`,
+  ].join('\n');
+  out.hidden = false;
+  if (btn) btn.textContent = 'Hide display info';
+}
+
+function probeUnit(unit) {
+  const el = document.createElement('div');
+  el.style.cssText = `position:fixed;left:-9999px;height:100${unit};`;
+  document.body.appendChild(el);
+  const h = Math.round(el.getBoundingClientRect().height);
+  el.remove();
+  return h;
+}
+
+document.getElementById('display-info-btn')?.addEventListener('click', showDisplayInfo);
+
 document.getElementById('push-enable-btn')?.addEventListener('click', enablePush);
 document.getElementById('push-reset-btn')?.addEventListener('click', resetPushSubscription);
 document.getElementById('push-copy-btn')?.addEventListener('click', () => copyField('push-subscription', 'Subscription'));

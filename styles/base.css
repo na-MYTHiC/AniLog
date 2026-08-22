@@ -209,7 +209,13 @@
 }
 
 html, body {
-  margin: 0; padding: 0; height: 100%;
+  margin: 0; padding: 0;
+  /* dvh after the % fallback: if Chrome ever hands this PWA the full screen
+     (edge-to-edge, drawing behind the gesture bar), dvh is the unit that
+     reports it, while height:100% can resolve to the smaller inset-excluding
+     box. Browsers without dvh keep the percentage. */
+  height: 100%;
+  height: 100dvh;
   overflow: hidden;
   /* Themed, not a flat black. On an installed Android PWA the system
      navigation / gesture bar is tinted from the document's background colour
@@ -224,7 +230,9 @@ html, body {
 
 .app {
   position: relative;
-  width: 100%; height: 100%;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
   max-width: 480px; margin: 0 auto;
   background: var(--bg);
   display: flex; flex-direction: column;

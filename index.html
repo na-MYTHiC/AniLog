@@ -393,14 +393,23 @@
         <div class="settings-row">
           <div>
             <div class="settings-label">App version</div>
-            <div class="settings-sub" id="update-status">v4.81</div>
+            <div class="settings-sub" id="update-status">v4.82</div>
           </div>
           <button class="btn-secondary" id="update-check-btn">Check for updates</button>
+        </div>
+        <!-- TEMPORARY. Reports what the OS actually hands the page about the
+             system bars, so the gesture-bar colour can be diagnosed from a
+             screenshot instead of guessed at. Remove once that's settled. -->
+        <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 8px;">
+          <button class="btn-secondary" id="display-info-btn">Show display info</button>
+          <pre id="display-info" hidden style="margin:0; white-space:pre-wrap; word-break:break-all;
+               font-size:11px; line-height:1.5; color:var(--text-dim);
+               background:var(--surface-2); border-radius:8px; padding:10px;"></pre>
         </div>
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v4.81 · Powered by AniList
+        AniLog · v4.82 · Powered by AniList
       </div>
     </section>
 
