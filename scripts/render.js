@@ -201,7 +201,13 @@ function applyTheme() {
   // luminance so any future light-hued theme picks up the right color too.
   const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   document.documentElement.style.setProperty('--accent-on', lum > 0.7 ? '#0d0d12' : '#ffffff');
-  const themeColor = state.theme === 'amoled' ? '#000000' : state.theme === 'light' ? '#f7f7fa' : '#0d0d12';
+  // Read the theme's own --bg rather than repeating it here. This used to be a
+  // parallel ternary listing the same three hex values the stylesheet already
+  // defines, which is one edit away from the status bar and the app disagreeing.
+  // It also has to match what the document paints, because Android tints the
+  // status bar from this and the gesture bar from the page background.
+  const themeColor = getComputedStyle(document.documentElement)
+    .getPropertyValue('--bg').trim() || '#0d0d12';
   document.querySelector('meta[name="theme-color"]').setAttribute('content', themeColor);
   // Icon is now a static black & white SVG (see icon.svg) — no theme-driven
   // override. The browser tab + apple-touch-icon point straight at the file.

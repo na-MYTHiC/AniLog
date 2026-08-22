@@ -1,4 +1,8 @@
 :root {
+  /* Tells the OS which polarity its own chrome should use — gesture-bar icon
+     contrast on Android, scrollbars, and default form controls. Without it a
+     light theme can get light-on-light nav icons. Overridden per theme below. */
+  color-scheme: dark;
   --accent: #7c5cff;
   --accent-soft: rgba(124, 92, 255, 0.15);
   /* Text color paired with accent backgrounds. White works for every colored
@@ -175,6 +179,7 @@
 }
 
 [data-theme="light"] {
+  color-scheme: light;
   --bg: #f7f7fa;
   --surface: #ffffff;
   --surface-2: #f0f0f5;
@@ -187,6 +192,7 @@
 
 /* AMOLED — true black background, near-black surfaces. Saves power on OLED screens. */
 [data-theme="amoled"] {
+  color-scheme: dark;
   --bg: #000000;
   --surface: #0a0a0d;
   --surface-2: #15151c;
@@ -204,7 +210,13 @@
 
 html, body {
   margin: 0; padding: 0; height: 100%;
-  overflow: hidden; background: #000;
+  overflow: hidden;
+  /* Themed, not a flat black. On an installed Android PWA the system
+     navigation / gesture bar is tinted from the document's background colour
+     — theme-color only reaches the status bar at the top. Hardcoding #000
+     here left the gesture bar black under every theme, so on Light it was a
+     black stripe under a white app. */
+  background: var(--bg);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   color: var(--text);
   -webkit-font-smoothing: antialiased;
