@@ -1,0 +1,16 @@
+{
+  "name": "swinglab",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI golf coach built around TrackMan simulator data",
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "dev": "pnpm --filter @swinglab/app dev"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  },
+  "packageManager": "pnpm@10.33.0"
+}

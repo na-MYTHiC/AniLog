@@ -1,0 +1,15 @@
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+.env
+.env.local
+.DS_Store
+
+# Tauri
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/
+
+# Capacitor native projects
+apps/mobile/ios/
+apps/mobile/android/

@@ -1,0 +1,15 @@
+{
+  "name": "@swinglab/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "echo \"run 'pnpm --filter @swinglab/desktop tauri:build' with the Rust toolchain installed\"",
+    "tauri:build": "tauri build",
+    "typecheck": "echo \"no TypeScript in the desktop shell\"",
+    "test": "echo \"no tests in the desktop shell\""
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.1.0"
+  }
+}
