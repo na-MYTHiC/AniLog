@@ -2978,13 +2978,29 @@ async function repairApp() {
   const btn = document.getElementById('repair-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Repairing…'; }
   try {
+    // Drop every cached copy of the app. This is the actual repair: a bad
+    // cached shell is what makes the app fail to load, and with the caches
+    // gone the worker refetches everything from the network.
     if ('caches' in window) {
       const names = await caches.keys();
       await Promise.all(names.map((n) => caches.delete(n)));
     }
+    // Pull a fresh worker, but do NOT unregister.
+    //
+    // The first version of this called unregister(), and both the button's
+    // description and what I told the user said push would survive it. That
+    // was wrong: a push subscription belongs to the service worker
+    // registration, so unregistering deactivates it — the app would look
+    // repaired while silently invalidating the PUSH_SUBSCRIPTION secret, which
+    // is the exact failure this button was meant to spare you.
+    //
+    // Unregistering was never needed anyway. Worker script fetches bypass the
+    // service worker entirely and index.html registers with
+    // updateViaCache:'none', so sw.js is always read from the network — a
+    // stale worker cannot be what's stuck.
     if (navigator.serviceWorker) {
-      const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map((r) => r.unregister()));
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg) await reg.update().catch(() => {});
     }
   } catch (e) { /* reload anyway — a partial clear still beats the bad state */ }
   // Cache-busted so the reload can't be served by the HTTP cache either.
@@ -2995,6 +3011,10 @@ document.getElementById('repair-btn')?.addEventListener('click', repairApp);
 
 document.getElementById('push-enable-btn')?.addEventListener('click', enablePush);
 document.getElementById('push-reset-btn')?.addEventListener('click', resetPushSubscription);
+// Copying the subscription is the step that actually re-links push, so both
+// copy paths retire the warning.
+document.getElementById('push-copy-btn')?.addEventListener('click', clearPushNeedsRelink);
+document.getElementById('push-github-btn')?.addEventListener('click', clearPushNeedsRelink);
 document.getElementById('push-copy-btn')?.addEventListener('click', () => copyField('push-subscription', 'Subscription'));
 document.getElementById('push-github-btn')?.addEventListener('click',
   () => copyAndOpenSecret('push-subscription', 'PUSH_SUBSCRIPTION', 'Subscription'));
@@ -3025,6 +3045,10 @@ function setSetupCodesOpen(open) {
 // subscribed, the token only while signed in. With neither, the toggle itself
 // stays hidden rather than opening onto an empty box.
 async function refreshSetupCodes() {
+  // Runs on load and whenever sign-in changes, which is exactly when the
+  // notice needs re-evaluating — the worker can raise the flag while no page
+  // is open, so it has to be read back at startup rather than only on message.
+  refreshPushRelinkNotice();
   const toggle = document.getElementById('setup-codes-toggle');
   const subWrap = document.getElementById('push-subscription-wrap');
   const tokenWrap = document.getElementById('token-reveal-wrap');
@@ -3171,7 +3195,33 @@ navigator.serviceWorker?.addEventListener('message', (e) => {
   // the update reload lands.
   if (d.type === 'anilog-open') openFromNotification(d);
   else if (d.type === 'anilog-open-media' && d.mediaId) openMedia(d.mediaId);
+  else if (d.type === 'anilog-push-resubscribed') markPushNeedsRelink();
 });
+
+// A rotated push subscription is invisible from inside the app — the endpoint
+// in the PUSH_SUBSCRIPTION secret is simply dead, and every send bounces with
+// 410 while the Actions tab stays green. The only symptom is notifications
+// quietly stopping, which is exactly how this went unnoticed twice.
+//
+// The flag is persisted because the worker can rotate a subscription while no
+// page is open, and it stays set until the code has actually been copied.
+function markPushNeedsRelink() {
+  try { localStorage.setItem('anilog-push-relink', '1'); } catch (e) {}
+  refreshPushRelinkNotice();
+}
+
+function clearPushNeedsRelink() {
+  try { localStorage.removeItem('anilog-push-relink'); } catch (e) {}
+  refreshPushRelinkNotice();
+}
+
+function refreshPushRelinkNotice() {
+  const el = document.getElementById('push-relink-notice');
+  if (!el) return;
+  let needs = false;
+  try { needs = localStorage.getItem('anilog-push-relink') === '1'; } catch (e) {}
+  el.hidden = !needs;
+}
 
 // Cold start from a notification tap: ./?media=123, ./?activity=456, or
 // ./?user=789&name=Foo.

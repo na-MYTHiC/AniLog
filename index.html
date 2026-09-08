@@ -324,6 +324,17 @@
             <div class="settings-label">Push notifications</div>
             <div class="settings-sub" id="push-status">Get alerts even when AniLog is closed.</div>
           </div>
+          <!-- Raised by the worker's pushsubscriptionchange handler. The
+               subscription can rotate while the app is closed, and until the
+               new code reaches the GitHub secret every send bounces silently. -->
+          <div class="settings-sub" id="push-relink-notice" hidden
+               style="background: var(--accent-soft); color: var(--text);
+                      border-radius: 8px; padding: 10px; margin-bottom: 4px;">
+            <strong>Push needs re-linking.</strong> Your phone was given a new
+            subscription, so the code stored on GitHub is out of date and
+            notifications won't arrive. Open the setup codes below and copy the
+            subscription into <strong>PUSH_SUBSCRIPTION</strong> again.
+          </div>
           <button class="btn-primary" id="push-enable-btn">Enable push notifications</button>
           <!-- Both GitHub secrets live behind one disclosure, collapsed on
                every load. They're long opaque blobs that matter exactly once
@@ -393,7 +404,7 @@
         <div class="settings-row">
           <div>
             <div class="settings-label">App version</div>
-            <div class="settings-sub" id="update-status">v4.84</div>
+            <div class="settings-sub" id="update-status">v4.85</div>
           </div>
           <button class="btn-secondary" id="update-check-btn">Check for updates</button>
         </div>
@@ -402,8 +413,8 @@
             <div class="settings-label">Repair app</div>
             <div class="settings-sub">
               If AniLog won't load, is stuck, or looks wrong, this clears its stored
-              copy of the app and downloads a fresh one. You stay signed in and your
-              push notifications keep working — unlike reinstalling, which breaks both.
+              copy of the app and downloads a fresh one. You stay signed in, and your
+              push setup is left alone — unlike reinstalling, which breaks both.
             </div>
           </div>
           <button class="btn-secondary" id="repair-btn">Clear cache &amp; reload</button>
@@ -411,7 +422,7 @@
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v4.84 · Powered by AniList
+        AniLog · v4.85 · Powered by AniList
       </div>
     </section>
 

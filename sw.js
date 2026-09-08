@@ -15,7 +15,7 @@
 //   - For everything else (AniList GraphQL, AniList images), bypass —
 //     we don't want stale data or 1+ GB of cover-image storage.
 
-const VERSION = 'anilog-v100';
+const VERSION = 'anilog-v101';
 const SHELL = [
   './',
   './index.html',
@@ -131,6 +131,48 @@ self.addEventListener('push', (event) => {
     },
   };
   event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// Chrome rotates or drops a push subscription on its own — after a long idle
+// period, a permissions change, or storage pressure. When it does, this fires
+// and the old endpoint stops working: the sender keeps posting to a dead URL
+// and gets 410 back, which looks from the phone like push simply stopped.
+//
+// Re-subscribing here restores a working endpoint immediately, but it CANNOT
+// finish the job: the sender reads the endpoint from a GitHub secret, and
+// nothing in the browser can write that. So the page is told, and it nags
+// until the new code has been copied across. A silent half-fix would be worse
+// than the failure — at least a dead endpoint is eventually noticed.
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil((async () => {
+    let endpoint = null;
+    try {
+      // oldSubscription carries the key we were registered with; falling back
+      // to the event's newSubscription covers browsers that resubscribe for us.
+      const key = event.oldSubscription?.options?.applicationServerKey;
+      const fresh = event.newSubscription || (key && await self.registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: key,
+      }));
+      endpoint = fresh?.endpoint || null;
+    } catch (e) { /* re-subscribe refused; the page still needs telling */ }
+
+    // Survives a closed app: the page reads this on next open.
+    const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    clients.forEach((c) => c.postMessage({ type: 'anilog-push-resubscribed', endpoint }));
+
+    // Nothing open to tell, and this is exactly the case where the user would
+    // otherwise never find out.
+    if (!clients.length) {
+      await self.registration.showNotification('AniLog push needs re-linking', {
+        body: 'Tap to copy a new code for the PUSH_SUBSCRIPTION secret.',
+        icon: './assets/icons/icon-192.png',
+        badge: './assets/icons/icon-192.png',
+        tag: 'push-relink',
+        data: { url: './', relink: true },
+      });
+    }
+  })());
 });
 
 self.addEventListener('notificationclick', (event) => {
