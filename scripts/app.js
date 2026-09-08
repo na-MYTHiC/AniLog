@@ -2964,6 +2964,35 @@ function copyAndOpenSecret(fieldId, secretName, label) {
   if (!win) showToast('Copied — popup blocked, open GitHub manually');
 }
 
+// Last-resort recovery for a bad cached copy of the app: a half-built shell, a
+// worker wedged on an old build, anything where the code on the phone is not
+// the code that was deployed.
+//
+// Deliberately narrow. It drops the caches and unregisters the worker, then
+// reloads from the network — and touches nothing else. localStorage keeps the
+// sign-in token and preferences, and the push subscription lives with the
+// browser's push service, not here, so it survives too. That is the whole
+// point: uninstalling the PWA is the usual folk remedy and it destroys both,
+// which then needs a new PUSH_SUBSCRIPTION secret to get notifications back.
+async function repairApp() {
+  const btn = document.getElementById('repair-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Repairing…'; }
+  try {
+    if ('caches' in window) {
+      const names = await caches.keys();
+      await Promise.all(names.map((n) => caches.delete(n)));
+    }
+    if (navigator.serviceWorker) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+    }
+  } catch (e) { /* reload anyway — a partial clear still beats the bad state */ }
+  // Cache-busted so the reload can't be served by the HTTP cache either.
+  location.replace(location.pathname + '?repaired=' + Date.now());
+}
+
+document.getElementById('repair-btn')?.addEventListener('click', repairApp);
+
 document.getElementById('push-enable-btn')?.addEventListener('click', enablePush);
 document.getElementById('push-reset-btn')?.addEventListener('click', resetPushSubscription);
 document.getElementById('push-copy-btn')?.addEventListener('click', () => copyField('push-subscription', 'Subscription'));

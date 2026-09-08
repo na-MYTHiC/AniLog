@@ -15,7 +15,7 @@
 //   - For everything else (AniList GraphQL, AniList images), bypass —
 //     we don't want stale data or 1+ GB of cover-image storage.
 
-const VERSION = 'anilog-v99';
+const VERSION = 'anilog-v100';
 const SHELL = [
   './',
   './index.html',
@@ -37,21 +37,39 @@ const SHELL = [
   './assets/icons/icon-512.png',
 ];
 
+// The files the app cannot run without. If any of these can't be fetched, the
+// install must FAIL rather than activate — see below.
+const CRITICAL = SHELL.slice(0, 10);   // './' through './manifest.json'
+
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(VERSION).then((cache) =>
-      // `cache: 'reload'` forces each request past the browser's HTTP cache.
-      // Plain addAll() is allowed to satisfy these from the HTTP cache, which
-      // on GitHub Pages (10-min max-age) can hand the new SW version the exact
-      // stale files it was created to replace — a new cache name holding old
-      // bytes, so the deploy silently doesn't take.
-      Promise.all(SHELL.map((url) =>
-        fetch(new Request(url, { cache: 'reload' }))
-          .then((res) => (res.ok ? cache.put(url, res) : null))
-          .catch(() => null)   // one 404 shouldn't abort the whole install
-      ))
-    )
-  );
+  event.waitUntil((async () => {
+    const cache = await caches.open(VERSION);
+    // `cache: 'reload'` forces each request past the browser's HTTP cache.
+    // Plain addAll() is allowed to satisfy these from the HTTP cache, which
+    // on GitHub Pages (10-min max-age) can hand the new SW version the exact
+    // stale files it was created to replace — a new cache name holding old
+    // bytes, so the deploy silently doesn't take.
+    const store = async (url) => {
+      const res = await fetch(new Request(url, { cache: 'reload' }));
+      if (!res.ok) throw new Error(`${url} -> ${res.status}`);
+      await cache.put(url, res);
+    };
+
+    // Icons and other extras may fail without consequence.
+    const optional = SHELL.filter((u) => !CRITICAL.includes(u));
+    await Promise.all(optional.map((u) => store(u).catch(() => null)));
+
+    // The shell itself may not. Every failure here used to be swallowed, and
+    // because install is followed immediately by skipWaiting() and an activate
+    // that deletes the previous cache, one bad moment on mobile data could
+    // retire a working worker in favour of one holding a half-built shell —
+    // and if index.html was the file that missed, the navigation handler has
+    // nothing to serve at all. Throwing fails the install instead, which
+    // leaves the existing worker in charge and simply retries on the next
+    // update check. A version that can't be fully fetched is not one to
+    // switch to.
+    await Promise.all(CRITICAL.map(store));
+  })());
   // Activate as soon as this installs. v4.49 tried holding back so the page
   // could offer a choice first, and that created a trap: any client running
   // older code had no way to release the waiting worker, so it sat there
