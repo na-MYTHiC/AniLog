@@ -10,8 +10,13 @@
 // refresh fires as soon as the user opens the app), so we err on the long
 // side to keep the UI snappy.
 const CACHE_TTL_MS = 15 * 60 * 1000;
-// Hard request timeout — AniList sometimes just hangs.
-const REQUEST_TIMEOUT_MS = 12000;
+// Hard request timeout — AniList sometimes just hangs. Per attempt, and the
+// first one is shorter: three 12s attempts plus backoff meant a dead
+// connection showed nothing for 42 seconds, which reads as the app being
+// broken rather than the network being down. A short first attempt catches
+// the common "this one request is wedged" case quickly, and the later, longer
+// ones still give a genuinely slow AniList room to answer.
+const REQUEST_TIMEOUTS_MS = [7000, 10000, 12000];
 // Per-key fresh-until timestamps. cache[key] stays raw data so existing
 // consumers that read `cache[key]` directly aren't broken.
 const cacheExpires = new Map();
@@ -226,6 +231,45 @@ function _release(low) {
   next.resolve();
 }
 
+
+// What a successful write actually invalidates.
+//
+// This used to delete every cached read and drop the persistent cache
+// outright. One swipe to bump an episode therefore made Search, Seasonal,
+// genre and studio all cold again — measured at 320ms latency, revisiting
+// Search after a bump cost 2 fresh round trips and Seasonal 1, where before
+// the bump both were free. Bump a few episodes in a sitting, which is the
+// single most common thing anyone does here, and the whole app reloads
+// itself repeatedly.
+//
+// Only two things genuinely have to be refetched, and they're deleted so a
+// reader blocks for the truth rather than rendering a value the user just
+// changed:
+//   - MediaListCollection, the list itself
+//   - the detail query, which carries mediaListEntry { id status score progress }
+// Serving either stale would flash the OLD progress and then correct itself,
+// which reads as the edit failing.
+//
+// Everything else — browse rows, search results, seasonal, genre, studio —
+// embeds only mediaListEntry { status }, which a progress bump doesn't touch.
+// Those are marked stale instead: the next read returns instantly from cache
+// and refreshes in the background, so the data still converges without the
+// user waiting on anything.
+const DETAIL_ENTRY_FIELDS = 'mediaListEntry { id status score progress }';
+function invalidateAfterWrite() {
+  Object.keys(cache).forEach((k) => {
+    if (k.includes('MediaListCollection') || k.includes(DETAIL_ENTRY_FIELDS)) {
+      delete cache[k];
+      cacheExpires.delete(k);
+    } else {
+      cacheExpires.set(k, 0);
+    }
+  });
+  // Persist the new expiries rather than dropping the file, so a cold start
+  // still has something to paint instantly.
+  schedulePersist();
+}
+
 async function anilist(query, variables = {}, opts = {}) {
   // opts.priority === 'low' marks speculative work — see the gate above.
   const low = opts.priority === 'low';
@@ -241,17 +285,24 @@ async function anilist(query, variables = {}, opts = {}) {
     if (hasCached && exp > Date.now()) return cache[key];
 
     // 2) Stale-while-revalidate: cache exists but TTL elapsed. Return it
-    //    instantly so the UI is snappy, and kick a background refresh so
-    //    the NEXT call serves fresher data. Only fire one background fetch
-    //    per key — re-uses the same promise if another caller hits during
-    //    the request window.
-    if (hasCached && !inflight.has(key)) {
-      const bg = runFetch().finally(() => inflight.delete(key));
-      inflight.set(key, bg);
+    //    instantly so the UI is snappy, and kick a background refresh so the
+    //    NEXT call serves fresher data.
+    //
+    //    The cached value is returned to EVERY caller, not just the one that
+    //    starts the refresh. Previously a second caller arriving during that
+    //    window fell through to the in-flight branch and waited on the
+    //    network — so whether a view painted instantly or stalled for a round
+    //    trip came down to which one happened to ask first.
+    if (hasCached) {
+      if (!inflight.has(key)) {
+        const bg = runFetch().finally(() => inflight.delete(key));
+        inflight.set(key, bg);
+      }
       return cache[key];
     }
 
-    // 3) Already in flight — share the promise so we don't stack duplicates
+    // 3) Nothing cached and already in flight — share the promise so we don't
+    //    stack duplicates.
     if (inflight.has(key)) return inflight.get(key);
   }
 
@@ -282,6 +333,15 @@ async function _executeRequest(key, query, variables, headers, isMutation, low) 
 }
 
 async function _runAttempts(key, query, variables, headers, isMutation) {
+  // The browser already knows there's no connection: three attempts with
+  // backoff can only burn ~30s to rediscover that. Fall straight through to
+  // the stale-cache path (or a null the caller handles), and let the `online`
+  // listener drive the retry.
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    if (!isMutation && cache[key] !== undefined) return cache[key];
+    return null;
+  }
+
   const MAX_ATTEMPTS = 3;
   // Rate-limit waits are tracked separately from real failures. A 429 means
   // "you're early, come back" — not "this request is failing" — so burning a
@@ -298,7 +358,7 @@ async function _runAttempts(key, query, variables, headers, isMutation) {
         method: 'POST',
         headers,
         body: JSON.stringify({ query, variables }),
-      }, REQUEST_TIMEOUT_MS);
+      }, REQUEST_TIMEOUTS_MS[attempt - 1] || 12000);
 
       // Auth expired or revoked — bail out, don't retry
       if (res.status === 401) {
@@ -343,10 +403,7 @@ async function _runAttempts(key, query, variables, headers, isMutation) {
         cacheExpires.set(key, Date.now() + CACHE_TTL_MS);
         schedulePersist();
       } else {
-        // Any successful write invalidates every cached read
-        Object.keys(cache).forEach(k => delete cache[k]);
-        cacheExpires.clear();
-        try { localStorage.removeItem(PERSIST_KEY); } catch (_) {}
+        invalidateAfterWrite();
       }
       return json.data;
     } catch (err) {
@@ -469,5 +526,20 @@ async function fetchViewer() {
     loadMyList();
     if (typeof setNotifBadge === 'function') setNotifBadge(data.Viewer.unreadNotificationCount || 0);
     if (typeof initNotifications === 'function') initNotifications();
+    window.__anilogViewerFailed = false;
+    return true;
   }
+  // Failed with a token still in hand. Repaint so Home shows "couldn't reach
+  // AniList" rather than the sign-in CTA — previously nothing ran here at all,
+  // so the boot-time render stood and a signed-in user was told to sign in.
+  window.__anilogViewerFailed = true;
+  if (typeof updateAuthUI === 'function') updateAuthUI();
+  return false;
 }
+
+// Recover without a manual reload. A cold start that lands while AniList is
+// unreachable used to leave the app on an empty Home until the user thought to
+// relaunch it; coming back onto a connection now simply retries.
+window.addEventListener('online', () => {
+  if (state.accessToken && !state.user) fetchViewer();
+});

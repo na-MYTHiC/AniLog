@@ -916,16 +916,25 @@ function updateAuthUI() {
       <button class="btn-secondary" onclick="signOut()">Sign out</button>
     `;
   }
-  // Hide the home empty CTA if signed in; show otherwise
+  // Three states, not two. A token that exists but whose Viewer fetch failed
+  // is a connection problem — showing "Sign in to see your list" there claims
+  // the user is signed out, which is both wrong and actively unhelpful: the
+  // obvious response is to redo OAuth, which cannot fix an unreachable API.
   const homeEmpty = document.getElementById('home-empty');
+  const homeOffline = document.getElementById('home-offline');
   const myGrid = document.getElementById('my-list-grid');
-  if (state.user) {
-    if (homeEmpty) homeEmpty.style.display = 'none';
-    if (myGrid) myGrid.style.display = '';
-  } else {
-    if (homeEmpty) homeEmpty.style.display = '';
-    if (myGrid) myGrid.style.display = 'none';
-  }
+  //
+  // Three states, and the third is "don't know yet". Keying the offline panel
+  // purely on "token but no user" showed it during the normal boot window
+  // before the Viewer call returns, so every healthy launch flashed
+  // "Couldn't reach AniList" for a round trip. It only appears once a fetch
+  // has actually come back empty.
+  const signedIn = !!state.user;
+  const hasToken = !!state.accessToken;
+  const knownOffline = hasToken && !signedIn && window.__anilogViewerFailed === true;
+  if (homeEmpty) homeEmpty.style.display = signedIn || hasToken ? 'none' : '';
+  if (homeOffline) homeOffline.style.display = knownOffline ? '' : 'none';
+  if (myGrid) myGrid.style.display = signedIn ? '' : 'none';
 
   // Signing in or out changes whether there's a token to reveal.
   refreshSetupCodes();
@@ -3588,6 +3597,18 @@ document.addEventListener('pointerover', (e) => {
 
 // ============ BOOT ============
 switchTab(state.landing || 'home');
+// Manual retry from the "couldn't reach AniList" state.
+document.getElementById('home-retry-btn')?.addEventListener('click', async () => {
+  const btn = document.getElementById('home-retry-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Retrying…'; }
+  try {
+    const ok = await fetchViewer();
+    if (!ok && typeof showToast === 'function') showToast('Still can\u2019t reach AniList');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Try again'; }
+  }
+});
+
 updateAuthUI();
 if (state.accessToken) {
   // With a cached user in localStorage, we know our own userId and can

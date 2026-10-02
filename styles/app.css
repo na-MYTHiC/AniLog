@@ -380,6 +380,9 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  /* Now that the column can't widen to fit a long word, let the word break
+     instead of being clipped at the track edge. */
+  overflow-wrap: anywhere;
 }
 
 .card-meta {
@@ -390,7 +393,12 @@
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(var(--grid-cols), 1fr);
+  /* minmax(0, 1fr), NOT 1fr. A bare 1fr is minmax(auto, 1fr), and that auto
+     floor is the min-content width of the widest card in the track — so one
+     long unbreakable title drags its whole column wider and squeezes the
+     others, which is the "the third column got bigger" effect. A zero floor
+     keeps every track exactly equal no matter what the content claims. */
+  grid-template-columns: repeat(var(--grid-cols), minmax(0, 1fr));
   gap: var(--grid-gap);
   padding: var(--grid-pad-y) var(--gutter);
 }
@@ -408,13 +416,12 @@
    the other three grids kept the old counts and the tablet breakpoint below
    couldn't reach two of them. */
 
-/* Belt and suspenders: force every direct child of these grids to stay
-   inside its column no matter what intrinsic width it advertises. Without
-   this, a card whose title/meta reports a wider min-content will silently
-   push its column past 1fr — which is why some columns visibly grew after
-   scrolling into batches with longer titles. */
-#seasonal-grid > *,
-#category-grid > * {
+/* Belt and suspenders alongside the minmax(0, …) above: every direct child of
+   every card grid stays inside its column whatever intrinsic width it claims.
+   This used to name #seasonal-grid and #category-grid only, which is why those
+   two looked right while search, genre and studio could still blow a column
+   out. */
+.grid > * {
   min-width: 0;
   max-width: 100%;
 }
