@@ -333,16 +333,20 @@ async function _executeRequest(key, query, variables, headers, isMutation, low) 
 }
 
 async function _runAttempts(key, query, variables, headers, isMutation) {
-  // The browser already knows there's no connection: three attempts with
-  // backoff can only burn ~30s to rediscover that. Fall straight through to
-  // the stale-cache path (or a null the caller handles), and let the `online`
-  // listener drive the retry.
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-    if (!isMutation && cache[key] !== undefined) return cache[key];
-    return null;
-  }
-
-  const MAX_ATTEMPTS = 3;
+  // navigator.onLine is a HINT, never a veto.
+  //
+  // v4.86 short-circuited on `onLine === false` and returned straight away.
+  // The spec says false means definitely offline, but Chrome on Android gets
+  // it wrong often enough — VPNs, captive portals, a network handover — and
+  // when it does, that short-circuit made the app issue zero requests and
+  // render nothing at all. Trading "nothing ever loads" for "a dead
+  // connection is noticed 30s sooner" is a terrible deal, and it's the bug
+  // that made the app stop loading.
+  //
+  // So still try. A browser claiming to be offline just doesn't get the full
+  // retry ladder: one attempt, and the stale-cache fallback below catches it.
+  const likelyOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
+  const MAX_ATTEMPTS = likelyOffline ? 1 : 3;
   // Rate-limit waits are tracked separately from real failures. A 429 means
   // "you're early, come back" — not "this request is failing" — so burning a
   // retry on it meant a brief throttle could exhaust all three attempts and
