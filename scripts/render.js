@@ -342,6 +342,40 @@ function episodesOut(m) {
   return m.episodes || 0;
 }
 
+// Update the list badge on every card for one media that's already on screen.
+//
+// Adding a show used to leave Search and Seasonal showing the old state until
+// those tabs were rebuilt from scratch — and they only rebuild when their
+// container is empty, so in practice the badge could stay wrong indefinitely.
+// Rewriting the one span is far cheaper than re-rendering a tab, and it keeps
+// every view consistent the moment the write lands.
+function repaintListBadges(mediaId, entry) {
+  const label = LIST_STATUS_BADGES[entry?.status];
+  document.querySelectorAll(`.card[data-media-id="${mediaId}"]`).forEach((card) => {
+    let wrap = card.querySelector('.card-badges');
+    const existing = wrap?.querySelector('.card-badge-on');
+
+    if (!label) { if (existing) existing.remove(); }
+    else if (existing) { existing.textContent = label; }
+    else {
+      // No status badge yet — and possibly no badge row at all, when the card
+      // had neither an episode count nor a list status.
+      if (!wrap) {
+        wrap = document.createElement('div');
+        wrap.className = 'card-badges';
+        card.appendChild(wrap);
+      }
+      const span = document.createElement('span');
+      span.className = 'card-badge card-badge-on';
+      span.textContent = label;
+      wrap.appendChild(span);
+    }
+    // An empty badge row is hidden by CSS in carousels, but leaving a stray
+    // element behind would still affect layout in the grids.
+    if (wrap && !wrap.children.length) wrap.remove();
+  });
+}
+
 function cardBadges(m) {
   const out = [];
   const eps = episodesOut(m);

@@ -157,14 +157,30 @@ async function flushPendingWrites() {
 // reached. Returns { data, queued } — a queued write should be treated as
 // provisionally successful so the optimistic UI stands.
 async function mutateList(query, variables) {
-  const data = await anilist(query, variables);
+  // __-prefixed keys are ours, for the cache patch below — GraphQL would
+  // reject an undeclared variable, so they never leave the client.
+  const wire = {};
+  Object.keys(variables || {}).forEach((k) => { if (!k.startsWith('__')) wire[k] = variables[k]; });
+  const data = await anilist(query, wire);
   if (data) {
+    // Fold the result back into every cached view of this media, and repaint
+    // anything already on screen, so a list change shows up everywhere at
+    // once instead of waiting for a tab to be rebuilt.
+    const mediaId = variables?.mediaId;
+    if (mediaId) {
+      const saved = data.SaveMediaListEntry || null;
+      patchCachedListEntry(mediaId, saved);
+      if (typeof repaintListBadges === 'function') repaintListBadges(mediaId, saved);
+    } else if (data.DeleteMediaListEntry?.deleted && variables?.__mediaId) {
+      patchCachedListEntry(variables.__mediaId, null);
+      if (typeof repaintListBadges === 'function') repaintListBadges(variables.__mediaId, null);
+    }
     // Piggyback: a successful write proves we're online, so drain anything
     // that piled up earlier.
     if (pendingWrites.length) flushPendingWrites();
     return { data, queued: false };
   }
-  enqueueWrite(query, variables);
+  enqueueWrite(query, wire);
   return { data: null, queued: true };
 }
 
@@ -255,18 +271,47 @@ function _release(low) {
 // Those are marked stale instead: the next read returns instantly from cache
 // and refreshes in the background, so the data still converges without the
 // user waiting on anything.
-const DETAIL_ENTRY_FIELDS = 'mediaListEntry { id status score progress }';
 function invalidateAfterWrite() {
+  // Only the list itself has to be refetched — its membership really did
+  // change, and it's the one view that must be authoritative.
+  //
+  // Everything else is PATCHED, not invalidated. Marking the rest stale (what
+  // v4.86 did) had two bad consequences: the next read served the pre-write
+  // value, so a freshly added show showed no badge until something re-rendered
+  // it; and every cached key became due for a background refresh at once, so
+  // browsing after a write could fire dozens of requests, saturate the
+  // four-slot gate and trip AniList's rate limiter — which is what made the
+  // whole app stop loading after adding something.
   Object.keys(cache).forEach((k) => {
-    if (k.includes('MediaListCollection') || k.includes(DETAIL_ENTRY_FIELDS)) {
+    if (k.includes('MediaListCollection')) {
       delete cache[k];
       cacheExpires.delete(k);
-    } else {
-      cacheExpires.set(k, 0);
     }
   });
-  // Persist the new expiries rather than dropping the file, so a cold start
-  // still has something to paint instantly.
+  schedulePersist();
+}
+
+// Rewrite mediaListEntry on every cached copy of one media, so each view is
+// already correct the next time it renders — no refetch, and nothing stale.
+//
+// `entry` is the mutation's own SaveMediaListEntry payload, or null when the
+// entry was deleted.
+function patchCachedListEntry(mediaId, entry) {
+  if (!mediaId) return;
+  const seen = new Set();
+  const visit = (node) => {
+    if (!node || typeof node !== 'object' || seen.has(node)) return;
+    seen.add(node);
+    if (Array.isArray(node)) { node.forEach(visit); return; }
+    // A media node is the one that carries BOTH an id and a mediaListEntry
+    // field. A MediaList row also has an `id`, but it's the entry's id and it
+    // has no mediaListEntry of its own, so it can't be hit by accident.
+    if (node.id === mediaId && Object.prototype.hasOwnProperty.call(node, 'mediaListEntry')) {
+      node.mediaListEntry = entry ? { ...(node.mediaListEntry || {}), ...entry } : null;
+    }
+    Object.keys(node).forEach((k) => visit(node[k]));
+  };
+  Object.keys(cache).forEach((k) => visit(cache[k]));
   schedulePersist();
 }
 

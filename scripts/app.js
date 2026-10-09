@@ -1186,7 +1186,10 @@ async function removeFromList() {
     progress: editingEntry.progress || 0,
   };
   const mutation = `mutation ($id: Int) { DeleteMediaListEntry(id: $id) { deleted } }`;
-  const { data, queued } = await mutateList(mutation, { id: editingEntry.id });
+  // __mediaId is consumed by mutateList for the cache patch and stripped
+  // before the request — DeleteMediaListEntry only takes the entry id, which
+  // isn't enough to find the cards for this show.
+  const { data, queued } = await mutateList(mutation, { id: editingEntry.id, __mediaId: editingMediaId });
   const mid = editingMediaId;
   if (queued) {
     closeListEditSheet();
