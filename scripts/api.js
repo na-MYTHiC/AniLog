@@ -282,11 +282,17 @@ function invalidateAfterWrite() {
   // browsing after a write could fire dozens of requests, saturate the
   // four-slot gate and trip AniList's rate limiter — which is what made the
   // whole app stop loading after adding something.
+  //
+  // Marked stale, NOT deleted. Deleting removed the only fallback at exactly
+  // the moment it was most needed: a write is usually the tail of a burst of
+  // activity, so the refetch that follows is the request most likely to be
+  // rate-limited — and with the cache gone there was nothing to fall back to.
+  // anilist() then returned null, loadMyList() read that as zero entries, and
+  // the user was told their list was empty. Stale means the old list is served
+  // instantly, a refresh runs behind it, and a failed refresh changes nothing
+  // on screen.
   Object.keys(cache).forEach((k) => {
-    if (k.includes('MediaListCollection')) {
-      delete cache[k];
-      cacheExpires.delete(k);
-    }
+    if (k.includes('MediaListCollection')) cacheExpires.set(k, 0);
   });
   schedulePersist();
 }
@@ -342,6 +348,14 @@ async function anilist(query, variables = {}, opts = {}) {
       if (!inflight.has(key)) {
         const bg = runFetch().finally(() => inflight.delete(key));
         inflight.set(key, bg);
+        // opts.onFresh lets a view repaint when the refresh lands, instead of
+        // showing the stale copy until the user happens to navigate away and
+        // back. Without it, "serve stale and revalidate" means the newest data
+        // sits in the cache unseen.
+        if (typeof opts.onFresh === 'function') {
+          bg.then((fresh) => { if (fresh !== undefined && fresh !== null) opts.onFresh(fresh); })
+            .catch(() => {});
+        }
       }
       return cache[key];
     }

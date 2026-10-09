@@ -207,7 +207,16 @@ async function loadUserList() {
 
   const data = await anilist(q, vars);
   if (myReq !== userProfileState.reqId) return;
-  let entries = (data?.MediaListCollection?.lists || []).flatMap(l => l.entries || []);
+  // Same distinction loadMyList needed: a failed request is not an empty list.
+  if (!data || !data.MediaListCollection) {
+    rows.innerHTML = `<div class="user-list-empty">
+      Couldn't load this list.
+      <button class="retry-btn" type="button" style="margin-top: 10px;">Retry</button>
+    </div>`;
+    rows.querySelector('.retry-btn')?.addEventListener('click', () => loadUserList());
+    return;
+  }
+  let entries = (data.MediaListCollection.lists || []).flatMap(l => l.entries || []);
   if (isClientScoreSort) {
     entries = entries.slice().sort((a, b) => (b.media?.averageScore || 0) - (a.media?.averageScore || 0));
   }
@@ -578,8 +587,11 @@ async function doSearch(query) {
         }
       }`;
       const data = await anilist(q, { s: searchQuery, page });
+      // null means the request failed; returning an empty page here would
+      // render as "no results" instead of an error the user can retry.
+      if (!data) return null;
       return {
-        items: rankSearchResults(data?.Page?.media || [], searchQuery),
+        items: rankSearchResults(data.Page?.media || [], searchQuery),
         hasMore: data?.Page?.pageInfo?.hasNextPage || false,
       };
     }, null, null, (el) => skeletonFill(el, 9), 'No results.');
@@ -720,6 +732,9 @@ async function loadSeasonal() {
         year: seasonalView.year,
         sort: [state.seasonalSort],
       });
+      // null means the request failed; returning an empty page here would
+      // render as "no results" instead of an error the user can retry.
+      if (!data) return null;
       return {
         items: data?.Page?.media || [],
         hasMore: data?.Page?.pageInfo?.hasNextPage || false,
@@ -1263,9 +1278,29 @@ async function loadMyList() {
     ? { userId: state.user.id, sort: [apiSort] }
     : { userId: state.user.id, status: state.listStatus, sort: [apiSort] };
 
-  const data = await anilist(q, vars);
+  // onFresh repaints when a stale-but-served copy is refreshed behind the
+  // scenes, so a show added a moment ago appears on its own rather than
+  // waiting for the user to leave Home and come back.
+  const data = await anilist(q, vars, {
+    onFresh: (fresh) => { if (myListReqId === myReq) paint(fresh); },
+  });
   if (myListReqId !== myReq) return;
-  let entries = (data?.MediaListCollection?.lists || []).flatMap(l => l.entries || []);
+  paint(data);
+
+  function paint(result) {
+  // A failed request is NOT an empty list. anilist() returns null when it
+  // gives up, and reading that as zero entries told people with a full list
+  // that their list was empty — the single most alarming way this could fail,
+  // and the thing that made a rate-limited refetch look like data loss.
+  if (!result || !result.MediaListCollection) {
+    grid.innerHTML = `<div class="no-results" style="padding: 50px 20px;">
+      Couldn't load your list.
+      <button class="retry-btn" type="button" style="margin-top: 10px;">Retry</button>
+    </div>`;
+    grid.querySelector('.retry-btn')?.addEventListener('click', () => loadMyList());
+    return;
+  }
+  let entries = (result.MediaListCollection.lists || []).flatMap(l => l.entries || []);
   if (isClientScoreSort) {
     entries = entries.slice().sort((a, b) => (b.media?.averageScore || 0) - (a.media?.averageScore || 0));
   }
@@ -1285,6 +1320,7 @@ async function loadMyList() {
     _idle(() => {
       entries.slice(0, 4).forEach((e) => e?.media?.id && prefetchMedia(e.media.id));
     });
+  }
   }
 }
 
@@ -1451,28 +1487,37 @@ async function loadSocial() {
         if (!state.user) {
           socialMode = 'global';
           const g = await anilist(globalQ(), { page });
+          if (!g) return null;
           return {
             items: rawItems(g),
-            hasMore: g?.Page?.pageInfo?.hasNextPage || false,
+            hasMore: g.Page?.pageInfo?.hasNextPage || false,
           };
         }
         socialMode = null;
         const data = await anilist(friendsQ(), { page });
+        // A failed friends query must not be read as "no friend activity" and
+        // silently demote the user to the global feed — that hid the error AND
+        // changed what they were looking at.
+        if (!data) return null;
         const items = rawItems(data);
         if (items.length > 0) {
           socialMode = 'friends';
-          return { items, hasMore: data?.Page?.pageInfo?.hasNextPage || false };
+          return { items, hasMore: data.Page?.pageInfo?.hasNextPage || false };
         }
-        // Friends had nothing — fall back to everyone
+        // Friends genuinely had nothing — fall back to everyone
         socialMode = 'global';
         const g = await anilist(globalQ(), { page });
+        if (!g) return null;
         return {
           items: rawItems(g),
-          hasMore: g?.Page?.pageInfo?.hasNextPage || false,
+          hasMore: g.Page?.pageInfo?.hasNextPage || false,
         };
       }
       const q = socialMode === 'friends' ? friendsQ() : globalQ();
       const data = await anilist(q, { page });
+      // null means the request failed; returning an empty page here would
+      // render as "no results" instead of an error the user can retry.
+      if (!data) return null;
       return {
         items: rawItems(data),
         hasMore: data?.Page?.pageInfo?.hasNextPage || false,
@@ -1745,6 +1790,9 @@ async function loadCategory() {
         }
       }`;
       const data = await anilist(q, { page });
+      // null means the request failed; returning an empty page here would
+      // render as "no results" instead of an error the user can retry.
+      if (!data) return null;
       return {
         items: data?.Page?.media || [],
         hasMore: data?.Page?.pageInfo?.hasNextPage || false,
@@ -1859,6 +1907,9 @@ async function loadGenre() {
       const data = await anilist(q, {
         genre: genreState.genre, type: genreState.type, sort: [genreState.sort], page,
       });
+      // null means the request failed; returning an empty page here would
+      // render as "no results" instead of an error the user can retry.
+      if (!data) return null;
       return {
         items: data?.Page?.media || [],
         hasMore: data?.Page?.pageInfo?.hasNextPage || false,
@@ -2130,7 +2181,8 @@ async function loadStaff() {
       }`;
       const apiSort = staffState.sort === 'MAIN_ROLES' ? 'POPULARITY_DESC' : staffState.sort;
       const data = await anilist(q, { id: staffState.id, sort: [apiSort], page });
-      const conn = data?.Staff?.characterMedia;
+      if (!data) return null;
+      const conn = data.Staff?.characterMedia;
       let edges = conn?.edges || [];
       if (staffState.sort === 'MAIN_ROLES') {
         const rank = (e) => (e?.characterRole === 'MAIN' ? 0 : e?.characterRole === 'SUPPORTING' ? 1 : 2);

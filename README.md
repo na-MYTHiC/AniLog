@@ -47,6 +47,37 @@ Scripts share a single global scope (classic `<script>` tags, no modules).
 Load order in `index.html` is significant — `config` → `state` → `api` →
 `render` → `app`.
 
+## Tests
+
+```
+npm install playwright      # once
+bash tests/run.sh
+```
+
+Each suite boots the real app from a local static server and points it at a
+fake AniList in `tests/anilist-fake.js` that answers the way the real one
+does — `MediaListCollection` split into one list per status, server-side
+state that a write actually changes, and failure modes (500, 429, timeout,
+malformed JSON, a lying `navigator.onLine`) on demand.
+
+Every one of these exists because something shipped broken:
+
+| suite | guards against |
+| --- | --- |
+| `regress` | boot, every tab at two densities, grid columns staying equal, a lying `navigator.onLine`, the dead-API state |
+| `test-mylist` | My List across every status filter and sort |
+| `test-mylist-fresh` | an added show appearing without navigating; a failed list saying so instead of "empty" |
+| `test-realflow` | the actual tap-through: detail → Add to list → pick status → Save |
+| `test-ratelimit` | a write followed by a rate-limited refetch — must not claim the list is empty |
+| `test-poisoned` | upgrading with a stale or corrupt persisted cache |
+| `test-addtolist` | the list badge updating everywhere the moment a show is added |
+| `test-stampede` | a write not marking the whole cache due for refresh |
+| `test-failstates` | no view ever reporting "no results" when the request actually failed |
+
+The recurring bug in this app has been treating a failed request as empty
+data. If you add a loader, make it return `null` on failure and render
+something the user can retry — never an empty state.
+
 ## Auth
 
 OAuth Implicit Grant via AniList:

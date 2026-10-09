@@ -60,7 +60,13 @@ function setupInfiniteScroll(grid, scrollContainer, fetchPage, renderer, onAppen
     try {
       const result = await fetchPage(page);
       if (myReq !== reqId) return;
-      const items = result?.items || [];
+      // A null result means the request FAILED. Treated as `items: []` it
+      // rendered the caller's empty message — "No results.", "No results for
+      // this genre." — so an outage or a rate limit looked exactly like a
+      // genuinely empty page. Fall into the catch below, which already shows
+      // "Couldn't load more." with a Retry.
+      if (result === null || result === undefined) throw new Error('fetch failed');
+      const items = result.items || [];
       clearSkeletons();
       sentinel.insertAdjacentHTML('beforebegin', items.map(render).join(''));
       if (typeof onAppend === 'function') onAppend(grid);
