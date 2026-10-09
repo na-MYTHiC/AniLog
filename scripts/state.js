@@ -38,6 +38,11 @@ const state = {
   season: 'SPRING',
   seasonYear: 2026,
   seasonalSort: 'TRENDING_DESC',
+  // Which of the Seasonal tab's two views is showing, and whose shows the
+  // schedule lists. Both persist: coming back to the tab you left is the
+  // whole point of remembering a view.
+  seasonalView: 'grid',
+  scheduleScope: 'mine',
   notifs: { episode: true, reply: true, like: true },
   preferEnglish: true,
   strictRelations: true,

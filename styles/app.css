@@ -47,8 +47,14 @@
   justify-content: center;
   min-width: 0;
 }
+/* Holds one or two controls. Flex (rather than the block it used to be) so
+   the Seasonal tab can sit its view switch next to the control that applies
+   to the current view; a bar with a single trigger in it is unchanged. */
 .sort-trigger-bar {
   padding: 14px var(--gutter) 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .sort-list {
@@ -277,7 +283,10 @@
      card set the height of every other one. */
   align-items: flex-start;
   overflow-x: auto;
-  margin: 0 20px;
+  /* --gutter, not a flat 20px. Section headers have always used the gutter, so
+     at Compact (16px) and Spacious (22px) every carousel sat a few pixels out
+     of line with the title directly above it. */
+  margin: 0 var(--gutter);
   padding: 0 0 4px;
   /* proximity, NOT mandatory. Mandatory means the scroll port has to come to
      rest on a snap point no matter what, so Chrome hands a flick to the snap
@@ -624,7 +633,9 @@
 }
 
 .settings-group {
-  margin: 16px 20px;
+  /* --gutter, not a flat 20px: Profile was the one tab whose cards didn't
+     line up with the rest of the app at Compact or Spacious density. */
+  margin: 16px var(--gutter);
   background: var(--surface);
   border-radius: var(--radius);
   overflow: hidden;
@@ -949,12 +960,14 @@
   border: 2px solid var(--surface-2);
   box-sizing: border-box;
 }
-.friend-avatar[data-status="CURRENT"]   .friend-avatar-img { border-color: var(--accent); }
-.friend-avatar[data-status="COMPLETED"] .friend-avatar-img { border-color: #10b981; }
-.friend-avatar[data-status="PLANNING"]  .friend-avatar-img { border-color: #6b7280; }
-.friend-avatar[data-status="PAUSED"]    .friend-avatar-img { border-color: #f59e0b; }
-.friend-avatar[data-status="DROPPED"]   .friend-avatar-img { border-color: #ef4444; }
-.friend-avatar[data-status="REPEATING"] .friend-avatar-img { border-color: #a78bfa; }
+/* Reads the shared --st-* palette (base.css) rather than repeating six hex
+   values, so these rings and the Profile status bar can't drift apart. */
+.friend-avatar[data-status="CURRENT"]   .friend-avatar-img { border-color: var(--st-current); }
+.friend-avatar[data-status="COMPLETED"] .friend-avatar-img { border-color: var(--st-completed); }
+.friend-avatar[data-status="PLANNING"]  .friend-avatar-img { border-color: var(--st-planning); }
+.friend-avatar[data-status="PAUSED"]    .friend-avatar-img { border-color: var(--st-paused); }
+.friend-avatar[data-status="DROPPED"]   .friend-avatar-img { border-color: var(--st-dropped); }
+.friend-avatar[data-status="REPEATING"] .friend-avatar-img { border-color: var(--st-repeating); }
 .friend-avatar-name {
   font-size: 11px;
   color: var(--text-dim);
@@ -1590,6 +1603,10 @@
   display: flex; justify-content: space-between; align-items: baseline;
   margin-bottom: 8px;
 }
+/* The small uppercase label that introduces a field or a block. Shared by the
+   recent-searches header, the filter sheet's sections and the Profile stat
+   blocks — otherwise it would be three copies of the same five declarations. */
+.field-label,
 .recent-header span {
   font-size: 11px; font-weight: 700;
   color: var(--text-dim);
@@ -2062,7 +2079,9 @@
   border-radius: 12px;
   box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4);
 }
-.update-banner[hidden] { display: none; }
+/* The one-off `.update-banner[hidden]` override that used to sit here is gone
+   — base.css now handles [hidden] for every element, which is the same fix
+   applied once instead of per component. */
 
 .update-banner-text {
   flex: 1;
@@ -2261,3 +2280,388 @@
    alone. */
 #tab-search .carousel .card-badge:not(.card-badge-on) { display: none; }
 #tab-search .carousel .card-badges:empty { display: none; }
+
+/* ============ SECTION COUNT ============
+   The right-hand slot of a .section-header when what belongs there is a
+   figure rather than a link — "3 eps", "5". Dim, because unlike .section-link
+   it isn't tappable and shouldn't advertise itself as such. */
+.section-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+/* ============ UP NEXT (Home) ============
+   An ordinary .card in an ordinary .carousel — the only differences are that
+   the corner pill holds the episode you're about to watch instead of the
+   community score (in this one context that IS the point of the card), and
+   that there's a +1 under the title so the common action doesn't need a trip
+   through the detail page.
+
+   Sized four-to-a-row by the same arithmetic the search tab uses, not at the
+   full --card-w. Home is a tab of list rows; at the standard carousel size
+   this strip ran to 310px and pushed the list itself off the fold, which is
+   the opposite of what something called "up next" is for. Four small covers
+   also say "there are more" without needing a scroll hint. */
+.up-next .carousel {
+  --card-gap: 12px;
+  --card-w: calc((100% - 3 * var(--card-gap)) / 4);
+  --card-title-size: 11px;
+  --card-title-mt: 6px;
+  gap: var(--card-gap);
+}
+/* Height follows the fluid width, at the same 1:1.46 as every other cover.
+   width:100% is load-bearing — see the matching note on the search tab. */
+.up-next .carousel .card-image {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1.46;
+}
+.next-ep {
+  position: absolute;
+  top: 5px; right: 5px;
+  background: var(--accent);
+  color: var(--accent-on);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  line-height: 1.15;
+}
+.next-bump {
+  margin-top: 5px;
+  width: 100%;
+  padding: 5px 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-on);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.12s ease, filter 0.15s ease;
+}
+.next-bump:active { transform: scale(0.94); }
+.next-bump:disabled { opacity: 0.45; }
+@media (hover: hover) {
+  .next-bump:hover { filter: brightness(1.08); }
+}
+/* Leaving the strip: the card shrinks out of the row rather than vanishing,
+   so the carousel closing the gap reads as a consequence of the tap. */
+.next-card.leaving {
+  transition: opacity 0.22s ease, transform 0.22s ease;
+  opacity: 0;
+  transform: scale(0.9);
+}
+
+/* ============ WEEKLY SCHEDULE (Seasonal) ============ */
+
+/* Sticky, like the search field: the day you're looking at should still be
+   identifiable thirty rows down, and it doubles as the jump control. */
+.day-rail {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  gap: 8px;
+  padding: 12px var(--gutter);
+  background: var(--bg);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+.day-rail::-webkit-scrollbar { display: none; }
+.day-chip { scroll-snap-align: center; }
+/* The count rides along inside the chip rather than sitting under it, so the
+   rail stays one line tall at every density. */
+.day-chip .day-n {
+  margin-left: 5px;
+  font-weight: 800;
+  opacity: 0.6;
+}
+/* A day with nothing on it stays in the rail — the gap is information — but
+   recedes so the eye skips it. `quiet`, not `empty`: .empty is already the
+   app's full-screen empty state (60px of padding, centred text) and a chip
+   picking that up inherited both. */
+.day-chip.quiet { opacity: 0.4; }
+
+.schedule { padding-bottom: 12px; }
+.sched-day { padding-top: var(--section-pad-y); }
+.sched-day .section-header { margin-bottom: 6px; }
+/* A quiet day is a heading and nothing else — its "Nothing airing" rides in
+   the count slot on the same line. It stays in the list so the rail's chip has
+   somewhere to jump to, but it recedes and costs one row instead of three. */
+.sched-day.quiet { padding-top: 10px; }
+.sched-day.quiet .section-title { color: var(--text-dim); font-weight: 600; }
+.sched-day.quiet .section-header { margin-bottom: 0; }
+.sched-day.quiet .section-count { color: var(--text-faint); }
+
+/* A dim one-line note where a block has nothing to show. Shared by the filter
+   sheet's empty chip rows and the statistics error. */
+.muted-note {
+  font-size: var(--row-meta-size);
+  color: var(--text-faint);
+}
+/* The airing time leads the meta line, so it reads as the row's anchor. */
+.list-row-meta .row-time {
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* ============ SEARCH FILTERS ============ */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 var(--gutter) 2px;
+}
+.filter-result-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Filled, not outlined, once anything is set — the one state that must be
+   impossible to miss, because a forgotten filter looks like a broken app. */
+#filter-btn.on {
+  background: var(--accent);
+  color: var(--accent-on);
+}
+#filter-btn.on > svg:first-child,
+#filter-btn.on strong { color: var(--accent-on); }
+
+/* Same chips as the recent searches directly below, including the × — the
+   two blocks are the same idea and shouldn't look like two ideas. */
+.filter-active {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 10px var(--gutter) 0;
+}
+
+.filter-sheet {
+  max-height: 52vh;
+  overflow-y: auto;
+  margin: 2px 0 14px;
+  scrollbar-width: none;
+}
+.filter-sheet::-webkit-scrollbar { display: none; }
+.filter-section + .filter-section { margin-top: 16px; }
+.filter-section .field-label { display: block; margin-bottom: 8px; }
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+/* Years run to 1960 and the tag list to several hundred. Cap the box rather
+   than letting the sheet grow past the screen — the same trade the season
+   picker's year grid already makes. */
+.filter-chips.scroll {
+  max-height: 124px;
+  overflow-y: auto;
+  align-content: flex-start;
+  scrollbar-width: none;
+}
+.filter-chips.scroll::-webkit-scrollbar { display: none; }
+.filter-search {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  padding: 8px 11px;
+  font-size: 13px;
+  outline: none;
+  margin-bottom: 8px;
+}
+.filter-search:focus { border-color: var(--accent); }
+.filter-actions {
+  display: flex;
+  gap: 8px;
+}
+.filter-actions button { flex: 1; }
+
+/* ============ PROFILE STATISTICS ============
+   Lives inside a .settings-group so it reads as another card on the tab
+   rather than a dashboard bolted onto it. No chart library: a histogram of
+   ten bars and a stacked bar are divs, and a library would be the single
+   largest thing in the app's payload. */
+.stats-group > .stat-block:last-child { border-bottom: none; }
+.stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-bottom: 1px solid var(--border);
+}
+.stat-tile {
+  padding: 14px 4px;
+  text-align: center;
+  min-width: 0;
+}
+.stat-tile + .stat-tile { border-left: 1px solid var(--border); }
+.stat-tile-value {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stat-tile-label {
+  margin-top: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-dim);
+}
+
+.stat-block {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.stat-block .field-label { display: block; margin-bottom: 10px; }
+
+/* The six list statuses, drawn from the shared --st-* palette. This is the
+   only place in the app that needs fixed hues: a stacked bar has no words in
+   it, so colour is the only thing distinguishing the segments. */
+.stats-group [data-status="CURRENT"]   { background: var(--st-current); }
+.stats-group [data-status="COMPLETED"] { background: var(--st-completed); }
+.stats-group [data-status="PLANNING"]  { background: var(--st-planning); }
+.stats-group [data-status="PAUSED"]    { background: var(--st-paused); }
+.stats-group [data-status="DROPPED"]   { background: var(--st-dropped); }
+.stats-group [data-status="REPEATING"] { background: var(--st-repeating); }
+
+.stat-stack {
+  display: flex;
+  height: var(--stat-bar-h);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.stat-seg { min-width: 2px; }
+.stat-legend {
+  margin-top: 11px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px 14px;
+}
+.stat-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.stat-legend-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stat-legend-row strong {
+  margin-left: auto;
+  color: var(--text);
+  font-weight: 700;
+}
+.stat-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.stat-hist {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: var(--chart-h);
+}
+.stat-hist-col {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.stat-hist-bar {
+  min-height: 2px;
+  border-radius: 4px 4px 0 0;
+  background: color-mix(in srgb, var(--accent) 65%, transparent);
+}
+.stat-hist-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+.stat-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.stat-bar-row {
+  display: grid;
+  grid-template-columns: minmax(0, 84px) 1fr auto;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.stat-bar-row[disabled] { cursor: default; }
+.stat-bar-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The same two-layer track as a My List row's progress bar, so a bar means
+   the same thing wherever it appears. */
+.stat-bar-track {
+  height: var(--stat-bar-h);
+  background: var(--surface-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+/* display:block is load-bearing. A span is inline, and width/height don't
+   apply to an inline box — the track itself escapes this because it's a grid
+   item and gets blockified, but its child isn't, so the fill rendered at zero
+   and every bar looked empty. */
+.stat-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+.stat-bar-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+.stat-more {
+  width: 100%;
+  padding: 13px 18px;
+  background: none;
+  border: 0;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+}

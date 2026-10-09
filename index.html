@@ -59,6 +59,19 @@
         <div class="my-list-sub">Your watching & planning library</div>
       </div>
 
+      <!-- Appears only when signed in AND something is actually waiting to be
+           watched. It collapses to nothing when you're caught up rather than
+           showing an "all caught up" rail — that would cost the top of the
+           fold permanently to say something you already know. Populated from
+           the cached Watching list, so it costs no request of its own. -->
+      <div class="section up-next" id="up-next" hidden>
+        <div class="section-header">
+          <div class="section-title">Up next</div>
+          <span class="section-count" id="up-next-count"></span>
+        </div>
+        <div class="carousel" id="up-next-row"></div>
+      </div>
+
       <div class="list-controls">
         <button class="sort-trigger" id="list-status-btn">
           <strong id="list-status-label">Watching</strong>
@@ -102,6 +115,22 @@
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
         </button>
       </div>
+
+      <!-- One trigger, not a row of per-facet dropdowns. The count on the
+           button is the whole point: the way combinable filters go wrong is
+           forgetting one is set and concluding the app is broken. -->
+      <div class="filter-bar">
+        <button class="sort-trigger" id="filter-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4-2v-4z"/></svg>
+          <span>Filters</span>
+          <strong id="filter-count" hidden></strong>
+        </button>
+        <span class="filter-result-count" id="filter-result-count"></span>
+      </div>
+      <!-- Removable chips for whatever is set. Same component as the recent
+           searches below, so the two read as one family rather than two
+           competing ideas stacked on top of each other. -->
+      <div class="filter-active" id="filter-active" hidden></div>
 
       <div class="recent-searches" id="recent-searches" style="display:none;">
         <div class="recent-header">
@@ -205,14 +234,30 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
         </button>
       </div>
+      <!-- One control row in both views: the view switch stays put and the
+           control beside it changes to whichever one applies. Sort has no
+           meaning on a schedule (it's ordered by time) and the scope switch
+           has none on a season grid. -->
       <div class="sort-trigger-bar">
+        <div class="seg" id="seasonal-view-seg">
+          <button class="seg-btn active" data-sview="grid">Grid</button>
+          <button class="seg-btn" data-sview="schedule">Schedule</button>
+        </div>
         <button class="sort-trigger" id="seasonal-sort-btn">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
           <span>Sort: <strong id="seasonal-sort-label">Trending</strong></span>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
         </button>
+        <div class="seg" id="schedule-scope-seg" hidden>
+          <button class="seg-btn active" data-scope="mine">My List</button>
+          <button class="seg-btn" data-scope="all">All airing</button>
+        </div>
       </div>
       <div class="grid" id="seasonal-grid"></div>
+      <div class="schedule" id="seasonal-schedule" hidden>
+        <div class="day-rail" id="day-rail"></div>
+        <div id="schedule-days"></div>
+      </div>
     </section>
 
     <!-- SOCIAL -->
@@ -237,6 +282,15 @@
 
       <!-- Only visible when edits were made offline and haven't synced yet. -->
       <div class="pending-writes" id="pending-writes" hidden></div>
+
+      <!-- Signed-in only — for a guest this could only ever be a block of
+           zeroes. Loaded when the tab is opened, not at boot. -->
+      <div id="stats-section" hidden>
+        <div class="section-header" style="margin-top: 16px;">
+          <div class="section-title">Statistics</div>
+        </div>
+        <div class="settings-group stats-group" id="stats-body"></div>
+      </div>
 
       <div class="section-header" style="margin-top: 16px;">
         <div class="section-title">Appearance</div>
@@ -415,7 +469,7 @@
         <div class="settings-row">
           <div>
             <div class="settings-label">App version</div>
-            <div class="settings-sub" id="update-status">v4.89</div>
+            <div class="settings-sub" id="update-status">v4.90</div>
           </div>
           <button class="btn-secondary" id="update-check-btn">Check for updates</button>
         </div>
@@ -433,7 +487,7 @@
       </div>
 
       <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v4.89 · Powered by AniList
+        AniLog · v4.90 · Powered by AniList
       </div>
     </section>
 
@@ -598,6 +652,20 @@
       <h3 id="season-modal-title">Jump to Season</h3>
       <div class="season-chips" id="season-chips"></div>
       <div class="season-years" id="season-years"></div>
+    </div>
+  </div>
+
+  <!-- Search filters. Sections are built by renderFilterSheet() so the chip
+       rows stay in step with the option lists in config.js. -->
+  <div class="modal-backdrop" role="dialog" aria-modal="true" id="filter-modal" onclick="if(event.target===this)closeFilterModal()">
+    <div class="modal">
+      <div class="modal-grip"></div>
+      <h3>Filters</h3>
+      <div class="filter-sheet" id="filter-sheet"></div>
+      <div class="filter-actions">
+        <button class="btn-secondary" id="filter-clear-btn">Clear all</button>
+        <button class="btn-primary" id="filter-apply-btn">Show results</button>
+      </div>
     </div>
   </div>
 

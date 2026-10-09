@@ -122,7 +122,7 @@ async function loadUserProfile() {
     return;
   }
   const stats = u.statistics?.anime;
-  const hours = stats?.minutesWatched ? Math.round(stats.minutesWatched / 60) : 0;
+  const watched = formatWatchTime(stats?.minutesWatched);
   const avatar = u.avatar?.large || u.avatar?.medium || '';
   const statusLabel = listStatusLabel(userProfileState.status);
   const sortLabel = listSortLabel(userProfileState.sort);
@@ -132,7 +132,7 @@ async function loadUserProfile() {
       <div class="user-hero-info">
         <div class="user-hero-name">${escapeHtml(u.name)}</div>
         <div class="user-hero-stats">
-          <strong>${stats?.count || 0}</strong> anime · <strong>${hours}h</strong> watched
+          <strong>${stats?.count || 0}</strong> anime · <strong>${watched}</strong> watched
         </div>
       </div>
     </div>
@@ -226,7 +226,7 @@ async function loadUserList() {
     </div>`;
     return;
   }
-  rows.innerHTML = entries.map(renderListEntryRow).join('');
+  rows.innerHTML = entries.map((e) => renderListEntryRow(e)).join('');
   // Tap a row → open that anime's detail
   Array.from(rows.children).forEach((wrap) => {
     const mediaId = parseInt(wrap.dataset.mediaId, 10);
@@ -450,6 +450,7 @@ function switchTab(tab) {
   if (tab === 'search') loadSearchTab();
   if (tab === 'seasonal') loadSeasonal();
   if (tab === 'social') loadSocial();
+  if (tab === 'profile' && state.user) loadProfileStats();
   if (tab === 'home' && state.user) loadMyList();
 }
 
@@ -544,9 +545,13 @@ searchInput.addEventListener('input', (e) => {
   const v = e.target.value.trim();
   searchClear.classList.toggle('visible', v.length > 0);
   clearTimeout(searchTimer);
-  if (!v) {
+  // An empty box is only "back to the carousels" when nothing else is
+  // narrowing the results. With a filter set, clearing the text leaves you
+  // browsing that filter rather than throwing the selection away.
+  if (!v && filterCount() === 0) {
     searchPre.classList.remove('hidden');
     searchResults.classList.remove('visible');
+    showResultTotal(null);
     renderRecentSearches();
     return;
   }
@@ -560,9 +565,7 @@ searchInput.addEventListener('input', (e) => {
 searchClear.addEventListener('click', () => {
   searchInput.value = '';
   searchClear.classList.remove('visible');
-  searchPre.classList.remove('hidden');
-  searchResults.classList.remove('visible');
-  renderRecentSearches();
+  applyFilters();
   searchInput.focus();
 });
 
@@ -578,18 +581,22 @@ async function doSearch(query) {
     // (unlike the Genre/Studio/Staff overlays, which scroll .overlay-body).
     const scrollEl = document.getElementById('content');
     searchScroller = setupInfiniteScroll(searchGrid, scrollEl, async (page) => {
-      const q = `query ($s: String, $page: Int) {
+      const f = mediaFilterArgs();
+      const q = `query ($page: Int${f.defs.length ? ', ' + f.defs.join(', ') : ''}) {
         Page(page: $page, perPage: 30) {
-          pageInfo { hasNextPage }
-          media(search: $s, type: ANIME, isAdult: false, sort: [POPULARITY_DESC]) {
+          pageInfo { hasNextPage total }
+          media(type: ANIME, isAdult: false, sort: [${searchFilters.sort}]${f.args.length ? ', ' + f.args.join(', ') : ''}) {
             ${MEDIA_FRAGMENT}
           }
         }
       }`;
-      const data = await anilist(q, { s: searchQuery, page });
+      const data = await anilist(q, { page, ...f.vars });
       // null means the request failed; returning an empty page here would
       // render as "no results" instead of an error the user can retry.
       if (!data) return null;
+      // The total rides along on the query that was happening anyway, so the
+      // count on the bar costs nothing extra.
+      if (page === 1) showResultTotal(data.Page?.pageInfo?.total);
       return {
         items: rankSearchResults(data.Page?.media || [], searchQuery),
         hasMore: data?.Page?.pageInfo?.hasNextPage || false,
@@ -600,8 +607,322 @@ async function doSearch(query) {
   await searchScroller.reload();
   // A newer keystroke may have started another search while we awaited.
   if (searchQuery !== query) return;
-  if (searchGrid.querySelector('.card')) saveRecentSearch(query);
+  if (query && searchGrid.querySelector('.card')) saveRecentSearch(query);
 }
+
+// ============ SEARCH FILTERS ============
+// One trigger and a row of removable chips, rather than a row of per-facet
+// dropdowns. The count on the trigger is the part that matters: combinable
+// filters fail by being forgotten, and a forgotten filter is indistinguishable
+// from a broken app.
+//
+// Deliberately not persisted. A filter still set from last week would be the
+// same bug wearing a hat.
+const searchFilters = {
+  genres: [], tags: [], formats: [],
+  year: null, season: null, status: null, minScore: 0,
+  sort: 'POPULARITY_DESC',
+};
+
+function filterCount() {
+  return searchFilters.genres.length + searchFilters.tags.length + searchFilters.formats.length
+    + (searchFilters.year ? 1 : 0) + (searchFilters.season ? 1 : 0)
+    + (searchFilters.status ? 1 : 0) + (searchFilters.minScore ? 1 : 0);
+}
+
+// Builds the variable definitions, the media() arguments and the variables for
+// whatever is set. Everything goes through GraphQL variables rather than being
+// interpolated, so a genre or tag name can't reach the query text.
+function mediaFilterArgs() {
+  const defs = [], args = [], vars = {};
+  const add = (def, arg, name, value) => { defs.push(def); args.push(arg); vars[name] = value; };
+  const q = (searchQuery || '').trim();
+  if (q) add('$s: String', 'search: $s', 's', q);
+  if (searchFilters.genres.length) add('$genres: [String]', 'genre_in: $genres', 'genres', searchFilters.genres);
+  if (searchFilters.tags.length) add('$tags: [String]', 'tag_in: $tags', 'tags', searchFilters.tags);
+  if (searchFilters.formats.length) add('$formats: [MediaFormat]', 'format_in: $formats', 'formats', searchFilters.formats);
+  if (searchFilters.year) add('$year: Int', 'seasonYear: $year', 'year', searchFilters.year);
+  if (searchFilters.season) add('$season: MediaSeason', 'season: $season', 'season', searchFilters.season);
+  if (searchFilters.status) add('$status: MediaStatus', 'status: $status', 'status', searchFilters.status);
+  if (searchFilters.minScore) add('$minScore: Int', 'averageScore_greater: $minScore', 'minScore', searchFilters.minScore);
+  return { defs, args, vars };
+}
+
+function showResultTotal(total) {
+  const el = document.getElementById('filter-result-count');
+  if (!el) return;
+  el.textContent = Number.isFinite(total)
+    ? `${formatNum(total)} ${total === 1 ? 'result' : 'results'}`
+    : '';
+}
+
+// Every chip in the sheet and on the bar is described by one of these, so a
+// facet is declared once and the sheet, the chip row and the clear-all all
+// read the same list.
+function filterFacets() {
+  return [
+    { key: 'genres',  label: 'Genres',    multi: true,
+      options: GENRE_OPTIONS.map(g => ({ value: g, label: g })) },
+    { key: 'formats', label: 'Format',    multi: true,
+      options: FORMAT_OPTIONS },
+    { key: 'status',  label: 'Status',    multi: false,
+      options: AIRING_STATUS_OPTIONS },
+    { key: 'season',  label: 'Season',    multi: false,
+      options: SEASONS_ORDER.map(s => ({ value: s, label: capitalize(s) })) },
+    { key: 'year',    label: 'Year',      multi: false, scroll: true,
+      options: filterYears().map(y => ({ value: y, label: String(y) })) },
+    { key: 'minScore', label: 'Min score', multi: false, blank: 0,
+      options: MIN_SCORE_OPTIONS },
+    { key: 'tags',    label: 'Tags',      multi: true, scroll: true, search: true,
+      options: null },   // filled from MediaTagCollection on first open
+    { key: 'sort',     label: 'Sort',     multi: false, blank: 'POPULARITY_DESC',
+      options: MEDIA_SORT_OPTIONS },
+  ];
+}
+
+function filterYears() {
+  const years = [];
+  for (let y = state.seasonYear + 1; y >= FILTER_YEAR_MIN; y--) years.push(y);
+  return years;
+}
+
+function facetIsSet(f) {
+  const v = searchFilters[f.key];
+  if (f.multi) return v.length > 0;
+  const blank = Object.prototype.hasOwnProperty.call(f, 'blank') ? f.blank : null;
+  return v !== blank;
+}
+
+// ---- The bar ----
+function renderFilterBar() {
+  const n = filterCount();
+  const btn = document.getElementById('filter-btn');
+  const count = document.getElementById('filter-count');
+  const active = document.getElementById('filter-active');
+  if (!btn || !count || !active) return;
+  btn.classList.toggle('on', n > 0);
+  count.hidden = n === 0;
+  count.textContent = n ? String(n) : '';
+
+  // Chips for what's set, each removable. Same component as the recent
+  // searches below so the two blocks read as one idea.
+  const chips = [];
+  filterFacets().forEach((f) => {
+    if (f.key === 'sort' || !facetIsSet(f)) return;
+    const values = f.multi ? searchFilters[f.key] : [searchFilters[f.key]];
+    values.forEach((v) => {
+      const label = f.options?.find(o => String(o.value) === String(v))?.label ?? String(v);
+      chips.push(`<div class="recent-chip" data-facet="${f.key}" data-value="${escapeHtml(String(v))}">
+        ${escapeHtml(String(label))}
+        <span class="recent-chip-x">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </span>
+      </div>`);
+    });
+  });
+  active.hidden = chips.length === 0;
+  active.innerHTML = chips.length
+    ? chips.join('') + '<a class="recent-clear" id="filter-chip-clear">Clear all</a>'
+    : '';
+}
+
+document.getElementById('filter-active')?.addEventListener('click', (e) => {
+  if (e.target.closest('#filter-chip-clear')) { clearFilters(); return; }
+  const chip = e.target.closest('.recent-chip');
+  if (!chip) return;
+  const f = filterFacets().find(x => x.key === chip.dataset.facet);
+  if (!f) return;
+  if (f.multi) {
+    searchFilters[f.key] = searchFilters[f.key].filter(v => String(v) !== chip.dataset.value);
+  } else {
+    searchFilters[f.key] = Object.prototype.hasOwnProperty.call(f, 'blank') ? f.blank : null;
+  }
+  applyFilters();
+});
+
+function clearFilters() {
+  searchFilters.genres = [];
+  searchFilters.tags = [];
+  searchFilters.formats = [];
+  searchFilters.year = null;
+  searchFilters.season = null;
+  searchFilters.status = null;
+  searchFilters.minScore = 0;
+  searchFilters.sort = 'POPULARITY_DESC';
+  applyFilters();
+}
+
+// Decides which of the two search screens is showing. Filters work with or
+// without text: set a filter and no query and the carousels give way to a
+// browse of everything that matches.
+function applyFilters() {
+  renderFilterBar();
+  renderFilterSheet();
+  const text = searchInput.value.trim();
+  if (!text && filterCount() === 0) {
+    searchPre.classList.remove('hidden');
+    searchResults.classList.remove('visible');
+    showResultTotal(null);
+    renderRecentSearches();
+    return;
+  }
+  searchPre.classList.add('hidden');
+  searchResults.classList.add('visible');
+  renderRecentSearches();
+  if (!searchGrid.querySelector('.card')) skeletonFill(searchGrid, 9);
+  doSearch(text);
+}
+
+// ---- The sheet ----
+let filterTagsLoaded = false;
+let filterTagSearch = '';
+
+function renderFilterSheet() {
+  const sheet = document.getElementById('filter-sheet');
+  if (!sheet || !document.getElementById('filter-modal').classList.contains('visible')) return;
+  sheet.innerHTML = filterFacets().map((f) => {
+    const opts = f.key === 'tags' ? visibleTagOptions() : f.options;
+    const chips = (opts || []).map((o) => {
+      const on = f.multi
+        ? searchFilters[f.key].some(v => String(v) === String(o.value))
+        : String(searchFilters[f.key]) === String(o.value);
+      return `<button class="chip${on ? ' active' : ''}" type="button"
+        data-facet="${f.key}" data-value="${escapeHtml(String(o.value))}">${escapeHtml(o.label)}</button>`;
+    }).join('');
+    return `
+      <div class="filter-section">
+        <span class="field-label">${escapeHtml(f.label)}</span>
+        ${f.search ? `<input class="filter-search" id="filter-tag-search" type="text"
+            placeholder="Search tags…" value="${escapeHtml(filterTagSearch)}">` : ''}
+        <div class="filter-chips${f.scroll ? ' scroll' : ''}">${
+          chips || '<span class="muted-note">Nothing to show.</span>'
+        }</div>
+      </div>`;
+  }).join('');
+}
+
+// AniList carries several hundred tags. The sheet shows a slice of them until
+// you type — rendering the lot would put a few hundred nodes in a 124px box
+// for no benefit — and selected ones are pinned to the front so a tag you set
+// can always be unset without searching for it again.
+const FILTER_TAG_PREVIEW = 36;
+let filterTags = [];
+
+function visibleTagOptions() {
+  const term = filterTagSearch.trim().toLowerCase();
+  const chosen = searchFilters.tags.map(t => ({ value: t, label: t }));
+  const pool = filterTags
+    .filter(t => !searchFilters.tags.includes(t))
+    .filter(t => !term || t.toLowerCase().includes(term))
+    .slice(0, term ? 60 : FILTER_TAG_PREVIEW)
+    .map(t => ({ value: t, label: t }));
+  return [...chosen, ...pool];
+}
+
+async function loadFilterTags() {
+  if (filterTagsLoaded) return;
+  filterTagsLoaded = true;
+  const data = await anilist(`query { MediaTagCollection { name isAdult isGeneralSpoiler } }`, {}, {
+    priority: 'low',
+  });
+  // A failed tag list leaves the section empty rather than blocking the sheet;
+  // the next open tries again.
+  if (!data?.MediaTagCollection) { filterTagsLoaded = false; return; }
+  filterTags = data.MediaTagCollection
+    .filter(t => t && !t.isAdult && !t.isGeneralSpoiler && t.name)
+    .map(t => t.name)
+    .sort((a, b) => a.localeCompare(b));
+  renderFilterSheet();
+}
+
+document.getElementById('filter-sheet')?.addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  const f = filterFacets().find(x => x.key === chip.dataset.facet);
+  if (!f) return;
+  const raw = chip.dataset.value;
+  if (f.multi) {
+    const list = searchFilters[f.key];
+    const i = list.findIndex(v => String(v) === raw);
+    if (i >= 0) list.splice(i, 1); else list.push(raw);
+  } else {
+    // Tapping the current value clears it, so every single-choice row can be
+    // undone without hunting for an "Any" chip that only some rows have.
+    const blank = Object.prototype.hasOwnProperty.call(f, 'blank') ? f.blank : null;
+    const next = f.key === 'year' || f.key === 'minScore' ? parseInt(raw, 10) : raw;
+    searchFilters[f.key] = String(searchFilters[f.key]) === raw ? blank : next;
+  }
+  renderFilterSheet();
+  renderFilterBar();
+  queueFilterPreview();
+});
+
+document.getElementById('filter-sheet')?.addEventListener('input', (e) => {
+  if (e.target.id !== 'filter-tag-search') return;
+  filterTagSearch = e.target.value;
+  const section = e.target.closest('.filter-section');
+  const box = section?.querySelector('.filter-chips');
+  if (!box) return;
+  // Repaints only the tag chips, so the field doesn't lose focus mid-typing.
+  box.innerHTML = visibleTagOptions().map((o) => {
+    const on = searchFilters.tags.includes(o.value);
+    return `<button class="chip${on ? ' active' : ''}" type="button"
+      data-facet="tags" data-value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</button>`;
+  }).join('') || '<span class="muted-note">No matching tags.</span>';
+});
+
+// The live count on the apply button. This is what makes the sheet feel
+// answerable instead of blind — and it's one perPage:1 request on the low
+// priority lane, debounced, so a run of chip taps costs one call.
+let filterPreviewTimer = null;
+function queueFilterPreview() {
+  clearTimeout(filterPreviewTimer);
+  const btn = document.getElementById('filter-apply-btn');
+  if (btn) btn.textContent = 'Show results';
+  filterPreviewTimer = setTimeout(previewFilterCount, 420);
+}
+
+async function previewFilterCount() {
+  const btn = document.getElementById('filter-apply-btn');
+  if (!btn) return;
+  const f = mediaFilterArgs();
+  const q = `query (${['$page: Int', ...f.defs].join(', ')}) {
+    Page(page: $page, perPage: 1) {
+      pageInfo { total }
+      media(type: ANIME, isAdult: false${f.args.length ? ', ' + f.args.join(', ') : ''}) { id }
+    }
+  }`;
+  const data = await anilist(q, { page: 1, ...f.vars }, { priority: 'low' });
+  const total = data?.Page?.pageInfo?.total;
+  // Still the current selection? A later tap may have started another preview.
+  if (!document.getElementById('filter-modal').classList.contains('visible')) return;
+  btn.textContent = Number.isFinite(total)
+    ? `Show ${formatNum(total)} ${total === 1 ? 'result' : 'results'}`
+    : 'Show results';
+}
+
+
+function openFilterModal() {
+  document.getElementById('filter-modal').classList.add('visible');
+  renderFilterSheet();
+  loadFilterTags();
+  queueFilterPreview();
+}
+function closeFilterModal() {
+  document.getElementById('filter-modal').classList.remove('visible');
+}
+window.closeFilterModal = closeFilterModal;
+
+document.getElementById('filter-btn')?.addEventListener('click', openFilterModal);
+document.getElementById('filter-clear-btn')?.addEventListener('click', () => {
+  clearFilters();
+  renderFilterSheet();
+  queueFilterPreview();
+});
+document.getElementById('filter-apply-btn')?.addEventListener('click', () => {
+  closeFilterModal();
+  applyFilters();
+});
 
 // AniList ranks `search` hits across every title variant and synonym, so a
 // show matching only its romaji title can outrank one whose English title is
@@ -679,6 +1000,7 @@ document.getElementById('recent-clear-all').addEventListener('click', () => {
 
 // Initial render of recent searches on boot
 renderRecentSearches();
+renderFilterBar();
 
 // ============ SEASONAL TAB ============
 // The season the seasonal tab is currently displaying (resets to current on reload)
@@ -696,8 +1018,28 @@ function shiftSeason(direction) {
 }
 
 function updateSeasonalHeader() {
-  document.getElementById('seasonal-title').textContent = `${capitalize(seasonalView.season)} ${seasonalView.year}`;
   const sub = document.getElementById('seasonal-sub');
+  const picker = document.getElementById('seasonal-picker-btn');
+  const caret = picker?.querySelector('.seasonal-title-caret');
+  const inSchedule = state.seasonalView === 'schedule';
+
+  // The season controls are hidden rather than disabled in schedule mode: a
+  // rolling seven-day window has no season to step through, and leaving two
+  // dead arrows and a dead caret on screen would just invite taps.
+  document.getElementById('season-prev').hidden = inSchedule;
+  document.getElementById('season-next').hidden = inSchedule;
+  if (caret) caret.style.display = inSchedule ? 'none' : '';
+  if (picker) picker.disabled = inSchedule;
+
+  if (inSchedule) {
+    document.getElementById('seasonal-title').textContent = 'This Week';
+    // Says exactly what the window is, because "Today · 0" at 9pm should read
+    // as "nothing left today" and not as a broken screen.
+    sub.textContent = 'Episodes airing over the next 7 days';
+    return;
+  }
+
+  document.getElementById('seasonal-title').textContent = `${capitalize(seasonalView.season)} ${seasonalView.year}`;
   const isCurrent = seasonalView.season === state.season && seasonalView.year === state.seasonYear;
   if (isCurrent) {
     sub.textContent = 'Trending releases this season';
@@ -716,6 +1058,8 @@ let seasonalScroller = null;
 
 async function loadSeasonal() {
   updateSeasonalHeader();
+  applySeasonalView();
+  if (state.seasonalView === 'schedule') return loadSchedule();
   if (!seasonalScroller) {
     const grid = document.getElementById('seasonal-grid');
     const scrollEl = document.getElementById('content');
@@ -751,6 +1095,260 @@ document.getElementById('season-prev').addEventListener('click', () => {
 document.getElementById('season-next').addEventListener('click', () => {
   shiftSeason('next');
   loadSeasonal();
+});
+
+// ============ WEEKLY SCHEDULE ============
+// Lives on the Seasonal tab rather than in a sixth nav slot: that tab's icon
+// is already a calendar, and five slots at 24px is as many as a phone frame
+// takes. One control row serves both views — the switch stays put and the
+// control beside it changes to whichever one applies.
+//
+// The window is the next seven days, built from each show's nextAiringEpisode.
+// That means every weekly show appears exactly once (a Monday show seen on
+// Tuesday is six days out, still inside), and it costs no schedule query of
+// its own — "My List" reuses the Up Next response, and "All airing" is one
+// request for the currently-releasing shows.
+//
+// A consequence worth being explicit about: nextAiringEpisode is always in the
+// future, so Today holds what is still to come today, not what already went
+// out. The header says so.
+function applySeasonalView() {
+  const inSchedule = state.seasonalView === 'schedule';
+  document.getElementById('seasonal-grid').hidden = inSchedule;
+  document.getElementById('seasonal-schedule').hidden = !inSchedule;
+  document.getElementById('seasonal-sort-btn').hidden = inSchedule;
+  document.getElementById('schedule-scope-seg').hidden = !inSchedule;
+  syncSegState('seasonal-view-seg', 'sview', inSchedule ? 'schedule' : 'grid');
+  syncSegState('schedule-scope-seg', 'scope', state.scheduleScope || 'mine');
+}
+
+document.getElementById('seasonal-view-seg')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.seg-btn');
+  if (!btn || state.seasonalView === btn.dataset.sview) return;
+  state.seasonalView = btn.dataset.sview;
+  savePrefs();
+  document.getElementById('content').scrollTop = 0;
+  loadSeasonal();
+});
+
+document.getElementById('schedule-scope-seg')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.seg-btn');
+  if (!btn || state.scheduleScope === btn.dataset.scope) return;
+  state.scheduleScope = btn.dataset.scope;
+  savePrefs();
+  syncSegState('schedule-scope-seg', 'scope', state.scheduleScope);
+  loadSchedule();
+});
+
+// Normalises both sources into the same shape: an airing slot with the media,
+// the viewer's entry for it when there is one, and when it goes out.
+function airingItemsFrom(mediaList, entryFor) {
+  const days = scheduleWindow();
+  const from = days[0].from;
+  const to = days[6].to;
+  const seen = new Set();
+  const out = [];
+  (mediaList || []).forEach((m) => {
+    const at = m?.nextAiringEpisode?.airingAt;
+    if (!at || at < from || at >= to) return;
+    if (seen.has(m.id)) return;
+    seen.add(m.id);
+    out.push({
+      media: m,
+      entry: entryFor ? entryFor(m) : null,
+      airingAt: at,
+      episode: m.nextAiringEpisode.episode,
+    });
+  });
+  return out.sort((a, b) => a.airingAt - b.airingAt);
+}
+
+// The 100 most popular currently-releasing anime, as two aliased pages in one
+// round trip. No season filter: long-runners like One Piece carry the
+// seasonYear they started in, so filtering by season would drop exactly the
+// shows people most expect on a schedule.
+const ALL_AIRING_QUERY = `query {
+  ${[1, 2].map(p => `p${p}: Page(page: ${p}, perPage: 50) {
+    media(status: RELEASING, type: ANIME, sort: POPULARITY_DESC, isAdult: false) { ${SCHEDULE_MEDIA_FIELDS} }
+  }`).join('\n  ')}
+}`;
+
+let scheduleReqId = 0;
+
+async function loadSchedule() {
+  const myReq = ++scheduleReqId;
+  const body = document.getElementById('schedule-days');
+  const rail = document.getElementById('day-rail');
+  if (!body || !rail) return;
+  const scope = state.scheduleScope || 'mine';
+
+  // Signed out there is no list to schedule, so the scope switch would offer
+  // a choice between "nothing" and "everything". Fall through to All airing.
+  if (scope === 'mine' && !state.user) {
+    rail.innerHTML = '';
+    body.innerHTML = `<div class="no-results">Sign in to see what's airing from your list.</div>`;
+    return;
+  }
+
+  if (!body.querySelector('.list-row-wrap')) skeletonFillRows(body, 5);
+
+  const paint = (result) => {
+    if (scheduleReqId !== myReq) return;
+    if (result === null) return paintSchedule(null);
+    if (scope === 'mine') {
+      // Index once. Walking the list per media turned this into an O(n²) pass
+      // over a few hundred entries for no reason.
+      const byId = new Map(watchingEntries(result).map(e => [e.media.id, e]));
+      return paintSchedule(airingItemsFrom(
+        [...byId.values()].map(e => e.media),
+        (m) => byId.get(m.id) || null,
+      ));
+    }
+    paintSchedule(airingItemsFrom(
+      [...(result.p1?.media || []), ...(result.p2?.media || [])],
+      (m) => (m.mediaListEntry?.id ? { ...m.mediaListEntry, media: m } : null),
+    ));
+  };
+
+  if (scope === 'mine') {
+    const data = await anilist(WATCHING_QUERY, { userId: state.user.id }, {
+      onFresh: (fresh) => paint(fresh?.MediaListCollection ? fresh : null),
+    });
+    if (scheduleReqId !== myReq) return;
+    paint(data?.MediaListCollection ? data : null);
+    return;
+  }
+  const data = await anilist(ALL_AIRING_QUERY, {}, {
+    onFresh: (fresh) => paint(fresh?.p1 ? fresh : null),
+  });
+  if (scheduleReqId !== myReq) return;
+  paint(data?.p1 ? data : null);
+}
+
+let scheduleItems = [];
+let dayObserver = null;
+
+function paintSchedule(items) {
+  const body = document.getElementById('schedule-days');
+  const rail = document.getElementById('day-rail');
+  if (!body || !rail) return;
+
+  // A failed request is not an empty week.
+  if (items === null) {
+    rail.innerHTML = '';
+    body.innerHTML = `<div class="no-results">
+      Couldn't load the schedule.
+      <button class="retry-btn" type="button" style="margin-top: 10px;">Retry</button>
+    </div>`;
+    body.querySelector('.retry-btn')?.addEventListener('click', () => loadSchedule());
+    return;
+  }
+
+  scheduleItems = items;
+  const days = scheduleWindow();
+  const byDay = days.map(d => items.filter(it => it.airingAt >= d.from && it.airingAt < d.to));
+
+  rail.innerHTML = days.map((d, i) => `
+    <button class="chip day-chip${i === 0 ? ' active' : ''}${byDay[i].length ? '' : ' quiet'}" data-day="${i}">
+      ${escapeHtml(d.chip)}<span class="day-n">${byDay[i].length}</span>
+    </button>`).join('');
+
+  if (!items.length) {
+    body.innerHTML = `<div class="no-results">${
+      (state.scheduleScope || 'mine') === 'mine'
+        ? 'Nothing from your list airs in the next 7 days.'
+        : 'Nothing airing in the next 7 days.'
+    }</div>`;
+    return;
+  }
+
+  // An empty day keeps its heading — the rail's chip needs somewhere to land,
+  // and a gap in the week is information. It says so on the heading line
+  // rather than below it: three quiet days in a row is common, and a stacked
+  // note under each cost 70px apiece to say nothing.
+  body.innerHTML = days.map((d, i) => `
+    <div class="sched-day${byDay[i].length ? '' : ' quiet'}" id="sched-day-${i}" data-day="${i}">
+      <div class="section-header">
+        <div class="section-title">${escapeHtml(d.title)}</div>
+        <span class="section-count">${byDay[i].length
+          ? `${byDay[i].length} ${byDay[i].length === 1 ? 'episode' : 'episodes'}`
+          : 'Nothing airing'}</span>
+      </div>
+      ${byDay[i].length
+        ? `<div class="list-rows">${byDay[i].map(renderScheduleRow).join('')}</div>`
+        : ''}
+    </div>`).join('');
+
+  wireScheduleRows(body);
+  observeScheduleDays(body);
+}
+
+// On-list rows get the full My List treatment, swipe included — it's the same
+// row, so it should do the same thing. Rows for shows you don't track have no
+// entry to change, so tapping through is their only action.
+function renderScheduleRow(item) {
+  const entry = item.entry || { id: null, status: null, score: 0, progress: 0, media: item.media };
+  return renderListEntryRow(entry, {
+    lead: `<span class="row-time">${escapeHtml(formatClock(item.airingAt))}</span>`,
+    episode: item.episode,
+    bare: !item.entry,
+  });
+}
+
+function wireScheduleRows(body) {
+  body.querySelectorAll('.list-row-wrap').forEach((wrap) => {
+    const id = parseInt(wrap.dataset.mediaId, 10);
+    const item = scheduleItems.find(it => it.media?.id === id);
+    if (!item) return;
+    if (item.entry) {
+      // Keep the airing time and episode on the row when a swipe repaints it,
+      // or a +1 would silently turn a schedule row into a My List row.
+      attachListRowHandlers(wrap, item.entry, {
+        lead: `<span class="row-time">${escapeHtml(formatClock(item.airingAt))}</span>`,
+        episode: item.episode,
+      });
+    } else {
+      wrap.querySelector('.list-row')?.addEventListener('click', () => openMedia(id));
+    }
+  });
+}
+
+// The rail tracks what you're looking at. An IntersectionObserver on the seven
+// day headings rather than a scroll listener: the listener would have to
+// measure all seven on every frame of a scroll, which is exactly the kind of
+// per-frame work the rest of the app has been stripped of.
+function observeScheduleDays(body) {
+  if (dayObserver) dayObserver.disconnect();
+  const content = document.getElementById('content');
+  if (!('IntersectionObserver' in window) || !content) return;
+  dayObserver = new IntersectionObserver((entries) => {
+    const top = entries
+      .filter(en => en.isIntersecting)
+      .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+    if (!top) return;
+    const i = top.target.dataset.day;
+    document.querySelectorAll('.day-chip').forEach((c) => {
+      c.classList.toggle('active', c.dataset.day === i);
+    });
+  }, { root: content, rootMargin: '-72px 0px -70% 0px' });
+  body.querySelectorAll('.sched-day').forEach(el => dayObserver.observe(el));
+}
+
+// Jump to a day. Sets scrollTop by hand rather than calling scrollIntoView,
+// for the same reason the season picker does: scrollIntoView scrolls every
+// scrollable ancestor, the document included, and drags the whole .app frame
+// out from under the layout.
+document.getElementById('day-rail')?.addEventListener('click', (e) => {
+  const chip = e.target.closest('.day-chip');
+  if (!chip) return;
+  const target = document.getElementById('sched-day-' + chip.dataset.day);
+  const content = document.getElementById('content');
+  const rail = document.getElementById('day-rail');
+  if (!target || !content) return;
+  const offset = target.getBoundingClientRect().top
+    - content.getBoundingClientRect().top
+    - (rail?.offsetHeight || 0);
+  content.scrollTo({ top: content.scrollTop + offset, behavior: 'smooth' });
 });
 
 // ============ SEASON / YEAR JUMP PICKER ============
@@ -917,7 +1515,10 @@ function updateAuthUI() {
   if (state.user) {
     const u = state.user;
     const stats = u.statistics?.anime;
-    const hours = stats?.minutesWatched ? Math.round(stats.minutesWatched / 60) : 0;
+    // Days, matching the Watched tile in the statistics block directly below.
+    // These two sat next to each other quoting the same figure in different
+    // units.
+    const watched = formatWatchTime(stats?.minutesWatched);
     card.innerHTML = `
       <div class="empty-icon" style="width: 72px; height: 72px; border-radius: 50%; padding: 0; overflow: hidden; background: var(--surface-2);">
         ${u.avatar?.large || u.avatar?.medium
@@ -926,7 +1527,7 @@ function updateAuthUI() {
       </div>
       <div class="empty-title">${escapeHtml(u.name)}</div>
       <div class="empty-text">
-        <strong>${stats?.count || 0}</strong> anime · <strong>${hours}h</strong> watched
+        <strong>${stats?.count || 0}</strong> anime · <strong>${watched}</strong> watched
       </div>
       <button class="btn-secondary" onclick="signOut()">Sign out</button>
     `;
@@ -950,16 +1551,123 @@ function updateAuthUI() {
   if (homeEmpty) homeEmpty.style.display = signedIn || hasToken ? 'none' : '';
   if (homeOffline) homeOffline.style.display = knownOffline ? '' : 'none';
   if (myGrid) myGrid.style.display = signedIn ? '' : 'none';
+  // Both of these are projections of a signed-in library — for a guest the
+  // strip would be empty and the statistics would be a block of zeroes.
+  const upNext = document.getElementById('up-next');
+  if (upNext && !signedIn) upNext.hidden = true;
+  const statsSection = document.getElementById('stats-section');
+  if (statsSection) statsSection.hidden = !signedIn;
 
   // Signing in or out changes whether there's a token to reveal.
   refreshSetupCodes();
 }
 
+// ============ PROFILE STATISTICS ============
+// Loaded when the Profile tab is opened, not at boot. The boot-time Viewer
+// call is the first request the app makes and everything waits behind it, so
+// the four extra field sets belong on a query nobody is waiting for.
+let statsReqId = 0;
 
-function attachListRowHandlers(wrap, entry) {
+async function loadProfileStats() {
+  const section = document.getElementById('stats-section');
+  const body = document.getElementById('stats-body');
+  if (!section || !body) return;
+  if (!state.user) { section.hidden = true; return; }
+  section.hidden = false;
+  if (!body.querySelector('.stat-tiles') || body.querySelector('.skeleton')) {
+    body.innerHTML = statsSkeleton();
+  }
+
+  const myReq = ++statsReqId;
+  const q = `query ($id: Int) {
+    User(id: $id) { id statistics { anime { ${VIEWER_STATS_FIELDS} } } }
+  }`;
+  const data = await anilist(q, { id: state.user.id }, {
+    onFresh: (fresh) => { if (statsReqId === myReq) paintStats(fresh?.User?.statistics?.anime); },
+  });
+  if (statsReqId !== myReq) return;
+  paintStats(data?.User?.statistics?.anime);
+}
+
+function paintStats(s) {
+  const body = document.getElementById('stats-body');
+  if (!body) return;
+  // A failed request is not an empty profile — leave a previous paint alone
+  // and offer a retry only when there's nothing to leave.
+  if (!s) {
+    if (body.querySelector('.stat-tiles') && !body.querySelector('.skeleton')) return;
+    body.innerHTML = `<div class="stat-block" style="border-bottom:none">
+      <div class="muted-note">Couldn't load your statistics.
+        <button class="retry-btn" type="button" style="margin-left:8px;">Retry</button>
+      </div>
+    </div>`;
+    body.querySelector('.retry-btn')?.addEventListener('click', () => loadProfileStats());
+    return;
+  }
+
+  const mean = s.meanScore ? (s.meanScore / 10).toFixed(1) : '—';
+  body.innerHTML = `
+    <div class="stat-tiles">
+      ${statTile(formatNum(s.count || 0), 'Titles')}
+      ${statTile(formatNum(s.episodesWatched || 0), 'Episodes')}
+      ${statTile(formatWatchTime(s.minutesWatched), 'Watched')}
+      ${statTile(mean, 'Mean')}
+    </div>
+    ${renderStatStack(s.statuses)}
+    ${renderStatHist(s.scores)}
+    ${renderStatBars('Top genres', (s.genres || []).map(g => ({ name: g.genre, count: g.count })), 'genre')}
+    <button class="stat-more" type="button" id="stats-more-btn">Show more</button>
+    <div id="stats-extra" hidden>
+      ${renderStatBars('Formats', (s.formats || []).map(f => ({
+        // The option list's own label, not capitalize() — that turns "TV"
+        // into "Tv" and "TV_SHORT" into "Tv short".
+        name: FORMAT_OPTIONS.find(o => o.value === f.format)?.label || capitalize(f.format),
+        count: f.count,
+      })), 'format')}
+      ${renderStatBars('Release years', (s.releaseYears || []).map(y => ({ name: y.releaseYear, count: y.count })), 'year')}
+    </div>`;
+
+  const more = document.getElementById('stats-more-btn');
+  const extra = document.getElementById('stats-extra');
+  if (more && extra) {
+    more.addEventListener('click', () => {
+      extra.hidden = !extra.hidden;
+      more.textContent = extra.hidden ? 'Show more' : 'Show less';
+    });
+  }
+}
+
+// Every bar and column goes somewhere. A statistic you can't act on is just
+// decoration, and the destinations already exist — the genre browser, the
+// search tab's filters, and the list's own status/score views.
+document.getElementById('stats-body')?.addEventListener('click', (e) => {
+  const row = e.target.closest('.stat-bar-row');
+  if (!row || row.disabled) return;
+  const kind = row.dataset.statKind;
+  const value = row.dataset.statValue;
+  if (kind === 'genre') { openGenre(value, 'ANIME'); return; }
+  // Formats and years land on Search with that one filter applied, which is
+  // the browse those bars imply.
+  clearFilters();
+  if (kind === 'format') {
+    const match = FORMAT_OPTIONS.find(o => o.label.toLowerCase() === String(value).toLowerCase());
+    if (match) searchFilters.formats = [match.value];
+  } else if (kind === 'year') {
+    searchFilters.year = parseInt(value, 10);
+  }
+  switchTab('search');
+  applyFilters();
+});
+
+
+// `opts` is forwarded to the row renderer on every repaint. My List passes
+// nothing; the schedule passes the airing time and episode, without which a
+// +1 would quietly redraw a schedule row as a plain My List row.
+function attachListRowHandlers(wrap, entry, opts) {
   const row = wrap.querySelector('.list-row');
   const actionAdd = wrap.querySelector('.list-row-action-add');
   const actionSub = wrap.querySelector('.list-row-action-sub');
+  if (!row || !actionAdd || !actionSub) return;
   let startX = 0, startY = 0, dx = 0;
   let isDragging = false, isHorizontal = false, dragged = false;
   const THRESHOLD = 72; // pixels of drag to trigger an action
@@ -1001,9 +1709,9 @@ function attachListRowHandlers(wrap, entry) {
     const finalDx = dx;
     row.style.transform = '';
     if (finalDx <= -THRESHOLD) {
-      bumpProgress(entry, +1, wrap);
+      bumpProgress(entry, +1, wrap, opts);
     } else if (finalDx >= THRESHOLD) {
-      bumpProgress(entry, -1, wrap);
+      bumpProgress(entry, -1, wrap, opts);
     }
   };
   row.addEventListener('pointerup', finish);
@@ -1016,32 +1724,22 @@ function attachListRowHandlers(wrap, entry) {
   });
 }
 
-// Optimistically update progress, then fire mutation; revert + reload on failure
-async function bumpProgress(entry, delta, wrap) {
-  if (!entry?.media) return;
+// The progress write itself, shared by the swipe on a My List row and the +1
+// on an Up Next card. Those two draw a row and a card respectively, so the
+// caller supplies `repaint` and this function owns only the parts that are
+// genuinely the same: clamping, the optimistic update, the completed-status
+// promotion, and reverting when the server disagrees.
+//
+// Returns 'noop' (clamped — nothing to do), 'saved', 'queued' (offline, the
+// optimistic value is now the pending truth) or 'failed'.
+async function commitProgress(entry, delta, repaint) {
+  if (!entry?.media) return 'noop';
   const total = entry.media.episodes || Infinity;
   const newProgress = Math.max(0, Math.min(total, (entry.progress || 0) + delta));
-  if (newProgress === (entry.progress || 0)) return;
+  if (newProgress === (entry.progress || 0)) return 'noop';
   const oldProgress = entry.progress || 0;
   entry.progress = newProgress;
-
-  // Optimistic re-render of just this row. Swap the CONTENTS, not the node:
-  // the swipe that triggered this is mid-snap-back on `.list-row`, and
-  // replacing that element throws the running transition away — the row
-  // teleports home instead of easing there. Rewriting its innards leaves the
-  // animating element (and its already-attached handlers) untouched.
-  const tmp = document.createElement('div');
-  tmp.innerHTML = renderListEntryRow(entry);
-  const freshRow = tmp.querySelector('.list-row');
-  const row = wrap.querySelector('.list-row');
-  if (freshRow && row) {
-    row.innerHTML = freshRow.innerHTML;
-  } else {
-    // Shape changed out from under us — fall back to a whole-row swap.
-    const newWrap = tmp.firstElementChild;
-    wrap.replaceWith(newWrap);
-    attachListRowHandlers(newWrap, entry);
-  }
+  repaint();
 
   // If user just completed the show (progress === total), auto-bump to COMPLETED status
   const becomesCompleted = total !== Infinity && newProgress === total && entry.status !== 'COMPLETED';
@@ -1060,19 +1758,182 @@ async function bumpProgress(entry, delta, wrap) {
   // row is now the pending truth, so reverting it would throw the edit away.
   if (queued) {
     if (becomesCompleted) entry.status = 'COMPLETED';
-    return;
+    return 'queued';
   }
   if (!data?.SaveMediaListEntry) {
-    // Revert + reload
     entry.progress = oldProgress;
-    loadMyList();
-    return;
+    repaint();
+    return 'failed';
   }
   entry.status = data.SaveMediaListEntry.status;
-  // If we moved into a different list bucket, reload so the row drops off
-  if (becomesCompleted && state.listStatus !== 'ALL' && state.listStatus !== 'COMPLETED') {
+  return 'saved';
+}
+
+// Optimistic re-render of just this row. Swaps the CONTENTS, not the node:
+// the swipe that triggered this is mid-snap-back on `.list-row`, and replacing
+// that element throws the running transition away — the row teleports home
+// instead of easing there. Rewriting its innards leaves the animating element
+// (and its already-attached handlers) untouched.
+function repaintListRow(wrap, entry, opts) {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = renderListEntryRow(entry, opts);
+  const freshRow = tmp.querySelector('.list-row');
+  const row = wrap.querySelector('.list-row');
+  if (freshRow && row) {
+    row.innerHTML = freshRow.innerHTML;
+    return;
+  }
+  // Shape changed out from under us — fall back to a whole-row swap.
+  const newWrap = tmp.firstElementChild;
+  if (!newWrap) return;
+  wrap.replaceWith(newWrap);
+  attachListRowHandlers(newWrap, entry);
+}
+
+async function bumpProgress(entry, delta, wrap, opts) {
+  const wasStatus = entry.status;
+  const result = await commitProgress(entry, delta, () => repaintListRow(wrap, entry, opts));
+  if (result === 'noop') return;
+  if (result === 'failed') { loadMyList(); return; }
+  // Moved into a different list bucket — reload so the row drops off the view
+  // it no longer belongs to.
+  if (entry.status !== wasStatus && state.listStatus !== 'ALL' && state.listStatus !== entry.status) {
     loadMyList();
   }
+  // The strip is a projection of the same list, so it has to follow.
+  loadUpNext();
+}
+
+// ============ UP NEXT (Home) ============
+// Everything you're behind on, most-behind first. One query shared with the
+// schedule's "My List" scope, so visiting both costs one request, not two.
+const UP_NEXT_MEDIA = `
+  id
+  title { userPreferred english romaji }
+  coverImage { large color }
+  averageScore
+  format
+  episodes
+  status
+  nextAiringEpisode { airingAt episode timeUntilAiring }
+`;
+const WATCHING_QUERY = `query ($userId: Int) {
+  MediaListCollection(userId: $userId, type: ANIME, status_in: [CURRENT, REPEATING], sort: UPDATED_TIME_DESC) {
+    lists { entries { id status score progress media { ${UP_NEXT_MEDIA} } } }
+  }
+}`;
+
+// status_in is filtered again here rather than trusted: the same cached
+// response feeds the schedule, and a narrowing that only exists server-side
+// is one API change away from quietly widening.
+function watchingEntries(result) {
+  return (result?.MediaListCollection?.lists || [])
+    .flatMap(l => l.entries || [])
+    .filter(e => e?.media && (e.status === 'CURRENT' || e.status === 'REPEATING'));
+}
+
+// A show you're caught up on is not "up next" — it's excluded entirely, which
+// is what lets the strip disappear instead of standing there empty. Ordered by
+// how far behind you are, then by what airs soonest.
+function upNextEntries(result) {
+  return watchingEntries(result)
+    .map(e => ({ e, behind: airedCount(e.media) - (e.progress || 0) }))
+    .filter(x => x.behind > 0)
+    .sort((a, b) => b.behind - a.behind
+      || (a.e.media.nextAiringEpisode?.timeUntilAiring ?? Infinity)
+       - (b.e.media.nextAiringEpisode?.timeUntilAiring ?? Infinity))
+    .map(x => x.e)
+    .slice(0, 20);
+}
+
+let upNextReqId = 0;
+let upNextRows = [];
+
+async function loadUpNext() {
+  const section = document.getElementById('up-next');
+  if (!section) return;
+  if (!state.user) { section.hidden = true; return; }
+  const myReq = ++upNextReqId;
+  const data = await anilist(WATCHING_QUERY, { userId: state.user.id }, {
+    onFresh: (fresh) => { if (upNextReqId === myReq) paintUpNext(fresh); },
+  });
+  if (upNextReqId !== myReq) return;
+  paintUpNext(data);
+}
+
+// A failed fetch leaves whatever was already on screen alone and hides the
+// strip only when it has never painted. This is a secondary view of data the
+// rows below already show, so an error panel here would be the third thing on
+// screen saying the same request failed.
+function paintUpNext(result) {
+  const section = document.getElementById('up-next');
+  const row = document.getElementById('up-next-row');
+  if (!section || !row) return;
+  if (!result?.MediaListCollection) {
+    if (!row.children.length) section.hidden = true;
+    return;
+  }
+  upNextRows = upNextEntries(result);
+  if (!upNextRows.length) {
+    section.hidden = true;
+    row.innerHTML = '';
+    return;
+  }
+  section.hidden = false;
+  document.getElementById('up-next-count').textContent = String(upNextRows.length);
+  row.innerHTML = upNextRows.map(renderNextCard).join('');
+}
+
+document.getElementById('up-next-row')?.addEventListener('click', (e) => {
+  const bump = e.target.closest('.next-bump');
+  const card = e.target.closest('.next-card');
+  if (!card) return;
+  const id = parseInt(card.dataset.mediaId, 10);
+  const entry = upNextRows.find(x => x.media?.id === id);
+  if (!bump) { openMedia(id); return; }
+  if (!entry) return;
+  bumpFromCard(entry, card, bump);
+});
+
+async function bumpFromCard(entry, card, btn) {
+  btn.disabled = true;
+  const result = await commitProgress(entry, +1, () => {
+    const pill = card.querySelector('.next-ep');
+    if (pill) pill.textContent = `EP ${(entry.progress || 0) + 1}`;
+  });
+  if (result === 'failed') {
+    btn.disabled = false;
+    showToast("Couldn't save — try again");
+    return;
+  }
+  if (result === 'noop') { btn.disabled = false; return; }
+  // Caught up (or the show moved out of Watching) — the card has no reason to
+  // be in the strip any more. Animate it out rather than letting the carousel
+  // close the gap instantly, so the tap and the consequence stay connected.
+  const stillBehind = airedCount(entry.media) - (entry.progress || 0) > 0
+    && (entry.status === 'CURRENT' || entry.status === 'REPEATING');
+  if (!stillBehind) {
+    card.classList.add('leaving');
+    // The list refresh waits for the animation. loadMyList repaints the strip
+    // too, and doing that now would replace the card mid-transition — it would
+    // simply vanish, which is the teleport-instead-of-animate problem the
+    // swipe rows already had once.
+    setTimeout(() => { card.remove(); refreshUpNextCount(); loadMyList(); }, 240);
+    return;
+  }
+  btn.disabled = false;
+  loadMyList();
+}
+
+// Recount from what's actually on screen after a card leaves, rather than
+// refetching just to update one number.
+function refreshUpNextCount() {
+  const row = document.getElementById('up-next-row');
+  const section = document.getElementById('up-next');
+  if (!row || !section) return;
+  const n = row.querySelectorAll('.next-card').length;
+  if (!n) { section.hidden = true; return; }
+  document.getElementById('up-next-count').textContent = String(n);
 }
 
 // Opens the list edit sheet with a synthetic (new) entry so the user picks the status.
@@ -1240,6 +2101,9 @@ async function removeFromList() {
 let myListReqId = 0;
 async function loadMyList() {
   if (!state.user) return;
+  // Both views of the same library, refreshed together from one call site so
+  // they can't disagree about what's on the list.
+  loadUpNext();
   const myReq = ++myListReqId;
   const grid = document.getElementById('my-list-grid');
   if (!grid) return;
@@ -1309,7 +2173,7 @@ async function loadMyList() {
       Your <strong>${escapeHtml(listStatusLabel(state.listStatus))}</strong> list is empty.
     </div>`;
   } else {
-    grid.innerHTML = entries.map(renderListEntryRow).join('');
+    grid.innerHTML = entries.map((e) => renderListEntryRow(e)).join('');
     // Attach swipe + tap handlers
     Array.from(grid.children).forEach((wrap, i) => {
       if (entries[i]) attachListRowHandlers(wrap, entries[i]);

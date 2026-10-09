@@ -163,6 +163,77 @@ const MEDIA_DETAIL_CARDS = `
   }
 `;
 
+// Everything a row or card needs for the weekly schedule. Deliberately not
+// MEDIA_FRAGMENT: that one carries `nextAiringEpisode { episode }` without the
+// timestamp, and the schedule is built entirely out of that timestamp. It also
+// asks for the full list entry (not just its status) so a schedule row can
+// render the same progress bar and +1 swipe as a My List row.
+const SCHEDULE_MEDIA_FIELDS = `
+  id
+  title { userPreferred english romaji }
+  coverImage { large color }
+  averageScore
+  format
+  episodes
+  status
+  nextAiringEpisode { airingAt episode timeUntilAiring }
+  mediaListEntry { id status score progress }
+`;
+
+// Profile statistics. No `limit:`/`sort:` args — the lists are tiny (18 genres,
+// 10 score buckets, ~40 release years) and sorting them here would make the
+// query depend on enum names that only exist on AniList's side. Sliced and
+// sorted in renderStatBars instead, where a schema change can't blank the
+// whole block.
+const VIEWER_STATS_FIELDS = `
+  count
+  episodesWatched
+  minutesWatched
+  meanScore
+  statuses { status count }
+  scores { score count }
+  genres { genre count }
+  formats { format count }
+  releaseYears { releaseYear count }
+`;
+
+// ============ SEARCH FILTERS ============
+// AniList's own genre vocabulary. Hentai is omitted because every query in the
+// app passes isAdult: false, so the chip could only ever return nothing.
+const GENRE_OPTIONS = [
+  'Action', 'Adventure', 'Comedy', 'Drama', 'Ecchi', 'Fantasy',
+  'Horror', 'Mahou Shoujo', 'Mecha', 'Music', 'Mystery', 'Psychological',
+  'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Supernatural', 'Thriller',
+];
+
+const FORMAT_OPTIONS = [
+  { value: 'TV',       label: 'TV' },
+  { value: 'TV_SHORT', label: 'TV Short' },
+  { value: 'MOVIE',    label: 'Movie' },
+  { value: 'OVA',      label: 'OVA' },
+  { value: 'ONA',      label: 'ONA' },
+  { value: 'SPECIAL',  label: 'Special' },
+  { value: 'MUSIC',    label: 'Music' },
+];
+
+const AIRING_STATUS_OPTIONS = [
+  { value: 'RELEASING',        label: 'Airing' },
+  { value: 'FINISHED',         label: 'Finished' },
+  { value: 'NOT_YET_RELEASED', label: 'Upcoming' },
+];
+
+// Buckets rather than a slider: averageScore_greater is a coarse filter and a
+// slider on a phone can't hit a specific value anyway.
+const MIN_SCORE_OPTIONS = [
+  { value: 0,  label: 'Any' },
+  { value: 60, label: '60+' },
+  { value: 70, label: '70+' },
+  { value: 80, label: '80+' },
+  { value: 90, label: '90+' },
+];
+
+const FILTER_YEAR_MIN = 1960;
+
 const SEASONS_ORDER = ['WINTER', 'SPRING', 'SUMMER', 'FALL'];
 
 const MEDIA_SORT_OPTIONS = [

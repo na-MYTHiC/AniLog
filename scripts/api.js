@@ -297,11 +297,25 @@ function invalidateAfterWrite() {
   schedulePersist();
 }
 
-// Rewrite mediaListEntry on every cached copy of one media, so each view is
-// already correct the next time it renders — no refetch, and nothing stale.
+// Rewrite the viewer's entry on every cached copy of one media, so each view
+// is already correct the next time it renders — no refetch, and nothing stale.
+//
+// Two shapes carry it, and both have to be patched:
+//   a media node, which embeds `mediaListEntry` — cards and detail pages
+//   a MediaList row, which IS the entry and holds `media` — My List, Up Next,
+//   the schedule's "My List" scope
+//
+// Only the first was patched before, which is why a progress bump left the
+// cached list rows holding the old number. The list is also marked stale by
+// invalidateAfterWrite, so the next read served that old number instantly and
+// corrected it a round-trip later — visible as a row snapping back to its
+// previous progress, or an Up Next card reappearing after the +1 that should
+// have retired it.
 //
 // `entry` is the mutation's own SaveMediaListEntry payload, or null when the
-// entry was deleted.
+// entry was deleted. A deleted row is left in place rather than spliced out:
+// membership changes are what invalidateAfterWrite's refresh is for, and
+// removing an element mid-walk means reaching for its parent array.
 function patchCachedListEntry(mediaId, entry) {
   if (!mediaId) return;
   const seen = new Set();
@@ -314,6 +328,14 @@ function patchCachedListEntry(mediaId, entry) {
     // has no mediaListEntry of its own, so it can't be hit by accident.
     if (node.id === mediaId && Object.prototype.hasOwnProperty.call(node, 'mediaListEntry')) {
       node.mediaListEntry = entry ? { ...(node.mediaListEntry || {}), ...entry } : null;
+    }
+    // A MediaList row: it owns `media` and tracks progress itself. Guarded on
+    // `progress` so a media node that merely nests another media can't match.
+    if (entry && node.media && node.media.id === mediaId
+        && Object.prototype.hasOwnProperty.call(node, 'progress')) {
+      if (entry.progress !== undefined) node.progress = entry.progress;
+      if (entry.status !== undefined) node.status = entry.status;
+      if (entry.score !== undefined) node.score = entry.score;
     }
     Object.keys(node).forEach((k) => visit(node[k]));
   };

@@ -8,6 +8,18 @@
   /* Text color paired with accent backgrounds. White works for every colored
      theme; applyTheme() flips this to near-black for pale accents (Snow). */
   --accent-on: #ffffff;
+  /* The one status palette in the app. The six list statuses are drawn by the
+     friend-avatar rings on a detail page and by the status bar on Profile;
+     those were two separate copies of the same six hues, which is one edit
+     away from disagreeing. Watching follows the accent so the user's own
+     theme owns the status they look at most; the other five are fixed, since
+     they have to stay distinguishable under all eleven accents. */
+  --st-current: var(--accent);
+  --st-completed: #10b981;
+  --st-planning: #6b7280;
+  --st-paused: #f59e0b;
+  --st-dropped: #ef4444;
+  --st-repeating: #a78bfa;
   --bg: #0d0d12;
   --surface: #16161f;
   --surface-2: #1f1f2b;
@@ -81,6 +93,12 @@
   --hero-name: 18px;
   --hero-sub: 12px;
   --badge-pad-x: 5px;
+  /* Profile statistics. The score histogram and the status bar are the only
+     two fixed-height graphics in the app, so they get tokens rather than
+     magic numbers, and they move with the density setting like everything
+     else. */
+  --chart-h: 84px;
+  --stat-bar-h: 10px;
   /* Reserved height for an offscreen grid card (cover + title + badges).
      Measured on a 412px frame; the `auto` in contain-intrinsic-size replaces
      it with the real height once a card has rendered, so this only has to be
@@ -130,6 +148,8 @@
   --hero-name: 16px;
   --hero-sub: 11.5px;
   --badge-pad-x: 4px;
+  --chart-h: 68px;
+  --stat-bar-h: 9px;
   --card-est-h: 218px;
 }
 
@@ -175,6 +195,8 @@
   --hero-name: 20px;
   --hero-sub: 13px;
   --badge-pad-x: 6px;
+  --chart-h: 104px;
+  --stat-bar-h: 12px;
   --card-est-h: 590px;
 }
 
@@ -207,6 +229,14 @@
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* The `hidden` attribute only sets display:none through the UA stylesheet, so
+   any author rule with its own display wins — and most of what this app hides
+   has one (.seg and .sort-trigger are inline-flex, .season-nav-btn is flex,
+   .grid is grid). Hiding the Seasonal tab's sort control for the schedule view
+   left it on screen, and the hidden season grid went on reserving its padding.
+   One rule, rather than a parallel .is-hidden class to remember to use. */
+[hidden] { display: none !important; }
 
 html, body {
   margin: 0; padding: 0; height: 100%;

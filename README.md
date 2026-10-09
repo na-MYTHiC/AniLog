@@ -73,10 +73,41 @@ Every one of these exists because something shipped broken:
 | `test-addtolist` | the list badge updating everywhere the moment a show is added |
 | `test-stampede` | a write not marking the whole cache due for refresh |
 | `test-failstates` | no view ever reporting "no results" when the request actually failed |
+| `test-newviews` | Up Next, the weekly schedule, search filters and Profile statistics — including that filter values travel as GraphQL variables, and that a bar with a width actually paints one |
 
 The recurring bug in this app has been treating a failed request as empty
 data. If you add a loader, make it return `null` on failure and render
 something the user can retry — never an empty state.
+
+Assert on **computed style**, not on the `hidden` attribute. `hidden` only
+sets `display: none` through the UA stylesheet, so any author rule that
+declares its own `display` beats it — a test that checked `el.hidden` passed
+while four controls were still painted on screen. (`base.css` now carries
+`[hidden] { display: none !important }`, but the testing lesson stands.)
+
+## The four list-aware views
+
+Four screens are projections of the same AniList data, and they share their
+queries deliberately rather than each fetching their own:
+
+- **Up next** (Home) — everything you're behind on, most-behind first, from
+  `WATCHING_QUERY`. Hidden entirely when you're caught up.
+- **Weekly schedule** (Seasonal → Schedule) — a rolling seven days built from
+  each show's `nextAiringEpisode`, so every weekly show lands in exactly one
+  bucket. The *My List* scope reuses the Up Next response and costs no request
+  of its own; *All airing* is one query for the 100 most popular releasing
+  shows. Because `nextAiringEpisode` is always in the future, Today holds what
+  is **still to come** today — the header says so.
+- **Search filters** — one sheet, built from the option lists in `config.js`.
+  Every value goes out as a GraphQL variable; nothing is interpolated into
+  query text.
+- **Profile statistics** — loaded when the tab opens, never at boot, since the
+  boot-time `Viewer` call is what everything else waits behind.
+
+A schedule row and a My List row are the same component
+(`renderListEntryRow`); `opts.bare` is what a row for a show you don't track
+uses, dropping the progress bar, the "behind" count and the swipe targets,
+because none of them mean anything without a list entry.
 
 ## Auth
 
