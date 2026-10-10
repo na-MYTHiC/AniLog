@@ -965,10 +965,10 @@ function renderRecentSearches() {
   const recent = state.recentSearches || [];
   const hasQuery = searchInput.value.trim().length > 0;
   if (recent.length === 0 || hasQuery) {
-    wrap.style.display = 'none';
+    wrap.hidden = true;
     return;
   }
-  wrap.style.display = 'block';
+  wrap.hidden = false;
   chipsWrap.innerHTML = recent.map((q, idx) => `
     <div class="recent-chip" data-query="${escapeHtml(q)}" data-idx="${idx}">
       ${escapeHtml(q)}
@@ -1028,7 +1028,11 @@ function updateSeasonalHeader() {
   // dead arrows and a dead caret on screen would just invite taps.
   document.getElementById('season-prev').hidden = inSchedule;
   document.getElementById('season-next').hidden = inSchedule;
-  if (caret) caret.style.display = inSchedule ? 'none' : '';
+  // toggleAttribute, not .hidden: `hidden` is an HTMLElement property and the
+  // caret is an <svg>, so assigning to it sets a JS expando and leaves the
+  // caret on screen. The [hidden] rule matches the ATTRIBUTE, so this works
+  // for both kinds of element.
+  if (caret) caret.toggleAttribute('hidden', inSchedule);
   if (picker) picker.disabled = inSchedule;
 
   if (inSchedule) {
@@ -1321,16 +1325,27 @@ function observeScheduleDays(body) {
   if (dayObserver) dayObserver.disconnect();
   const content = document.getElementById('content');
   if (!('IntersectionObserver' in window) || !content) return;
-  dayObserver = new IntersectionObserver((entries) => {
-    const top = entries
-      .filter(en => en.isIntersecting)
-      .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
-    if (!top) return;
-    const i = top.target.dataset.day;
-    document.querySelectorAll('.day-chip').forEach((c) => {
-      c.classList.toggle('active', c.dataset.day === i);
+  // The active day is the LAST section whose heading has passed under the
+  // rail, not the first one intersecting a band. Picking the first meant that
+  // with three quiet days stacked at the top of the week, opening the tab
+  // highlighted whichever day happened to cross the band — Sunday — while the
+  // user was plainly looking at Today.
+  //
+  // Reading seven rects inside the observer is fine: it only runs when a
+  // section enters or leaves, not on every scroll frame, which is the whole
+  // reason this isn't a scroll listener.
+  const markActive = () => {
+    const rail = document.getElementById('day-rail');
+    const line = content.getBoundingClientRect().top + (rail?.offsetHeight || 0) + 4;
+    let active = '0';
+    body.querySelectorAll('.sched-day').forEach((el) => {
+      if (el.getBoundingClientRect().top <= line) active = el.dataset.day;
     });
-  }, { root: content, rootMargin: '-72px 0px -70% 0px' });
+    document.querySelectorAll('.day-chip').forEach((c) => {
+      c.classList.toggle('active', c.dataset.day === active);
+    });
+  };
+  dayObserver = new IntersectionObserver(markActive, { root: content, threshold: 0 });
   body.querySelectorAll('.sched-day').forEach(el => dayObserver.observe(el));
 }
 
@@ -1520,9 +1535,9 @@ function updateAuthUI() {
     // units.
     const watched = formatWatchTime(stats?.minutesWatched);
     card.innerHTML = `
-      <div class="empty-icon" style="width: 72px; height: 72px; border-radius: 50%; padding: 0; overflow: hidden; background: var(--surface-2);">
+      <div class="empty-icon profile-avatar">
         ${u.avatar?.large || u.avatar?.medium
-          ? `<img src="${u.avatar.large || u.avatar.medium}" alt="${escapeHtml(u.name)}" style="width: 100%; height: 100%; object-fit: cover;">`
+          ? `<img src="${u.avatar.large || u.avatar.medium}" alt="${escapeHtml(u.name)}">`
           : `<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>`}
       </div>
       <div class="empty-title">${escapeHtml(u.name)}</div>
@@ -1548,13 +1563,11 @@ function updateAuthUI() {
   const signedIn = !!state.user;
   const hasToken = !!state.accessToken;
   const knownOffline = hasToken && !signedIn && window.__anilogViewerFailed === true;
-  if (homeEmpty) homeEmpty.style.display = signedIn || hasToken ? 'none' : '';
-  if (homeOffline) homeOffline.style.display = knownOffline ? '' : 'none';
-  if (myGrid) myGrid.style.display = signedIn ? '' : 'none';
-  // Both of these are projections of a signed-in library — for a guest the
-  // strip would be empty and the statistics would be a block of zeroes.
-  const upNext = document.getElementById('up-next');
-  if (upNext && !signedIn) upNext.hidden = true;
+  if (homeEmpty) homeEmpty.hidden = signedIn || hasToken;
+  if (homeOffline) homeOffline.hidden = !knownOffline;
+  if (myGrid) myGrid.hidden = !signedIn;
+  // Statistics are a projection of a signed-in library — for a guest the block
+  // could only ever be zeroes.
   const statsSection = document.getElementById('stats-section');
   if (statsSection) statsSection.hidden = !signedIn;
 
@@ -1724,51 +1737,6 @@ function attachListRowHandlers(wrap, entry, opts) {
   });
 }
 
-// The progress write itself, shared by the swipe on a My List row and the +1
-// on an Up Next card. Those two draw a row and a card respectively, so the
-// caller supplies `repaint` and this function owns only the parts that are
-// genuinely the same: clamping, the optimistic update, the completed-status
-// promotion, and reverting when the server disagrees.
-//
-// Returns 'noop' (clamped — nothing to do), 'saved', 'queued' (offline, the
-// optimistic value is now the pending truth) or 'failed'.
-async function commitProgress(entry, delta, repaint) {
-  if (!entry?.media) return 'noop';
-  const total = entry.media.episodes || Infinity;
-  const newProgress = Math.max(0, Math.min(total, (entry.progress || 0) + delta));
-  if (newProgress === (entry.progress || 0)) return 'noop';
-  const oldProgress = entry.progress || 0;
-  entry.progress = newProgress;
-  repaint();
-
-  // If user just completed the show (progress === total), auto-bump to COMPLETED status
-  const becomesCompleted = total !== Infinity && newProgress === total && entry.status !== 'COMPLETED';
-  const variables = { mediaId: entry.media.id, progress: newProgress };
-  let mutation = `mutation ($mediaId: Int, $progress: Int) {
-    SaveMediaListEntry(mediaId: $mediaId, progress: $progress) { id progress status }
-  }`;
-  if (becomesCompleted) {
-    mutation = `mutation ($mediaId: Int, $progress: Int, $status: MediaListStatus) {
-      SaveMediaListEntry(mediaId: $mediaId, progress: $progress, status: $status) { id progress status }
-    }`;
-    variables.status = 'COMPLETED';
-  }
-  const { data, queued } = await mutateList(mutation, variables);
-  // Queued means "couldn't reach the server, saved for later" — the optimistic
-  // row is now the pending truth, so reverting it would throw the edit away.
-  if (queued) {
-    if (becomesCompleted) entry.status = 'COMPLETED';
-    return 'queued';
-  }
-  if (!data?.SaveMediaListEntry) {
-    entry.progress = oldProgress;
-    repaint();
-    return 'failed';
-  }
-  entry.status = data.SaveMediaListEntry.status;
-  return 'saved';
-}
-
 // Optimistic re-render of just this row. Swaps the CONTENTS, not the node:
 // the swipe that triggered this is mid-snap-back on `.list-row`, and replacing
 // that element throws the running transition away — the row teleports home
@@ -1787,27 +1755,59 @@ function repaintListRow(wrap, entry, opts) {
   const newWrap = tmp.firstElementChild;
   if (!newWrap) return;
   wrap.replaceWith(newWrap);
-  attachListRowHandlers(newWrap, entry);
+  attachListRowHandlers(newWrap, entry, opts);
 }
 
+// Optimistically move an entry's progress, then reconcile with what the
+// server actually stored. `opts` is the row renderer's options, forwarded so a
+// schedule row repaints as a schedule row.
 async function bumpProgress(entry, delta, wrap, opts) {
+  if (!entry?.media) return;
+  const total = entry.media.episodes || Infinity;
+  const newProgress = Math.max(0, Math.min(total, (entry.progress || 0) + delta));
+  if (newProgress === (entry.progress || 0)) return;
+  const oldProgress = entry.progress || 0;
   const wasStatus = entry.status;
-  const result = await commitProgress(entry, delta, () => repaintListRow(wrap, entry, opts));
-  if (result === 'noop') return;
-  if (result === 'failed') { loadMyList(); return; }
+  entry.progress = newProgress;
+  repaintListRow(wrap, entry, opts);
+
+  // If user just completed the show (progress === total), auto-bump to COMPLETED status
+  const becomesCompleted = total !== Infinity && newProgress === total && entry.status !== 'COMPLETED';
+  const variables = { mediaId: entry.media.id, progress: newProgress };
+  let mutation = `mutation ($mediaId: Int, $progress: Int) {
+    SaveMediaListEntry(mediaId: $mediaId, progress: $progress) { id progress status }
+  }`;
+  if (becomesCompleted) {
+    mutation = `mutation ($mediaId: Int, $progress: Int, $status: MediaListStatus) {
+      SaveMediaListEntry(mediaId: $mediaId, progress: $progress, status: $status) { id progress status }
+    }`;
+    variables.status = 'COMPLETED';
+  }
+  const { data, queued } = await mutateList(mutation, variables);
+  // Queued means "couldn't reach the server, saved for later" — the optimistic
+  // row is now the pending truth, so reverting it would throw the edit away.
+  if (queued) {
+    if (becomesCompleted) entry.status = 'COMPLETED';
+    return;
+  }
+  if (!data?.SaveMediaListEntry) {
+    entry.progress = oldProgress;
+    repaintListRow(wrap, entry, opts);
+    loadMyList();
+    return;
+  }
+  entry.status = data.SaveMediaListEntry.status;
   // Moved into a different list bucket — reload so the row drops off the view
   // it no longer belongs to.
   if (entry.status !== wasStatus && state.listStatus !== 'ALL' && state.listStatus !== entry.status) {
     loadMyList();
   }
-  // The strip is a projection of the same list, so it has to follow.
-  loadUpNext();
 }
 
-// ============ UP NEXT (Home) ============
-// Everything you're behind on, most-behind first. One query shared with the
-// schedule's "My List" scope, so visiting both costs one request, not two.
-const UP_NEXT_MEDIA = `
+// ============ WATCHING LIST ============
+// The viewer's in-progress shows. Read by the schedule's "My List" scope; its
+// own cache key, so switching to the schedule and back costs one request.
+const WATCHING_MEDIA = `
   id
   title { userPreferred english romaji }
   coverImage { large color }
@@ -1819,121 +1819,16 @@ const UP_NEXT_MEDIA = `
 `;
 const WATCHING_QUERY = `query ($userId: Int) {
   MediaListCollection(userId: $userId, type: ANIME, status_in: [CURRENT, REPEATING], sort: UPDATED_TIME_DESC) {
-    lists { entries { id status score progress media { ${UP_NEXT_MEDIA} } } }
+    lists { entries { id status score progress media { ${WATCHING_MEDIA} } } }
   }
 }`;
 
-// status_in is filtered again here rather than trusted: the same cached
-// response feeds the schedule, and a narrowing that only exists server-side
-// is one API change away from quietly widening.
+// status_in is filtered again here rather than trusted: a narrowing that only
+// exists server-side is one API change away from quietly widening.
 function watchingEntries(result) {
   return (result?.MediaListCollection?.lists || [])
     .flatMap(l => l.entries || [])
     .filter(e => e?.media && (e.status === 'CURRENT' || e.status === 'REPEATING'));
-}
-
-// A show you're caught up on is not "up next" — it's excluded entirely, which
-// is what lets the strip disappear instead of standing there empty. Ordered by
-// how far behind you are, then by what airs soonest.
-function upNextEntries(result) {
-  return watchingEntries(result)
-    .map(e => ({ e, behind: airedCount(e.media) - (e.progress || 0) }))
-    .filter(x => x.behind > 0)
-    .sort((a, b) => b.behind - a.behind
-      || (a.e.media.nextAiringEpisode?.timeUntilAiring ?? Infinity)
-       - (b.e.media.nextAiringEpisode?.timeUntilAiring ?? Infinity))
-    .map(x => x.e)
-    .slice(0, 20);
-}
-
-let upNextReqId = 0;
-let upNextRows = [];
-
-async function loadUpNext() {
-  const section = document.getElementById('up-next');
-  if (!section) return;
-  if (!state.user) { section.hidden = true; return; }
-  const myReq = ++upNextReqId;
-  const data = await anilist(WATCHING_QUERY, { userId: state.user.id }, {
-    onFresh: (fresh) => { if (upNextReqId === myReq) paintUpNext(fresh); },
-  });
-  if (upNextReqId !== myReq) return;
-  paintUpNext(data);
-}
-
-// A failed fetch leaves whatever was already on screen alone and hides the
-// strip only when it has never painted. This is a secondary view of data the
-// rows below already show, so an error panel here would be the third thing on
-// screen saying the same request failed.
-function paintUpNext(result) {
-  const section = document.getElementById('up-next');
-  const row = document.getElementById('up-next-row');
-  if (!section || !row) return;
-  if (!result?.MediaListCollection) {
-    if (!row.children.length) section.hidden = true;
-    return;
-  }
-  upNextRows = upNextEntries(result);
-  if (!upNextRows.length) {
-    section.hidden = true;
-    row.innerHTML = '';
-    return;
-  }
-  section.hidden = false;
-  document.getElementById('up-next-count').textContent = String(upNextRows.length);
-  row.innerHTML = upNextRows.map(renderNextCard).join('');
-}
-
-document.getElementById('up-next-row')?.addEventListener('click', (e) => {
-  const bump = e.target.closest('.next-bump');
-  const card = e.target.closest('.next-card');
-  if (!card) return;
-  const id = parseInt(card.dataset.mediaId, 10);
-  const entry = upNextRows.find(x => x.media?.id === id);
-  if (!bump) { openMedia(id); return; }
-  if (!entry) return;
-  bumpFromCard(entry, card, bump);
-});
-
-async function bumpFromCard(entry, card, btn) {
-  btn.disabled = true;
-  const result = await commitProgress(entry, +1, () => {
-    const pill = card.querySelector('.next-ep');
-    if (pill) pill.textContent = `EP ${(entry.progress || 0) + 1}`;
-  });
-  if (result === 'failed') {
-    btn.disabled = false;
-    showToast("Couldn't save — try again");
-    return;
-  }
-  if (result === 'noop') { btn.disabled = false; return; }
-  // Caught up (or the show moved out of Watching) — the card has no reason to
-  // be in the strip any more. Animate it out rather than letting the carousel
-  // close the gap instantly, so the tap and the consequence stay connected.
-  const stillBehind = airedCount(entry.media) - (entry.progress || 0) > 0
-    && (entry.status === 'CURRENT' || entry.status === 'REPEATING');
-  if (!stillBehind) {
-    card.classList.add('leaving');
-    // The list refresh waits for the animation. loadMyList repaints the strip
-    // too, and doing that now would replace the card mid-transition — it would
-    // simply vanish, which is the teleport-instead-of-animate problem the
-    // swipe rows already had once.
-    setTimeout(() => { card.remove(); refreshUpNextCount(); loadMyList(); }, 240);
-    return;
-  }
-  btn.disabled = false;
-  loadMyList();
-}
-
-// Recount from what's actually on screen after a card leaves, rather than
-// refetching just to update one number.
-function refreshUpNextCount() {
-  const row = document.getElementById('up-next-row');
-  const section = document.getElementById('up-next');
-  if (!row || !section) return;
-  const n = row.querySelectorAll('.next-card').length;
-  if (!n) { section.hidden = true; return; }
-  document.getElementById('up-next-count').textContent = String(n);
 }
 
 // Opens the list edit sheet with a synthetic (new) entry so the user picks the status.
@@ -1972,7 +1867,7 @@ function openListEditSheet(media, entry) {
   });
   // Hide the Remove button when there's nothing to remove yet
   const removeBtn = document.getElementById('list-edit-remove-btn');
-  if (removeBtn) removeBtn.style.display = isNew ? 'none' : '';
+  if (removeBtn) removeBtn.hidden = isNew;
   document.getElementById('list-edit-modal').classList.add('visible');
 }
 function closeListEditSheet() {
@@ -2101,13 +1996,10 @@ async function removeFromList() {
 let myListReqId = 0;
 async function loadMyList() {
   if (!state.user) return;
-  // Both views of the same library, refreshed together from one call site so
-  // they can't disagree about what's on the list.
-  loadUpNext();
   const myReq = ++myListReqId;
   const grid = document.getElementById('my-list-grid');
   if (!grid) return;
-  grid.style.display = '';
+  grid.hidden = false;
   skeletonFillRows(grid, 6);
 
   const mediaShape = `
@@ -2631,7 +2523,7 @@ async function openCategory(sort, type, title, opts = {}) {
   document.getElementById('category-sort-label').textContent = labelForSort(sort);
   // Hide the sort dropdown for categories that ARE the sort (Trending / Top / Popular)
   const sortBar = document.querySelector('#category-overlay .sort-trigger-bar');
-  if (sortBar) sortBar.style.display = opts.noSort ? 'none' : '';
+  if (sortBar) sortBar.hidden = !!opts.noSort;
   document.getElementById('category-overlay').classList.add('visible');
   loadCategory();
 }

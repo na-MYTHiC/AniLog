@@ -73,7 +73,8 @@ Every one of these exists because something shipped broken:
 | `test-addtolist` | the list badge updating everywhere the moment a show is added |
 | `test-stampede` | a write not marking the whole cache due for refresh |
 | `test-failstates` | no view ever reporting "no results" when the request actually failed |
-| `test-newviews` | Up Next, the weekly schedule, search filters and Profile statistics — including that filter values travel as GraphQL variables, and that a bar with a width actually paints one |
+| `test-newviews` | the weekly schedule, search filters and Profile statistics — including that filter values travel as GraphQL variables, and that a bar with a width actually paints one |
+| `test-mobile` | the mobile contract: no horizontal overflow and no touch target under 36px at four phone widths, no text field under 16px, `[hidden]` beating every component's display rule, and no inline styles in the markup |
 
 The recurring bug in this app has been treating a failed request as empty
 data. If you add a loader, make it return `null` on failure and render
@@ -85,19 +86,40 @@ declares its own `display` beats it — a test that checked `el.hidden` passed
 while four controls were still painted on screen. (`base.css` now carries
 `[hidden] { display: none !important }`, but the testing lesson stands.)
 
-## The four list-aware views
+## The mobile contract
 
-Four screens are projections of the same AniList data, and they share their
-queries deliberately rather than each fetching their own:
+The app is a phone app, and the things that make it feel like one are easy to
+undo by accident, so `test-mobile` holds them:
 
-- **Up next** (Home) — everything you're behind on, most-behind first, from
-  `WATCHING_QUERY`. Hidden entirely when you're caught up.
+- **Touch targets.** `--tap` (44px) is the floor for a standalone control.
+  `--tap-sm` (36px) is the documented exception for chips and pills that sit
+  several to a row, where 44 would force a wrap at 360px and cost more than it
+  buys. A segmented-control button is 40px inside its own 44px track.
+- **Text fields are 16px or larger.** Safari on iOS zooms the page in when you
+  focus anything smaller, and leaves you zoomed. Four fields were under it.
+- **`height: 100dvh`, not `100%`.** In a browser tab (as opposed to the
+  installed PWA) `100%` resolves against the viewport with the URL bar
+  collapsed, so the bottom nav sat below the fold while the bar was showing.
+- **`overscroll-behavior: none`** on the document, so over-scrolling a list
+  doesn't rubber-band the page or fire pull-to-refresh.
+- **`touch-action: manipulation`** on everything tappable, which drops
+  double-tap-to-zoom and the tap delay browsers hold while waiting for it,
+  plus `user-select: none` so a firm press doesn't select the label.
+- **Corners come from the `--radius-*` scale.** A chip in a wrapping or
+  scrolling row is a pill; a chip in a fixed grid is a rounded rect.
+- **No inline `style` attributes in `index.html`.** Spacing that lives in the
+  markup can't follow the density tokens.
+
+## The three list-aware views
+
+Three screens are projections of the same AniList data:
+
 - **Weekly schedule** (Seasonal → Schedule) — a rolling seven days built from
   each show's `nextAiringEpisode`, so every weekly show lands in exactly one
-  bucket. The *My List* scope reuses the Up Next response and costs no request
-  of its own; *All airing* is one query for the 100 most popular releasing
-  shows. Because `nextAiringEpisode` is always in the future, Today holds what
-  is **still to come** today — the header says so.
+  bucket. The *My List* scope is one `WATCHING_QUERY`; *All airing* is one
+  query for the 100 most popular releasing shows. Because `nextAiringEpisode`
+  is always in the future, Today holds what is **still to come** today — the
+  header says so.
 - **Search filters** — one sheet, built from the option lists in `config.js`.
   Every value goes out as a GraphQL variable; nothing is interpolated into
   query text.

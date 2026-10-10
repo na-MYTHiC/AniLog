@@ -27,7 +27,8 @@ fi
 
 fail=0
 for t in regress test-mylist test-mylist-fresh test-realflow test-ratelimit \
-         test-poisoned test-addtolist test-stampede test-failstates test-newviews; do
+         test-poisoned test-addtolist test-stampede test-failstates test-newviews \
+         test-mobile; do
   printf '%-24s ' "$t"
   if out=$(cd tests && timeout 300 node "$t.js" 2>&1); then echo ok
   else echo FAILED; echo "$out" | tail -12; fail=1; fi

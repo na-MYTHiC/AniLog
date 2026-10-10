@@ -27,8 +27,22 @@
   --text: #f4f4f7;
   --text-dim: #8a8a99;
   --text-faint: #5a5a68;
-  --radius: 14px;
-  --radius-sm: 10px;
+  /* Corner scale. These were fifteen loose values between 4px and 20px, which
+     is most of what made components from different weeks look like they came
+     from different apps. The rule the app follows now: a chip in a wrapping or
+     scrolling row is a pill, a chip in a fixed grid is a rounded rect, and
+     everything else picks the nearest step. */
+  --radius-xs: 6px;      /* badges and the score overlay */
+  --radius-sm: 10px;     /* buttons, segmented controls, compact pills */
+  --radius: 14px;        /* cards, grouped rows, text fields */
+  --radius-lg: 20px;     /* bottom sheets */
+  --radius-pill: 999px;  /* chips, progress tracks, avatars */
+  /* Minimum touch targets. 44px is Apple's figure and close enough to
+     Material's 48dp that one number serves both; --tap-sm is for chips and
+     pills that sit several-per-row, where 44 would force a two-line wrap on a
+     360px screen and cost more usability than it buys. */
+  --tap: 44px;
+  --tap-sm: 36px;
   --topbar-h: 56px;
   --bottombar-h: 68px;
   /* What sits BEHIND the centered .app on tablet/desktop. Per-theme. */
@@ -230,6 +244,35 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Anything you tap. Three mobile-only behaviours that are wrong by default:
+   `touch-action: manipulation` drops the double-tap-to-zoom gesture, and with
+   it the delay browsers hold every tap for while they wait to see if a second
+   one is coming; `user-select: none` stops a firm press popping a text
+   selection and the copy/paste bubble over a button's label; and
+   `-webkit-touch-callout: none` does the same for the long-press menu. The
+   swipe rows set their own touch-action, so they're excluded. */
+button,
+.chip,
+.card,
+.nav-btn,
+.seg-btn,
+.sort-option,
+.theme-option,
+.recent-chip,
+.genre-pill,
+.season-chip,
+.season-year,
+.friend-avatar,
+.section-link,
+.recent-clear,
+.back-to-current,
+.desc-toggle {
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
 /* The `hidden` attribute only sets display:none through the UA stylesheet, so
    any author rule with its own display wins — and most of what this app hides
    has one (.seg and .sort-trigger are inline-flex, .season-nav-btn is flex,
@@ -239,8 +282,23 @@
 [hidden] { display: none !important; }
 
 html, body {
-  margin: 0; padding: 0; height: 100%;
+  margin: 0; padding: 0;
+  /* 100% first as the fallback, then the dynamic viewport. On a phone browser
+     (as opposed to the installed PWA, where there is no browser chrome) 100%
+     resolves against the LARGE viewport — the one with the URL bar collapsed —
+     so with the bar showing, the bottom nav sat below the fold until you
+     scrolled. dvh tracks the chrome as it moves. */
+  height: 100%;
+  height: 100dvh;
   overflow: hidden;
+  /* Safari on iOS inflates text in landscape ("text autosizing") unless told
+     not to, which silently breaks every size in the density scale. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  /* Nothing in the app scrolls the document — .content and the overlays do
+     their own scrolling — so any scroll that reaches here is a rubber-band or
+     a pull-to-refresh fired by over-scrolling one of them. */
+  overscroll-behavior: none;
   /* Themed, not a flat black. On an installed Android PWA the system
      navigation / gesture bar is tinted from the document's background colour
      — theme-color only reaches the status bar at the top. Hardcoding #000
@@ -270,7 +328,7 @@ html, body {
     display: flex; align-items: center; justify-content: center;
   }
   .app {
-    height: min(900px, 100vh);
+    height: min(900px, 100dvh);
     border-radius: 24px;
     max-height: 900px;
   }
@@ -323,7 +381,7 @@ html, body {
 @media (min-width: 768px) {
   .app {
     max-width: 720px;
-    height: min(1000px, 100vh);
+    height: min(1000px, 100dvh);
     max-height: 1000px;
   }
   :root {

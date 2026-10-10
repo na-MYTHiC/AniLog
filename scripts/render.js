@@ -647,30 +647,52 @@ function renderListEntryRow(entry, opts) {
   const progressPct = Math.max(0, Math.min(100, (progress / denom) * 100));
   const airedPct = Math.max(0, Math.min(100, (aired / denom) * 100));
 
+  // TWO meta lines, not one.
+  //
+  // One nowrap line had to carry progress, both scores, the countdown and the
+  // "behind" count — five items. Measured on every phone size from 360px up,
+  // it overflowed on all of them, and because "behind" was last it was always
+  // the part the ellipsis ate. That is exactly backwards: it's the only item
+  // on the line you can act on.
+  //
+  // So: the line you act on, then the line you read. Primary holds where you
+  // are and how far back that leaves you; secondary holds the scores and
+  // what's next. Each is still a single nowrap line, which keeps the row a
+  // fixed height.
   const sep = '<span class="sep">·</span>';
-  const parts = [];
+  const primary = [];
+  const secondary = [];
+
   // Airing time, on a schedule row. First, because it's what that row is
   // sorted and grouped by.
-  if (o.lead) parts.push(o.lead);
-  if (!bare) parts.push(`<strong>${progress}</strong>/${total || '?'}`);
+  if (o.lead) primary.push(o.lead);
   // Which episode is airing. Supplied by the schedule, where the countdown
-  // below would just restate the time already at the front of the line.
-  if (o.episode) parts.push(`Ep ${o.episode}`);
-  // AniList community score. Dropped on a schedule row: the meta line is one
-  // nowrap line, and on a row that already leads with a time and an episode
-  // the score is what pushes "4 behind" — the only part you can act on — past
-  // the ellipsis.
-  if (m.averageScore && !o.episode) {
-    parts.push(`<span class="row-score-community">★ ${(m.averageScore / 10).toFixed(1)}</span>`);
+  // on the second line would just restate the time at the front of this one.
+  if (o.episode) primary.push(`Ep ${o.episode}`);
+  // Progress leads a My List row, but on a schedule row the time and the
+  // episode already own the primary line and a fourth item overflowed it at
+  // 360px — measured. There it drops to the second line, which is the right
+  // reading anyway: the schedule's primary line is the EVENT, and how far
+  // through the show you are is context for it.
+  if (!bare) {
+    (o.episode ? secondary : primary).push(`<strong>${progress}</strong>/${total || '?'}`);
+  }
+  if (!bare && behind > 0) primary.push(`<span class="behind">${behind} behind</span>`);
+
+  if (m.averageScore) {
+    secondary.push(`<span class="row-score-community">★ ${(m.averageScore / 10).toFixed(1)}</span>`);
   }
   // The user's own score (only if they've rated it) — tinted in the accent color
   if (entry.score > 0) {
-    parts.push(`<span class="row-score-user">★ ${entry.score} you</span>`);
+    secondary.push(`<span class="row-score-user">★ ${entry.score} you</span>`);
   }
   if (!o.episode && m.nextAiringEpisode && m.nextAiringEpisode.timeUntilAiring > 0) {
-    parts.push(`Ep ${m.nextAiringEpisode.episode} in ${formatHM(m.nextAiringEpisode.timeUntilAiring)}`);
+    secondary.push(`Ep ${m.nextAiringEpisode.episode} in ${formatHM(m.nextAiringEpisode.timeUntilAiring)}`);
   }
-  if (!bare && behind > 0) parts.push(`<span class="behind">${behind} behind</span>`);
+  const metaLines = [
+    primary.length ? `<div class="list-row-meta">${primary.join(' ' + sep + ' ')}</div>` : '',
+    secondary.length ? `<div class="list-row-meta list-row-meta-sub">${secondary.join(' ' + sep + ' ')}</div>` : '',
+  ].join('');
 
   return `
     <div class="list-row-wrap" data-media-id="${m.id}">
@@ -684,87 +706,12 @@ function renderListEntryRow(entry, opts) {
             ${aired > 0 ? `<div class="list-row-bar-aired" style="width:${airedPct}%"></div>` : ''}
             ${progress > 0 ? `<div class="list-row-bar-watched" style="width:${progressPct}%"></div>` : ''}
           </div>`}
-          <div class="list-row-meta">${parts.join(' ' + sep + ' ')}</div>
+          ${metaLines}
         </div>
       </div>
     </div>
   `;
 }
-
-// ============ UP NEXT CARD (Home) ============
-// A .card with two substitutions. The corner pill holds the episode you're
-// about to watch rather than the community score — in this one strip that's
-// the reason the card is there — and a +1 sits under the title so the action
-// the strip exists for doesn't need a trip through the detail page.
-// "N behind" rides in the normal .card-badge slot, so nothing new is invented
-// for it.
-function renderNextCard(entry) {
-  const m = entry?.media;
-  if (!m) return '';
-  const next = (entry.progress || 0) + 1;
-  const behind = Math.max(0, airedCount(m) - (entry.progress || 0));
-  const badge = behind > 1
-    ? `<div class="card-badges"><span class="card-badge">${behind} behind</span></div>`
-    : '';
-  return `
-    <div class="card next-card" data-media-id="${m.id}">
-      <div class="card-image" style="background-color:${m.coverImage?.color || 'var(--surface-2)'};">
-        ${coverImg(m.coverImage?.large)}
-        <div class="next-ep">EP ${next}</div>
-      </div>
-      <div class="card-title">${escapeHtml(pickTitle(m.title) || 'Unknown')}</div>
-      ${badge}
-      <button class="next-bump" type="button" data-bump="${m.id}">+1</button>
-    </div>
-  `;
-}
-
-// Attach swipe-to-update + tap-to-open to each row wrap
-
-// A voice actor's role is two things at once — a character, and the show
-// they're in. This used to be a grid of large circular character portraits
-// with the show relegated to a line of grey text, so scanning "what has this
-// person been in" meant reading rather than looking. Now a row carrying both
-// images: character on the left (who), show cover on the right (where).
-function renderVACharCard(edge) {
-  if (!edge) return '';
-
-  // Accepts both shapes AniList can hand back for "who did this person play":
-  //   characterMedia — edge.node is the MEDIA, edge.characters the cast
-  //   characters     — edge.node is the CHARACTER, edge.media the shows
-  // The app queries the first; tolerating the second means a change of
-  // endpoint can't silently empty this screen again, which is exactly how
-  // it broke: every edge failed the media check and rendered an empty
-  // string, so the list looked blank with nothing logged.
-  let char, media, roleRaw;
-  if (edge.characters || edge.characterRole) {
-    media = edge.node;
-    char = (edge.characters || [])[0];
-    roleRaw = edge.characterRole;
-  } else {
-    char = edge.node;
-    const list = edge.media || [];
-    // Prefer anime appearances (this is an anime-only app), fall back to first
-    media = list.find(m => m.type === 'ANIME') || list[0];
-    roleRaw = edge.role;
-  }
-  if (!media) return '';
-
-  const role = roleRaw ? capitalize(roleRaw) : '';
-  const mediaTitle = pickTitle(media.title);
-  return `
-    <div class="va-role-row" data-media-id="${media.id}" data-char-id="${char?.id || ''}">
-      <div class="va-role-char">${coverImg(char?.image?.large)}</div>
-      <div class="va-role-info">
-        <div class="va-role-name">${escapeHtml(char?.name?.userPreferred || mediaTitle)}</div>
-        ${role ? `<div class="va-role-tag">${escapeHtml(role)}</div>` : ''}
-        <div class="va-role-show">${escapeHtml(mediaTitle)}</div>
-      </div>
-      <div class="va-role-cover" style="background-color:${media.coverImage?.color || 'var(--surface-2)'};">${coverImg(media.coverImage?.large)}</div>
-    </div>
-  `;
-}
-
 
 // ============ PROFILE STATISTICS ============
 // Every graphic here is divs sized with a percentage width or height. A chart

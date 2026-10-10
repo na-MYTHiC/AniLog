@@ -1,15 +1,13 @@
-// The four views added in v4.90: Up Next on Home, the weekly schedule on
-// Seasonal, combinable search filters, and Profile statistics.
+// The three views added in v4.90: the weekly schedule on Seasonal,
+// combinable search filters, and Profile statistics.
 //
 // What this is actually guarding:
 //  - every one of them renders real content against the fake, not a skeleton
 //  - a FAILED request shows something retryable, never an empty state
 //    (the rule the whole tests/ directory exists to enforce)
-//  - +1 on an Up Next card writes once and retires the card
 //  - filters go out as GraphQL VARIABLES, never interpolated into the query
 //  - filters survive the search box being cleared
-//  - the schedule's "My List" scope reuses the Up Next response instead of
-//    issuing a second list query
+//  - the schedule's "My List" scope issues one list query and no more
 const { chromium } = require('playwright');
 const { makeState, handler } = require('./anilist-fake');
 
@@ -48,62 +46,6 @@ const label = (r) => r.q.includes('SaveMediaListEntry') ? 'MUTATION'
 
 (async () => {
   const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-
-  // ---- Up Next -------------------------------------------------------------
-  console.log('Up Next (Home)');
-  {
-    const { page, seen } = await boot(b);
-    const s = await page.evaluate(() => {
-      const sec = document.getElementById('up-next');
-      return {
-        hidden: sec.hidden,
-        cards: sec.querySelectorAll('.next-card').length,
-        count: document.getElementById('up-next-count').textContent,
-        pill: sec.querySelector('.next-ep')?.textContent || '',
-        bumps: sec.querySelectorAll('.next-bump').length,
-        // The strip must not be a second copy of the list rows below it.
-        rows: document.querySelectorAll('#my-list-grid .list-row-wrap').length,
-      };
-    });
-    check('strip is visible with cards', !s.hidden && s.cards > 0, `${s.cards} cards`);
-    check('count matches the cards', s.count === String(s.cards), `badge="${s.count}"`);
-    check('corner pill holds an episode', /^EP \d+$/.test(s.pill), `"${s.pill}"`);
-    check('every card has a +1', s.bumps === s.cards);
-    check('list rows still render below', s.rows > 0, `${s.rows} rows`);
-
-    // Only shows you're behind on, and ordered most-behind first.
-    const order = await page.evaluate(() => upNextRows.map(e => ({
-      behind: airedCount(e.media) - (e.progress || 0),
-    })));
-    check('only shows you are behind on', order.every(o => o.behind > 0));
-    check('most-behind first', order.every((o, i) => i === 0 || order[i - 1].behind >= o.behind),
-      order.map(o => o.behind).join(','));
-
-    // +1 writes once, and a card that reaches caught-up leaves the strip.
-    const before = await page.evaluate(() => ({
-      id: upNextRows[0].media.id,
-      behind: airedCount(upNextRows[0].media) - (upNextRows[0].progress || 0),
-    }));
-    seen.length = 0;
-    await page.evaluate(() => document.querySelector('.next-card .next-bump').click());
-    await page.waitForTimeout(1400);
-    const muts = seen.filter(r => label(r) === 'MUTATION');
-    check('+1 fires exactly one mutation', muts.length === 1, `${muts.length}`);
-    check('+1 sent the right media and progress',
-      muts[0]?.v?.mediaId === before.id && typeof muts[0]?.v?.progress === 'number',
-      JSON.stringify(muts[0]?.v));
-    const after = await page.evaluate((id) => {
-      const card = document.querySelector(`.next-card[data-media-id="${id}"]`);
-      return { present: !!card, pill: card?.querySelector('.next-ep')?.textContent || null };
-    }, before.id);
-    if (before.behind > 1) {
-      check('still-behind card stays, pill advances', after.present && after.pill !== null,
-        `pill="${after.pill}"`);
-    } else {
-      check('caught-up card leaves the strip', !after.present);
-    }
-    await page.close();
-  }
 
   // ---- Weekly schedule ----------------------------------------------------
   console.log('Weekly schedule (Seasonal)');
@@ -153,9 +95,9 @@ const label = (r) => r.q.includes('SaveMediaListEntry') ? 'MUTATION'
     check('rows lead with an airing time', sched.times.length > 0 && sched.times.every(t => /\d/.test(t)),
       JSON.stringify(sched.times));
 
-    // "My List" must reuse the Up Next response rather than asking again.
+    // One list query for the scope, not one per repaint.
     const listCalls = seen.filter(r => label(r) === 'Watching').length;
-    check('My List scope issues no new list query', listCalls === 0, `${listCalls} calls`);
+    check('My List scope is one list query', listCalls === 1, `${listCalls} calls`);
 
     // Every row in the My List scope is a tracked show, so all of them get the
     // full treatment — bar and swipe targets included.
@@ -196,26 +138,38 @@ const label = (r) => r.q.includes('SaveMediaListEntry') ? 'MUTATION'
       const full = document.createElement('div');
       full.innerHTML = renderListEntryRow({ id: 1, status: 'CURRENT', score: 0, progress: 0, media: m },
         { lead: '<span class="row-time">7:00 PM</span>', episode: 3 });
+      const lines = (root) => [...root.querySelectorAll('.list-row-meta')]
+        .map(e => e.textContent.replace(/\s+/g, ' ').trim());
       return {
         bareActions: el.querySelectorAll('.list-row-action').length,
         bareBar: el.querySelectorAll('.list-row-bar').length,
-        bareMeta: el.querySelector('.list-row-meta').textContent.replace(/\s+/g, ' ').trim(),
+        bareLines: lines(el),
         fullActions: full.querySelectorAll('.list-row-action').length,
         fullBar: full.querySelectorAll('.list-row-bar').length,
-        fullMeta: full.querySelector('.list-row-meta').textContent.replace(/\s+/g, ' ').trim(),
+        fullLines: lines(full),
       };
     });
     check('untracked row has no swipe targets and no bar',
       bare.bareActions === 0 && bare.bareBar === 0,
       `${bare.bareActions} actions / ${bare.bareBar} bars`);
     check('untracked row shows no progress and no "behind"',
-      !/\d+\/\d+/.test(bare.bareMeta) && !/behind/.test(bare.bareMeta), `"${bare.bareMeta}"`);
+      !bare.bareLines.some(l => /\d+\/\d+/.test(l) || /behind/.test(l)),
+      JSON.stringify(bare.bareLines));
     check('untracked row still leads with the time and episode',
-      /7:00 PM/.test(bare.bareMeta) && /Ep 3/.test(bare.bareMeta), `"${bare.bareMeta}"`);
-    check('tracked row keeps bar, swipe targets, progress and behind',
-      bare.fullActions === 2 && bare.fullBar === 1
-      && /0\/12/.test(bare.fullMeta) && /2 behind/.test(bare.fullMeta),
-      `"${bare.fullMeta}"`);
+      /7:00 PM/.test(bare.bareLines[0]) && /Ep 3/.test(bare.bareLines[0]),
+      JSON.stringify(bare.bareLines));
+    check('tracked row keeps the bar and the swipe targets',
+      bare.fullActions === 2 && bare.fullBar === 1,
+      `${bare.fullActions} actions / ${bare.fullBar} bars`);
+    // The split that stops the one thing you can act on being ellipsised: the
+    // primary line carries the event and the "behind", the secondary carries
+    // progress and scores. Measured at 360px, four items on one line overflowed.
+    check('schedule row leads with time, episode and "behind"',
+      /7:00 PM/.test(bare.fullLines[0]) && /Ep 3/.test(bare.fullLines[0])
+      && /2 behind/.test(bare.fullLines[0]), JSON.stringify(bare.fullLines[0]));
+    check('progress drops to the second line on a schedule row',
+      !/0\/12/.test(bare.fullLines[0]) && /0\/12/.test(bare.fullLines[1] || ''),
+      JSON.stringify(bare.fullLines));
     await page.close();
   }
 
@@ -460,10 +414,8 @@ const label = (r) => r.q.includes('SaveMediaListEntry') ? 'MUTATION'
     await page.waitForTimeout(900);
     const g = await page.evaluate(() => ({
       stats: document.getElementById('stats-section').hidden,
-      upNext: document.getElementById('up-next').hidden,
     }));
     check('statistics hidden for a guest', g.stats === true);
-    check('Up Next hidden for a guest', g.upNext === true);
     await page.evaluate(() => { state.seasonalView = 'schedule'; state.scheduleScope = 'mine'; switchTab('seasonal'); });
     await page.waitForTimeout(1200);
     const t = await page.evaluate(() => document.getElementById('schedule-days').textContent);

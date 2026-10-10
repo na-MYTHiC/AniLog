@@ -59,19 +59,6 @@
         <div class="my-list-sub">Your watching & planning library</div>
       </div>
 
-      <!-- Appears only when signed in AND something is actually waiting to be
-           watched. It collapses to nothing when you're caught up rather than
-           showing an "all caught up" rail — that would cost the top of the
-           fold permanently to say something you already know. Populated from
-           the cached Watching list, so it costs no request of its own. -->
-      <div class="section up-next" id="up-next" hidden>
-        <div class="section-header">
-          <div class="section-title">Up next</div>
-          <span class="section-count" id="up-next-count"></span>
-        </div>
-        <div class="carousel" id="up-next-row"></div>
-      </div>
-
       <div class="list-controls">
         <button class="sort-trigger" id="list-status-btn">
           <strong id="list-status-label">Watching</strong>
@@ -84,7 +71,7 @@
         </button>
       </div>
 
-      <div class="empty" id="home-empty" style="padding-top: 50px;">
+      <div class="empty empty-tall" id="home-empty">
         <div class="empty-icon">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         </div>
@@ -95,7 +82,7 @@
       <!-- Shown instead of the sign-in CTA when a token exists but AniList
            couldn't be reached. Telling a signed-in user to sign in sends them
            through a pointless OAuth round, and hides the real cause. -->
-      <div class="empty" id="home-offline" style="padding-top: 50px; display: none;">
+      <div class="empty empty-tall" id="home-offline" hidden>
         <div class="empty-icon">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l22 22"/><path d="M16.7 13.7a5 5 0 0 0-7.4 0"/><path d="M5 10.5a10 10 0 0 1 3-2"/><path d="M19.6 10.5a10 10 0 0 0-4.3-2.6"/><path d="M12 20h.01"/></svg>
         </div>
@@ -103,7 +90,7 @@
         <div class="empty-text">You're still signed in — AniList didn't answer. This usually clears on its own.</div>
         <button class="btn-primary" id="home-retry-btn">Try again</button>
       </div>
-      <div class="list-rows" id="my-list-grid" style="display: none;"></div>
+      <div class="list-rows" id="my-list-grid" hidden></div>
     </section>
 
     <!-- SEARCH -->
@@ -132,7 +119,7 @@
            competing ideas stacked on top of each other. -->
       <div class="filter-active" id="filter-active" hidden></div>
 
-      <div class="recent-searches" id="recent-searches" style="display:none;">
+      <div class="recent-searches" id="recent-searches" hidden>
         <div class="recent-header">
           <span>Recent</span>
           <a class="recent-clear" id="recent-clear-all">Clear all</a>
@@ -271,8 +258,8 @@
 
     <!-- PROFILE -->
     <section class="tab" id="tab-profile">
-      <div class="empty" id="profile-card" style="padding: 30px 20px 16px;">
-        <div class="empty-icon" style="width: 72px; height: 72px; border-radius: 50%;">
+      <div class="empty profile-card" id="profile-card">
+        <div class="empty-icon profile-avatar">
           <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
         </div>
         <div class="empty-title">Guest</div>
@@ -286,13 +273,13 @@
       <!-- Signed-in only — for a guest this could only ever be a block of
            zeroes. Loaded when the tab is opened, not at boot. -->
       <div id="stats-section" hidden>
-        <div class="section-header" style="margin-top: 16px;">
+        <div class="section-header section-header-spaced">
           <div class="section-title">Statistics</div>
         </div>
         <div class="settings-group stats-group" id="stats-body"></div>
       </div>
 
-      <div class="section-header" style="margin-top: 16px;">
+      <div class="section-header section-header-spaced">
         <div class="section-title">Appearance</div>
       </div>
       <div class="settings-group">
@@ -307,7 +294,7 @@
             <button class="seg-btn" data-theme="amoled">AMOLED</button>
           </div>
         </div>
-        <div class="settings-row" id="theme-picker-row" style="cursor: pointer;">
+        <div class="settings-row settings-row-tappable" id="theme-picker-row">
           <div>
             <div class="settings-label">Accent Theme</div>
             <div class="settings-sub" id="theme-name">Iris</div>
@@ -384,7 +371,7 @@
       <!-- Push enrolment. Separate from the toggles below, which only control
            what the app shows while it's open. -->
       <div class="settings-group">
-        <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 10px;">
+        <div class="settings-row settings-row-stack">
           <div>
             <div class="settings-label">Push notifications</div>
             <div class="settings-sub" id="push-status">Get alerts even when AniLog is closed.</div>
@@ -392,9 +379,7 @@
           <!-- Raised by the worker's pushsubscriptionchange handler. The
                subscription can rotate while the app is closed, and until the
                new code reaches the GitHub secret every send bounces silently. -->
-          <div class="settings-sub" id="push-relink-notice" hidden
-               style="background: var(--accent-soft); color: var(--text);
-                      border-radius: 8px; padding: 10px; margin-bottom: 4px;">
+          <div class="settings-sub settings-notice" id="push-relink-notice" hidden>
             <strong>Push needs re-linking.</strong> Your phone was given a new
             subscription, so the code stored on GitHub is out of date and
             notifications won't arrive. Open the setup codes below and copy the
@@ -408,31 +393,31 @@
           <button class="btn-secondary" id="setup-codes-toggle" hidden>Show setup codes</button>
           <div id="setup-codes" hidden>
             <div id="push-subscription-wrap" hidden>
-              <div class="settings-sub" style="margin-bottom: 6px;">
+              <div class="settings-sub settings-hint">
                 Copy into the <strong>PUSH_SUBSCRIPTION</strong> GitHub secret:
               </div>
               <textarea id="push-subscription" class="signin-token-input" rows="4" readonly></textarea>
-              <button class="btn-primary" id="push-github-btn" style="margin-top: 8px;">Copy &amp; open GitHub secret</button>
-              <button class="btn-secondary" id="push-copy-btn" style="margin-top: 8px;">Copy only</button>
+              <button class="btn-primary stacked-btn" id="push-github-btn">Copy &amp; open GitHub secret</button>
+              <button class="btn-secondary stacked-btn" id="push-copy-btn">Copy only</button>
               <!-- The escape hatch for a subscription the push service has
                    revoked. The browser keeps handing back its local copy, so
                    the code above can look perfectly fine while every send
                    bounces — and re-tapping Enable returns that same dead
                    code. This throws it away and registers a new one. -->
-              <div class="settings-sub" style="margin-top: 14px;">
+              <div class="settings-sub settings-hint settings-hint-after">
                 Notifications stopped arriving even though this code is filled in?
                 The subscription was probably cancelled by the phone. Get a new one:
               </div>
-              <button class="btn-secondary" id="push-reset-btn" style="margin-top: 8px;">Generate a new code</button>
+              <button class="btn-secondary stacked-btn" id="push-reset-btn">Generate a new code</button>
             </div>
-            <div id="token-reveal-wrap" hidden style="margin-top: 16px;">
-              <div class="settings-sub" style="margin-bottom: 6px;">
+            <div id="token-reveal-wrap" class="setup-block" hidden>
+              <div class="settings-sub settings-hint">
                 Copy into the <strong>ANILIST_TOKEN</strong> GitHub secret. It grants
                 full access to your AniList account — treat it like a password.
               </div>
               <textarea id="token-value" class="signin-token-input" rows="3" readonly></textarea>
-              <button class="btn-primary" id="token-github-btn" style="margin-top: 8px;">Copy &amp; open GitHub secret</button>
-              <button class="btn-secondary" id="token-copy-btn" style="margin-top: 8px;">Copy only</button>
+              <button class="btn-primary stacked-btn" id="token-github-btn">Copy &amp; open GitHub secret</button>
+              <button class="btn-secondary stacked-btn" id="token-copy-btn">Copy only</button>
             </div>
           </div>
         </div>
@@ -469,11 +454,11 @@
         <div class="settings-row">
           <div>
             <div class="settings-label">App version</div>
-            <div class="settings-sub" id="update-status">v4.90</div>
+            <div class="settings-sub" id="update-status">v4.91</div>
           </div>
           <button class="btn-secondary" id="update-check-btn">Check for updates</button>
         </div>
-        <div class="settings-row" style="flex-direction: column; align-items: stretch; gap: 8px;">
+        <div class="settings-row settings-row-stack">
           <div>
             <div class="settings-label">Repair app</div>
             <div class="settings-sub">
@@ -486,8 +471,8 @@
         </div>
       </div>
 
-      <div style="text-align:center; padding: 30px 20px 10px; font-size: 11px; color: var(--text-faint);">
-        AniLog · v4.90 · Powered by AniList
+      <div class="app-footer">
+        AniLog · v4.91 · Powered by AniList
       </div>
     </section>
 
@@ -565,7 +550,7 @@
   </div>
 
   <!-- Genre overlay -->
-  <div class="overlay" role="dialog" aria-modal="true" id="genre-overlay" style="z-index: 101;">
+  <div class="overlay" role="dialog" aria-modal="true" id="genre-overlay">
     <header class="overlay-header">
       <button class="back-btn" onclick="closeOverlay('genre-overlay')">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -585,7 +570,7 @@
   </div>
 
   <!-- Studio overlay -->
-  <div class="overlay" role="dialog" aria-modal="true" id="studio-overlay" style="z-index: 101;">
+  <div class="overlay" role="dialog" aria-modal="true" id="studio-overlay">
     <header class="overlay-header">
       <button class="back-btn" onclick="closeOverlay('studio-overlay')">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -605,7 +590,7 @@
   </div>
 
   <!-- Character overlay -->
-  <div class="overlay" role="dialog" aria-modal="true" id="character-overlay" style="z-index: 102;">
+  <div class="overlay" role="dialog" aria-modal="true" id="character-overlay">
     <header class="overlay-header">
       <button class="back-btn" onclick="closeOverlay('character-overlay')">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -616,7 +601,7 @@
   </div>
 
   <!-- Staff (Voice Actor) overlay -->
-  <div class="overlay" role="dialog" aria-modal="true" id="staff-overlay" style="z-index: 103;">
+  <div class="overlay" role="dialog" aria-modal="true" id="staff-overlay">
     <header class="overlay-header">
       <button class="back-btn" onclick="closeOverlay('staff-overlay')">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -722,9 +707,9 @@
     <div class="modal">
       <div class="modal-grip"></div>
       <h3 id="rate-modal-title">Rate this anime</h3>
-      <p style="margin-bottom: 8px;">Tap a score 1–10. Your rating syncs to AniList.</p>
+      <p class="modal-p-tight">Tap a score 1–10. Your rating syncs to AniList.</p>
       <div class="rate-grid" id="rate-grid"></div>
-      <div class="modal-actions" style="margin-top: 14px;">
+      <div class="modal-actions modal-actions-spaced">
         <button class="btn-secondary" id="rate-clear-btn">Clear score</button>
         <button class="btn-secondary" onclick="closeRateModal()">Cancel</button>
       </div>
@@ -749,9 +734,9 @@
 
       <!-- Manual access-token paste — escape hatch when the OAuth redirect fails -->
       <div class="signin-advanced" id="signin-advanced" hidden>
-        <p style="text-align:left; font-size:12px; line-height:1.5;">
+        <p class="signin-help">
           If the redirect keeps erroring, you can paste an AniList access token directly.
-          To get one, open <a href="https://anilist.co/api/v2/oauth/authorize?client_id=42596&amp;response_type=token" target="_blank" rel="noopener" style="color:var(--accent);">this AniList URL</a>
+          To get one, open <a href="https://anilist.co/api/v2/oauth/authorize?client_id=42596&amp;response_type=token" target="_blank" rel="noopener" class="text-link">this AniList URL</a>
           in a new tab, sign in, click <strong>Authorize</strong>, and copy the value of <code>access_token</code> from the URL bar that opens.
         </p>
         <textarea id="signin-token-input" class="signin-token-input" placeholder="Paste your access_token here" rows="3"></textarea>
@@ -777,7 +762,7 @@
 
 <!-- User profile overlay — opens from Social when tapping a username / avatar.
      Shows their profile card + a status-filtered list view (like Home). -->
-<div class="overlay" role="dialog" aria-modal="true" id="notif-overlay" style="z-index: 105;">
+<div class="overlay" role="dialog" aria-modal="true" id="notif-overlay">
   <header class="overlay-header">
     <button class="back-btn" onclick="closeOverlay('notif-overlay')">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -787,7 +772,7 @@
   <div class="overlay-body" id="notif-body"></div>
 </div>
 
-<div class="overlay" role="dialog" aria-modal="true" id="user-overlay" style="z-index: 104;">
+<div class="overlay" role="dialog" aria-modal="true" id="user-overlay">
   <header class="overlay-header">
     <button class="back-btn" onclick="closeOverlay('user-overlay')">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -799,7 +784,7 @@
 
 <!-- A single activity, opened from an activity notification. z-index above
      the profile overlay so it can be opened from a card inside one. -->
-<div class="overlay" role="dialog" aria-modal="true" id="activity-overlay" style="z-index: 105;">
+<div class="overlay" role="dialog" aria-modal="true" id="activity-overlay">
   <header class="overlay-header">
     <button class="back-btn" onclick="closeOverlay('activity-overlay')">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>

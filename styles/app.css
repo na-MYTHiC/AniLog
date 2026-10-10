@@ -9,7 +9,10 @@
   background: var(--surface-2);
   border: 1px solid transparent;
   color: var(--text);
-  padding: 9px 13px;
+  /* min-height rather than more padding: the label stays optically where it
+     was and the box grows around it into a real touch target. 36px before. */
+  min-height: var(--tap);
+  padding: 10px 14px;
   border-radius: var(--radius-sm);
   font-size: 13px;
   font-weight: 600;
@@ -114,7 +117,7 @@
   backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border);
   color: var(--text);
-  width: 40px; height: 40px;
+  width: var(--tap); height: var(--tap);
   border-radius: 50%;
   padding: 0; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
@@ -177,7 +180,7 @@
 }
 .notif-cover {
   width: var(--mini-cover-w); height: var(--mini-cover-h);
-  border-radius: 6px;
+  border-radius: var(--radius-xs);
   background: var(--surface-2) center/cover no-repeat;
   flex-shrink: 0;
 }
@@ -207,12 +210,13 @@
   margin: 8px 20px 12px;
   padding: 12px 14px;
   background: var(--accent-soft);
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   font-size: 12.5px;
   color: var(--text);
   display: flex; gap: 10px; align-items: center;
 }
 .notif-perm-prompt button {
+  min-height: var(--tap-sm);
   margin-left: auto;
   background: var(--accent); color: var(--accent-on);
   border: none; padding: 6px 12px; border-radius: 8px;
@@ -269,9 +273,15 @@
   font-size: var(--section-title-size);
   font-weight: 700; letter-spacing: -0.3px;
 }
+/* The negative margin keeps the header's optical height unchanged while the
+   link becomes tappable — it measured 41x16. */
 .section-link {
   font-size: 13px; color: var(--accent);
   text-decoration: none; font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center;
+  min-height: var(--tap-sm);
+  padding: 0 2px;
+  margin: calc((var(--tap-sm) - 18px) / -2) -2px;
 }
 
 .carousel {
@@ -374,8 +384,10 @@
      grid, which the GPU redoes on every frame of a scroll. Dropping it cut
      ~25% off per-frame scroll cost with no visual change. */
   background: rgba(0, 0, 0, 0.78);
-  color: #fff; font-size: 12px; font-weight: 700;
-  padding: 3px 8px; border-radius: 6px;
+  /* Scales with the card, like the badges under it. A flat 12px took nearly
+     half the width of an 84px search-carousel card. */
+  color: #fff; font-size: calc(var(--card-meta-size) + 1px); font-weight: 700;
+  padding: 3px 7px; border-radius: var(--radius-xs);
   display: flex; align-items: center; gap: 4px;
   line-height: 1.1;
 }
@@ -504,7 +516,7 @@
   width: 56px; height: 56px;
   margin: 0 auto 16px;
   background: var(--surface);
-  border-radius: 16px;
+  border-radius: var(--radius);
   display: flex; align-items: center; justify-content: center;
   color: var(--text-dim);
 }
@@ -517,7 +529,8 @@
 .btn-primary {
   background: var(--accent); color: var(--accent-on);
   border: none;
-  padding: 11px 22px; border-radius: 10px;
+  min-height: var(--tap);
+  padding: 11px 22px; border-radius: var(--radius-sm);
   font-size: 14px; font-weight: 600;
   cursor: pointer;
   transition: transform 0.15s ease, filter 0.2s ease;
@@ -531,7 +544,8 @@
   background: var(--surface);
   color: var(--text);
   border: 1px solid var(--border);
-  padding: 11px 22px; border-radius: 10px;
+  min-height: var(--tap);
+  padding: 11px 22px; border-radius: var(--radius-sm);
   font-size: 14px; font-weight: 600;
   cursor: pointer;
 }
@@ -606,7 +620,6 @@
   font-size: 18px; font-weight: 700;
   text-align: right;
   font-family: inherit;
-  padding: 0;
   /* Native spinners fight the +/- buttons and shrink the tap target */
   -moz-appearance: textfield;
   appearance: textfield;
@@ -648,24 +661,49 @@
   gap: 12px;
 }
 .settings-row:last-child { border-bottom: none; }
-.settings-label { font-size: 14px; font-weight: 500; }
+/* The label column takes the space the control doesn't, instead of being
+   whatever is left after the control sizes itself to its text. */
+.settings-row > div:first-child { flex: 1; min-width: 0; }
+.settings-label { font-size: 14px; font-weight: 500; line-height: 1.3; }
 .settings-sub {
   font-size: 12px; color: var(--text-dim);
-  margin-top: 2px;
+  line-height: 1.4;
+  margin-top: 3px;
 }
 
+/* A three-option segmented control is too wide to share a row with a label on
+   a phone — "Card Density" was wrapping to two lines and its description to
+   three to make room. Those rows stack and the control goes full width with
+   equal columns; two-option rows are narrow enough to stay inline. */
+.settings-row:has(.seg-btn:nth-child(3)) {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+.settings-row:has(.seg-btn:nth-child(3)) .seg { display: grid; }
+
+/* Equal columns, always. An inline-grid whose auto-columns are 1fr sizes
+   every track to the widest label, so "Locked | Auto" and "English | Romaji"
+   stop looking ragged — a segmented control with uneven segments is the kind
+   of thing you notice without being able to say why. */
 .seg {
-  display: inline-flex;
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   background: var(--surface-2);
-  border-radius: 8px; padding: 2px;
+  border-radius: var(--radius-sm); padding: 2px;
   flex-shrink: 0;
 }
+/* 40px of button inside 2px of track is a 44px control, the same target as
+   every other standalone button. It was 26px — under every platform minimum,
+   and the smallest thing in the app you were expected to hit. */
 .seg-btn {
-  padding: 6px 10px;
+  min-height: 40px;
+  padding: 0 11px;
   background: none; border: none;
   color: var(--text-dim);
-  font-size: 12px; font-weight: 600;
-  border-radius: 6px; cursor: pointer;
+  font-size: 12.5px; font-weight: 600;
+  border-radius: 8px; cursor: pointer;
   white-space: nowrap;
 }
 .seg-btn.active { background: var(--accent); color: var(--accent-on); }
@@ -731,9 +769,14 @@
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text);
-  padding: 11px 16px 11px 42px;
-  border-radius: 12px;
-  font-size: 14px;
+  min-height: 48px;
+  padding: 12px 16px 12px 44px;
+  border-radius: var(--radius);
+  /* 16px exactly. Safari on iOS zooms the whole page in when you focus a
+     field smaller than that, and then leaves you zoomed — the single most
+     obvious "this wasn't built for a phone" tell in the app. Same reason for
+     the other three fields below. */
+  font-size: 16px;
   outline: none;
   transition: border-color 0.2s ease;
 }
@@ -783,7 +826,7 @@
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text);
-  width: 38px; height: 38px;
+  width: var(--tap); height: var(--tap);
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
@@ -802,13 +845,18 @@
 @media (hover: hover) {
   .back-to-current:hover { text-decoration: underline; }
 }
+/* A chip in a wrapping or scrolling row is a pill; a chip in a fixed grid is
+   a rounded rect (see .status-grid). That's the whole rule, and it's why the
+   filter sheet, the day rail and the recent searches now agree. */
 .chip {
   flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: var(--tap-sm);
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text-dim);
-  padding: 7px 14px; border-radius: 20px;
-  font-size: 12px; font-weight: 600;
+  padding: 0 15px; border-radius: var(--radius-pill);
+  font-size: 12.5px; font-weight: 600;
   cursor: pointer; white-space: nowrap;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
@@ -844,9 +892,13 @@
 .back-btn {
   background: none; border: none;
   color: var(--text);
-  padding: 8px; border-radius: 8px;
+  /* Square and full-size: the back control at the top-left is the one target
+     a thumb reaches for without looking, and it was 38px. */
+  width: var(--tap); height: var(--tap);
+  padding: 0; border-radius: var(--radius-sm);
   cursor: pointer;
-  display: flex; align-items: center;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
 }
 @media (hover: hover) {
   .back-btn:hover { background: var(--surface-2); }
@@ -1010,7 +1062,7 @@
 .lightbox-img {
   max-width: 100%;
   max-height: 100%;
-  border-radius: 12px;
+  border-radius: var(--radius);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
   object-fit: contain;
   transform: scale(0.96);
@@ -1021,7 +1073,7 @@
   position: absolute;
   top: calc(env(safe-area-inset-top, 0px) + 16px);
   right: 16px;
-  width: 40px; height: 40px;
+  width: var(--tap); height: var(--tap);
   border-radius: 50%;
   border: none;
   background: rgba(255, 255, 255, 0.12);
@@ -1056,12 +1108,17 @@
   padding: 16px var(--gutter);
   flex-wrap: wrap;
 }
+/* --tap-sm, not --tap: these sit several to a wrapping row, and at 44px the
+   two rows of them would push the synopsis off a 360px screen. Only the score
+   pill is tappable; the rest are labels that have to match it. */
 .stat-pill {
+  display: inline-flex; align-items: center;
+  min-height: var(--tap-sm);
   background: var(--surface);
   border: 1px solid var(--border);
-  padding: 5px 9px;
-  border-radius: 7px;
-  font-size: 11px;
+  padding: 0 11px;
+  border-radius: var(--radius-sm);
+  font-size: 11.5px;
   color: var(--text-dim);
   white-space: nowrap;
 }
@@ -1093,7 +1150,7 @@
   color: var(--text);
   font-size: 16px;
   font-weight: 700;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: transform 0.12s ease, background 0.15s ease, border-color 0.15s ease;
 }
@@ -1161,7 +1218,7 @@
   background: var(--surface);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius);
   padding: 12px 14px;
   box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4);
   font-size: 13px;
@@ -1177,11 +1234,12 @@
 .toast.out { transform: translateY(60px); opacity: 0; }
 .toast-msg { flex: 1; }
 .toast-action {
+  min-height: var(--tap-sm);
   background: var(--accent);
   color: var(--accent-on);
   border: none;
   padding: 6px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
@@ -1251,6 +1309,7 @@
   mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
 }
 .desc-toggle {
+  min-height: var(--tap-sm);
   background: none; border: none;
   color: var(--accent);
   font-weight: 600;
@@ -1266,10 +1325,12 @@
   display: flex; flex-wrap: wrap; gap: 6px;
 }
 .genre-pill {
+  min-height: var(--tap-sm);
+  display: inline-flex; align-items: center;
   background: var(--accent-soft);
   color: var(--accent);
   padding: 6px 12px;
-  border-radius: 14px;
+  border-radius: var(--radius-pill);
   font-size: 12px; font-weight: 600;
   cursor: pointer;
   transition: transform 0.15s ease, filter 0.15s ease;
@@ -1286,12 +1347,13 @@
   display: flex; flex-wrap: wrap; gap: 8px;
 }
 .stream-btn {
+  min-height: var(--tap);
   display: inline-flex; align-items: center; gap: 8px;
   padding: 8px 12px 8px 10px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-left: 3px solid var(--stream-color, var(--accent));
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   color: var(--text);
   font-size: 13px; font-weight: 600;
   text-decoration: none;
@@ -1392,7 +1454,7 @@
   /* Portrait frame at the role-row size, not a small circle: it now sits
      opposite the same-sized character and cover art on the VA screen. */
   width: var(--va-img-w); height: var(--va-img-h);
-  border-radius: 8px;
+  border-radius: var(--radius-xs);
   background: var(--surface-2);
   background-size: cover; background-position: center;
   flex-shrink: 0;
@@ -1458,7 +1520,7 @@
 .va-role-cover {
   width: var(--va-img-w); height: var(--va-img-h);
   flex-shrink: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-xs);
   background: var(--surface-2);
   overflow: hidden;
 }
@@ -1506,7 +1568,7 @@
 .modal-backdrop.visible { opacity: 1; pointer-events: auto; }
 .modal {
   background: var(--surface);
-  border-radius: 20px 20px 0 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   width: 100%;
   padding: 24px 20px calc(20px + env(safe-area-inset-bottom));
   transform: translateY(100%);
@@ -1567,9 +1629,9 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text);
-  padding: 10px 12px;
+  padding: 11px 13px;
   font-family: ui-monospace, Menlo, monospace;
-  font-size: 12px;
+  font-size: 16px;
   resize: vertical;
   outline: none;
   margin: 8px 0 12px;
@@ -1629,12 +1691,13 @@
 .recent-chip {
   display: inline-flex; align-items: center;
   gap: 6px;
+  min-height: var(--tap-sm);
   background: var(--surface);
   border: 1px solid var(--border);
   color: var(--text);
-  padding: 6px 6px 6px 12px;
-  border-radius: 16px;
-  font-size: 12px;
+  padding: 0 7px 0 13px;
+  border-radius: var(--radius-pill);
+  font-size: 12.5px;
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s ease;
@@ -1643,8 +1706,9 @@
   .recent-chip:hover { background: var(--surface-2); }
 }
 .recent-chip-x {
-  width: 18px; height: 18px;
+  width: 22px; height: 22px;
   border-radius: 50%;
+  flex-shrink: 0;
   background: var(--surface-2);
   display: flex; align-items: center; justify-content: center;
   color: var(--text-dim);
@@ -1666,7 +1730,7 @@
   font-size: 9px;
   font-weight: 800;
   padding: 3px 7px;
-  border-radius: 5px;
+  border-radius: var(--radius-xs);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -1767,7 +1831,7 @@
 .activity-thumb {
   width: var(--mini-cover-w);
   height: var(--mini-cover-h);
-  border-radius: 6px;
+  border-radius: var(--radius-xs);
   overflow: hidden;
   flex-shrink: 0;
   cursor: pointer;
@@ -1877,9 +1941,10 @@
   background: var(--surface-2);
   border: 1px solid var(--border);
   color: var(--text);
-  padding: 8px 12px;
-  border-radius: 18px;
-  font-size: 13px;
+  min-height: var(--tap);
+  padding: 10px 14px;
+  border-radius: var(--radius-pill);
+  font-size: 16px;
   outline: none;
   font-family: inherit;
 }
@@ -1889,7 +1954,7 @@
   color: var(--accent-on);
   border: none;
   padding: 8px 14px;
-  border-radius: 18px;
+  border-radius: var(--radius-pill);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -1983,7 +2048,7 @@
 .list-row-cover {
   width: var(--row-cover-w);
   height: var(--row-cover-h);
-  border-radius: 6px;
+  border-radius: var(--radius-xs);
   background: var(--surface-2);
   overflow: hidden;
   flex-shrink: 0;
@@ -1994,7 +2059,10 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  /* 6px, down from 8: the row now carries two meta lines instead of one, and
+     the cover's height is the budget. Tightening the stack keeps the text
+     block optically centred against the artwork at every density. */
+  gap: 6px;
   overflow: hidden;
 }
 .list-row-title {
@@ -2047,6 +2115,14 @@
   color: var(--text-faint);
   margin: 0 5px;
 }
+/* The second line: scores and what's next. A step down in size and weight so
+   the pair reads as "act on this, then read this" rather than as two lines of
+   equal shouting. */
+.list-row-meta-sub {
+  margin-top: -2px;
+  font-size: calc(var(--row-meta-size) - 1px);
+  color: var(--text-faint);
+}
 /* AniList community score on the row — slightly brighter than meta */
 .list-row-meta .row-score-community {
   color: var(--text);
@@ -2076,7 +2152,7 @@
   padding: 8px 6px 8px 13px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius);
   box-shadow: 0 10px 32px rgba(0, 0, 0, 0.4);
 }
 /* The one-off `.update-banner[hidden]` override that used to sit here is gone
@@ -2119,6 +2195,8 @@
 .seasonal-title-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-height: var(--tap);
   gap: 6px;
   background: none;
   border: 0;
@@ -2140,6 +2218,7 @@
   margin: 10px 0 14px;
 }
 .season-chip {
+  min-height: var(--tap);
   padding: 10px 4px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
@@ -2167,6 +2246,7 @@
 }
 .season-years::-webkit-scrollbar { display: none; }
 .season-year {
+  min-height: var(--tap);
   padding: 11px 2px;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
@@ -2217,6 +2297,7 @@
 }
 .status-grid .chip {
   text-align: center;
+  min-height: var(--tap);
   padding: 9px 4px;
   border-radius: var(--radius-sm);
   /* Overrides .chip's nowrap: fixed columns can't scroll away from a long
@@ -2235,11 +2316,22 @@
   color: var(--text-dim);
 }
 
-/* Keeps "12" and "/ 28" on one baseline while the pair centres as a unit. */
+/* Keeps "12" and "/ 28" on one baseline while the pair centres as a unit.
+   Full height of the 44px field so the tap target is the box you can see:
+   only the 21px of digits used to focus the input, so a tap a few pixels
+   high or low did nothing at all. */
 .progress-value {
   display: flex;
   align-items: baseline;
   gap: 4px;
+}
+/* Both halves take the same vertical padding, which fills the 44px field and
+   keeps their shared baseline — the input alone was 21px, so the box looked
+   like the target while only the digits actually focused it. */
+.progress-input,
+.progress-total {
+  padding-top: 12px;
+  padding-bottom: 12px;
 }
 
 
@@ -2264,7 +2356,7 @@
      is only ~89px wide. At a flat 6px it didn't, and some cards in a row
      grew a second line while their neighbours didn't. */
   padding: 3px var(--badge-pad-x);
-  border-radius: 5px;
+  border-radius: var(--radius-xs);
   background: var(--surface-2);
   color: var(--text-dim);
   white-space: nowrap;
@@ -2290,70 +2382,6 @@
   font-weight: 600;
   color: var(--text-dim);
   flex-shrink: 0;
-}
-
-/* ============ UP NEXT (Home) ============
-   An ordinary .card in an ordinary .carousel — the only differences are that
-   the corner pill holds the episode you're about to watch instead of the
-   community score (in this one context that IS the point of the card), and
-   that there's a +1 under the title so the common action doesn't need a trip
-   through the detail page.
-
-   Sized four-to-a-row by the same arithmetic the search tab uses, not at the
-   full --card-w. Home is a tab of list rows; at the standard carousel size
-   this strip ran to 310px and pushed the list itself off the fold, which is
-   the opposite of what something called "up next" is for. Four small covers
-   also say "there are more" without needing a scroll hint. */
-.up-next .carousel {
-  --card-gap: 12px;
-  --card-w: calc((100% - 3 * var(--card-gap)) / 4);
-  --card-title-size: 11px;
-  --card-title-mt: 6px;
-  gap: var(--card-gap);
-}
-/* Height follows the fluid width, at the same 1:1.46 as every other cover.
-   width:100% is load-bearing — see the matching note on the search tab. */
-.up-next .carousel .card-image {
-  width: 100%;
-  height: auto;
-  aspect-ratio: 1 / 1.46;
-}
-.next-ep {
-  position: absolute;
-  top: 5px; right: 5px;
-  background: var(--accent);
-  color: var(--accent-on);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.2px;
-  padding: 2px 5px;
-  border-radius: 5px;
-  line-height: 1.15;
-}
-.next-bump {
-  margin-top: 5px;
-  width: 100%;
-  padding: 5px 0;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: var(--accent);
-  color: var(--accent-on);
-  font-size: 12px;
-  font-weight: 800;
-  cursor: pointer;
-  transition: transform 0.12s ease, filter 0.15s ease;
-}
-.next-bump:active { transform: scale(0.94); }
-.next-bump:disabled { opacity: 0.45; }
-@media (hover: hover) {
-  .next-bump:hover { filter: brightness(1.08); }
-}
-/* Leaving the strip: the card shrinks out of the row rather than vanishing,
-   so the carousel closing the gap reads as a consequence of the tap. */
-.next-card.leaving {
-  transition: opacity 0.22s ease, transform 0.22s ease;
-  opacity: 0;
-  transform: scale(0.9);
 }
 
 /* ============ WEEKLY SCHEDULE (Seasonal) ============ */
@@ -2473,10 +2501,11 @@
   width: 100%;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   color: var(--text);
-  padding: 8px 11px;
-  font-size: 13px;
+  min-height: var(--tap);
+  padding: 10px 13px;
+  font-size: 16px;
   outline: none;
   margin-bottom: 8px;
 }
@@ -2604,15 +2633,18 @@
   color: var(--text-faint);
 }
 
+/* No gap — each row carries its own height instead. A 15px bar is not a
+   touch target, and spacing the rows apart to compensate would have left
+   40px of dead space between things you can tap. */
 .stat-bars {
   display: flex;
   flex-direction: column;
-  gap: 9px;
 }
 .stat-bar-row {
   display: grid;
   grid-template-columns: minmax(0, 84px) 1fr auto;
   align-items: center;
+  min-height: 40px;
   gap: 10px;
   background: none;
   border: 0;
@@ -2656,6 +2688,7 @@
 }
 .stat-more {
   width: 100%;
+  min-height: var(--tap);
   padding: 13px 18px;
   background: none;
   border: 0;
@@ -2665,3 +2698,92 @@
   text-align: center;
   cursor: pointer;
 }
+
+/* ============ LAYER STACK ============
+   Every overlay's z-index in one ladder instead of seven style="" attributes
+   scattered through the markup. closeTopLayer() picks the topmost open layer
+   by COMPUTED z-index, so this is load-bearing, not decoration — which is
+   exactly why it belongs in the stylesheet where the order is visible.
+
+   100  detail, category — opened from a tab
+   101  genre, studio    — opened from a detail page
+   102  character        — opened from a detail page's cast
+   103  staff            — opened from a character
+   104  user profile     — opened from anywhere, including a staff page
+   105  notifications, single activity — opened over everything
+   200  modals (.modal-backdrop)
+   300  lightbox */
+#genre-overlay,
+#studio-overlay    { z-index: 101; }
+#character-overlay { z-index: 102; }
+#staff-overlay     { z-index: 103; }
+#user-overlay      { z-index: 104; }
+#notif-overlay,
+#activity-overlay  { z-index: 105; }
+
+/* ============ SMALL SHARED PIECES ============
+   What used to be style="" attributes in index.html. They're here so the
+   spacing can move with the density tokens, and so a value used twice is
+   written once. */
+
+/* An empty state that is the only thing on the screen, rather than one
+   sitting under a header — it starts lower so it lands nearer the optical
+   centre of the tab. */
+.empty-tall { padding-top: 50px; }
+
+/* A section heading that follows another block rather than opening the tab. */
+.section-header-spaced { margin-top: 16px; }
+
+.profile-card { padding: 30px var(--gutter) 16px; }
+.profile-avatar {
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  padding: 0;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.profile-avatar img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+}
+
+/* A settings row whose control is too wide to sit beside its label. */
+.settings-row-stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+.settings-row-tappable { cursor: pointer; }
+
+/* A highlighted note inside a settings row — currently only the "push needs
+   re-linking" warning, which has to read as a problem without inventing a
+   second alert colour. */
+.settings-notice {
+  background: var(--accent-soft);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 11px 12px;
+  margin-bottom: 4px;
+}
+
+.settings-hint { margin-bottom: 6px; }
+.settings-hint-after { margin-top: 14px; }
+.setup-block { margin-top: 16px; }
+.stacked-btn { margin-top: 8px; width: 100%; }
+
+.app-footer {
+  text-align: center;
+  padding: 30px var(--gutter) 10px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.modal-p-tight { margin-bottom: 8px !important; }
+.modal-actions-spaced { margin-top: 14px; }
+
+.signin-help {
+  text-align: left;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.text-link { color: var(--accent); }
