@@ -59,6 +59,39 @@ const VIEWS = [
   check('index.html has no inline style attributes', inline.length === 0,
     inline.slice(0, 3).join(' | '));
 
+  // The notification badge is the status-bar glyph. Android masks it to a
+  // silhouette through the alpha channel, so an icon with an opaque
+  // background comes out as a solid white blob — which is what happened while
+  // icon-192.png was being used for it.
+  const sw = fs.readFileSync(path.join(__dirname, '..', 'sw.js'), 'utf8');
+  const badges = [...sw.matchAll(/badge:\s*'([^']+)'/g)].map(m => m[1]);
+  check('every notification badge points at the dedicated badge asset',
+    badges.length > 0 && badges.every(b => /badge-\d+\.png$/.test(b)),
+    badges.join(' | '));
+  // Decoded with zlib rather than an image library: the badge has to have a
+  // transparent border, and the only thing that proves it is the pixels.
+  const png = fs.readFileSync(path.join(__dirname, '..', 'assets', 'icons', 'badge-96.png'));
+  const edgeAlpha = (() => {
+    const zlib = require('zlib');
+    const w = png.readUInt32BE(16), h = png.readUInt32BE(20);
+    if (png[25] !== 6) return null;                 // needs RGBA
+    const chunks = [];
+    for (let i = 8; i < png.length;) {
+      const len = png.readUInt32BE(i);
+      const type = png.toString('ascii', i + 4, i + 8);
+      if (type === 'IDAT') chunks.push(png.subarray(i + 8, i + 8 + len));
+      i += 12 + len;
+    }
+    const raw = zlib.inflateSync(Buffer.concat(chunks));
+    const stride = w * 4 + 1;                       // +1 filter byte per row
+    // Corner pixels only — enough to catch a full-bleed plate, and immune to
+    // whatever row filters the encoder chose for the interior.
+    const alphaAt = (x, y) => raw[y * stride + 1 + x * 4 + 3];
+    return [alphaAt(0, 0), alphaAt(w - 1, 0), alphaAt(0, h - 1), alphaAt(w - 1, h - 1)];
+  })();
+  check('badge is RGBA with transparent corners (no background plate)',
+    edgeAlpha !== null && edgeAlpha.every(a => a === 0), JSON.stringify(edgeAlpha));
+
   // ---- layout and targets ----------------------------------------------------
   for (const [w, h, name] of SIZES) {
     console.log(`${name} — ${w}x${h}`);

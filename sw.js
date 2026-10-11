@@ -15,7 +15,7 @@
 //   - For everything else (AniList GraphQL, AniList images), bypass —
 //     we don't want stale data or 1+ GB of cover-image storage.
 
-const VERSION = 'anilog-v107';
+const VERSION = 'anilog-v108';
 const SHELL = [
   './',
   './index.html',
@@ -35,6 +35,7 @@ const SHELL = [
   './assets/icons/icon-180.png',
   './assets/icons/icon-192.png',
   './assets/icons/icon-512.png',
+  './assets/icons/badge-96.png',
 ];
 
 // The files the app cannot run without. If any of these can't be fetched, the
@@ -112,7 +113,14 @@ self.addEventListener('push', (event) => {
   const options = {
     body: payload.body || '',
     icon: payload.icon || './assets/icons/icon-192.png',
-    badge: './assets/icons/icon-192.png',
+    // The badge is the little status-bar glyph, and Android masks it to a
+    // silhouette through the alpha channel — colours are discarded and every
+    // opaque pixel becomes solid. icon-192.png sat here, and because its
+    // #1e1e28 tile is fully opaque the mask kept the whole square: the status
+    // bar showed a white blob rather than a mark. badge-96.png is the same
+    // mark drawn white on transparent, with heavier bars so it survives being
+    // scaled to ~24dp.
+    badge: './assets/icons/badge-96.png',
     // Same tag collapses repeats of the same event instead of stacking
     // duplicates if the sender retries. renotify makes a replacement alert
     // again rather than swapping in silently — without it, a repeat of a tag
@@ -167,7 +175,7 @@ self.addEventListener('pushsubscriptionchange', (event) => {
       await self.registration.showNotification('AniLog push needs re-linking', {
         body: 'Tap to copy a new code for the PUSH_SUBSCRIPTION secret.',
         icon: './assets/icons/icon-192.png',
-        badge: './assets/icons/icon-192.png',
+        badge: './assets/icons/badge-96.png',
         tag: 'push-relink',
         data: { url: './', relink: true },
       });

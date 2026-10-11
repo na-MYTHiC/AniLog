@@ -21,7 +21,8 @@ AniLog/
 │   ├── render.js           # Helpers (escapeHtml, pickTitle, …) + renderers
 │   └── app.js              # All UI — tabs, overlays, detail page, swipe, boot
 ├── assets/
-│   └── icons/              # icon.svg (source) + the icon-*.png generated from it
+│   └── icons/              # icon.svg (source) + the icon-*.png generated from it,
+│                           # plus badge.svg / badge-96.png — the status-bar glyph
 ├── tools/
 │   ├── gen-icons.ps1       # Regenerates every icon-*.png natively at each size
 │   ├── gen-vapid.sh        # Prints a fresh VAPID keypair for push setup
@@ -74,7 +75,7 @@ Every one of these exists because something shipped broken:
 | `test-stampede` | a write not marking the whole cache due for refresh |
 | `test-failstates` | no view ever reporting "no results" when the request actually failed |
 | `test-newviews` | the weekly schedule, search filters and Profile statistics — including that filter values travel as GraphQL variables, and that a bar with a width actually paints one |
-| `test-mobile` | the mobile contract: no horizontal overflow and no touch target under 36px at four phone widths, no text field under 16px, `[hidden]` beating every component's display rule, and no inline styles in the markup |
+| `test-mobile` | the mobile contract: the notification badge being transparent and monochrome, no horizontal overflow and no touch target under 36px at four phone widths, no text field under 16px, `[hidden]` beating every component's display rule, and no inline styles in the markup |
 
 The recurring bug in this app has been treating a failed request as empty
 data. If you add a loader, make it return `null` on failure and render
