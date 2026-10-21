@@ -102,6 +102,13 @@
   color: var(--accent);
   flex-shrink: 0;
 }
+.sort-option-count {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+.sort-option:has(.sort-option-check) .sort-option-count { color: inherit; opacity: 0.7; }
 
 /* Floating notification bell — absolute (not fixed) so it's anchored to
    .app's corner and stays pinned to the phone frame even when .app is
@@ -2095,10 +2102,10 @@
   transition: width 0.3s ease;
 }
 .list-row-bar-aired {
-  background: color-mix(in srgb, var(--accent) 32%, transparent);
+  background: color-mix(in srgb, var(--row-accent, var(--accent)) 32%, transparent);
 }
 .list-row-bar-watched {
-  background: var(--accent);
+  background: var(--row-accent, var(--accent));
 }
 .list-row-meta {
   font-size: var(--row-meta-size);
@@ -2113,7 +2120,7 @@
   font-weight: 700;
 }
 .list-row-meta .behind {
-  color: var(--accent);
+  color: var(--row-accent, var(--accent));
   font-weight: 600;
 }
 .list-row-meta .sep {
@@ -2135,7 +2142,7 @@
 }
 /* The user's own score — tinted in the accent color so it pops next to community */
 .list-row-meta .row-score-user {
-  color: var(--accent);
+  color: var(--row-accent, var(--accent));
   font-weight: 700;
 }
 
@@ -2809,6 +2816,30 @@
   font-weight: 800;
   letter-spacing: -0.4px;
 }
+/* The title as a button: it must still read as the heading it is, so no chrome
+   — the caret is what marks it tappable, as on Seasonal's season title. */
+.list-title-btn {
+  gap: 7px;
+  background: none;
+  border: 0;
+  padding: 0 6px;
+  margin-left: -6px;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.list-title-btn:active { background: var(--surface-2); }
+.list-title-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-title-count {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+.list-title-count:empty { display: none; }
+.list-title-caret { color: var(--text-dim); flex-shrink: 0; }
 .list-bar-actions {
   display: flex;
   align-items: center;
@@ -2840,27 +2871,6 @@
 }
 .view-seg svg { display: block; }
 
-/* Full width, with the gutter inside it, so a chip scrolls right out to the
-   screen edge instead of being cut 20px short of it. */
-.status-rail {
-  display: flex;
-  gap: 7px;
-  overflow-x: auto;
-  padding: 12px var(--gutter) 6px;
-  scroll-snap-type: x proximity;
-  scroll-padding-inline: var(--gutter);
-  scrollbar-width: none;
-  /* Both edges fade across the gutter, so only a chip that's actually running
-     off-screen is touched — that reads as "more this way" rather than as
-     clipped. At rest the leading fade sits over empty gutter and dims
-     nothing; it only shows once the rail has been scrolled. */
-  --rail-fade: linear-gradient(to right, transparent, #000 var(--gutter),
-                               #000 calc(100% - var(--gutter)), transparent);
-  mask-image: var(--rail-fade);
-  -webkit-mask-image: var(--rail-fade);
-}
-.status-rail::-webkit-scrollbar { display: none; }
-.status-chip { scroll-snap-align: start; }
 
 /* My List as a poster grid. Columns come from --list-grid-cols, one more than
    the browse grids at every density. */
@@ -2900,11 +2910,293 @@
   display: block;
   height: 100%;
   border-radius: var(--radius-pill);
-  background: var(--accent);
+  background: var(--row-accent, var(--accent));
 }
 .card-behind {
   margin-top: 4px;
   font-size: var(--card-meta-size);
   font-weight: 700;
-  color: var(--accent);
+  color: var(--row-accent, var(--accent));
+}
+
+/* ============ MY LIST STYLES ============
+   Profile → Appearance → List Style. Each is a class on #my-list-grid
+   (lst-cards, lst-ring, lst-editorial), so none of it reaches the schedule or
+   other users' lists, which share the row component and stay classic. Every
+   size comes from the --row-* and --card-* density tokens, so all four styles
+   still respond to Compact / Cozy / Spacious.
+
+   Per-show accents go through --row-accent. Nothing sets it unless Cover
+   Colours is on, so by default every style uses the theme accent. */
+
+/* ---- Cards: each row a floating card, art flush to its left edge ---- */
+.lst-cards.list-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px var(--gutter) 12px;
+}
+.lst-cards .list-row-wrap,
+.lst-cards .list-row-wrap:last-child {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  /* The card is exactly the cover's height — the art is flush, not padded. */
+  contain-intrinsic-size: auto var(--row-cover-h);
+}
+.lst-cards .list-row {
+  padding: 0;
+  gap: 0;
+  align-items: stretch;
+  min-height: var(--row-cover-h);
+  background: var(--surface);
+}
+.lst-cards .list-row-cover {
+  height: auto;
+  align-self: stretch;
+  border-radius: 0;
+  box-shadow: none;
+}
+.lst-cards .list-row-body {
+  justify-content: center;
+  padding: var(--row-pad-y) 13px calc(var(--row-pad-y) + 4px);
+}
+.lr-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.lr-head .list-row-title { flex: 1; min-width: 0; }
+.lr-pill {
+  flex-shrink: 0;
+  font-size: calc(var(--row-meta-size) - 2px);
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  color: var(--row-accent-on, var(--accent-on));
+  background: var(--row-accent, var(--accent));
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+/* Progress along the foot of a card — row or poster. */
+.lr-edge {
+  position: absolute;
+  left: var(--row-cover-w);
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--surface-2);
+}
+.lr-edge i { position: absolute; left: 0; top: 0; bottom: 0; }
+.lr-edge-aired { background: color-mix(in srgb, var(--row-accent, var(--accent)) 35%, transparent); }
+.lr-edge-watched { background: var(--row-accent, var(--accent)); }
+
+/* ---- Ring: a progress ring takes the row's empty right-hand side ---- */
+.lr-aside {
+  flex-shrink: 0;
+  min-width: calc(var(--row-ring) + 12px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.lr-ring { position: relative; width: var(--row-ring); height: var(--row-ring); }
+.lr-ring-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+  fill: none;
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+.lr-ring-track { stroke: var(--surface-2); }
+.lr-ring-aired { stroke: color-mix(in srgb, var(--row-accent, var(--accent)) 35%, transparent); }
+.lr-ring-watched { stroke: var(--row-accent, var(--accent)); }
+.lr-ring-n {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.lr-ring-n strong { font-size: calc(var(--row-ring) * 0.29); font-weight: 800; }
+/* Four digits (One Piece) overflowed the ring at the normal size. */
+.lr-ring-n strong.long { font-size: calc(var(--row-ring) * 0.21); letter-spacing: -0.3px; }
+.lr-ring-n span {
+  margin-top: 2px;
+  font-size: calc(var(--row-ring) * 0.18);
+  font-weight: 700;
+  color: var(--text-faint);
+}
+.lr-note {
+  font-size: calc(var(--row-meta-size) - 2px);
+  font-weight: 700;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.lr-note.behind { color: var(--row-accent, var(--accent)); font-weight: 800; }
+
+/* ---- Editorial: the number you can act on, set large ---- */
+.lst-editorial .list-row.is-behind::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: var(--row-pad-y);
+  bottom: var(--row-pad-y);
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--row-accent, var(--accent));
+}
+.lst-editorial .list-row-title { font-weight: 800; letter-spacing: -0.2px; }
+.lst-editorial .list-row-bar { height: 3px; }
+.lst-editorial .list-row-bar-watched { background: var(--text); }
+.lr-caps {
+  font-size: calc(var(--row-meta-size) - 1px);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.lr-big {
+  min-width: 58px;
+  align-items: flex-end;
+  text-align: right;
+  line-height: 1;
+  gap: 4px;
+}
+.lr-big strong {
+  font-size: calc(var(--row-title-size) * 1.9);
+  font-weight: 900;
+  letter-spacing: -1px;
+  color: var(--row-accent, var(--accent));
+}
+.lr-big strong.dim { font-size: calc(var(--row-title-size) * 1.35); color: var(--text-dim); }
+.lr-big span {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  color: var(--text-faint);
+}
+
+/* ---- Grid: the same three ideas on a poster ----
+   Card modifiers are lc-cards / lc-ring / lc-editorial; nothing INSIDE a card
+   may reuse one of those names. The ring's badge was once called .lc-ring as
+   well, so every Ring card took the badge's 27px absolute styling and the
+   whole grid collapsed into one circle in a corner. */
+.lc-cards {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.lc-cards .card-image { border-radius: 0; box-shadow: none; padding-bottom: 132%; }
+.lc-body { padding: 7px 8px 10px; }
+.lc-cards .card-title { margin-top: 0; }
+.lc-meta {
+  margin-top: 4px;
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: var(--card-meta-size);
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.lc-meta b { color: var(--row-accent, var(--accent)); font-weight: 800; white-space: nowrap; }
+.lc-cards .lr-edge { left: 0; }
+
+.lc-ring-badge {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: calc(var(--card-meta-size) * 3);
+  height: calc(var(--card-meta-size) * 3);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.66);
+}
+.lc-ring-badge .lr-ring-track { stroke: rgba(255, 255, 255, 0.18); }
+.lc-ring-badge b {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--card-meta-size);
+  font-weight: 800;
+  color: #fff;
+}
+.lc-ring-badge b.long { font-size: calc(var(--card-meta-size) * 0.75); letter-spacing: -0.3px; }
+
+.lc-editorial .card-image { border-radius: var(--radius-xs); }
+.lc-big {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 6px 9px 8px 8px;
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.78), rgba(0, 0, 0, 0) 85%);
+  color: #fff;
+  font-size: calc(var(--card-title-size) * 2);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+.lc-big small {
+  display: block;
+  margin-top: 2px;
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+}
+.lc-thin { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(0, 0, 0, 0.5); }
+.lc-thin i { display: block; height: 100%; background: var(--row-accent, var(--accent)); }
+.lc-editorial .card-title { font-weight: 800; letter-spacing: -0.1px; }
+.lc-caps {
+  margin-top: 3px;
+  font-size: calc(var(--card-meta-size) - 1px);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-faint);
+}
+
+/* ---- Cover Colours: works on top of any of the four ----
+   Each show's own colour (AniLog already receives coverImage.color with the
+   list, so this costs no request) washes its row, glows behind its art and
+   replaces the theme accent for that show's progress and counts.
+   The wash mixes into --bg rather than into transparent: .list-row has to stay
+   opaque, because the swipe targets sit underneath it. */
+.lst-tint .list-row-wrap,
+.lst-tint .list-card {
+  --row-accent: color-mix(in srgb, var(--tint) 72%, #fff);
+  --row-accent-on: #0d0d12;
+}
+/* On a light surface the colour has to darken to stay legible, not lighten. */
+[data-theme="light"] .lst-tint .list-row-wrap,
+[data-theme="light"] .lst-tint .list-card {
+  --row-accent: color-mix(in srgb, var(--tint) 78%, #000);
+  --row-accent-on: #fff;
+}
+.lst-tint .list-row {
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--tint) 24%, var(--bg)) 0%,
+    color-mix(in srgb, var(--tint) 7%, var(--bg)) 55%,
+    var(--bg) 100%);
+}
+.lst-tint.lst-cards .list-row {
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--tint) 22%, var(--surface)) 0%,
+    color-mix(in srgb, var(--tint) 6%, var(--surface)) 60%,
+    var(--surface) 100%);
+}
+.lst-tint .list-row-cover { box-shadow: 0 6px 18px color-mix(in srgb, var(--tint) 45%, transparent); }
+.lst-tint.lst-cards .list-row-cover { box-shadow: none; }
+.lst-tint .list-card .card-image { box-shadow: 0 10px 24px color-mix(in srgb, var(--tint) 45%, transparent); }
+.lst-tint .lc-cards {
+  background: linear-gradient(180deg, var(--surface) 60%, color-mix(in srgb, var(--tint) 18%, var(--surface)));
 }

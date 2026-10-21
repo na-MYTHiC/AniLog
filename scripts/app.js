@@ -429,6 +429,8 @@ document.getElementById('theme-picker-row').addEventListener('click', openThemeM
 // Sync other segmented controls to saved state
 syncSegState('theme-seg', 'theme', state.theme);
 syncSegState('density-seg', 'density', state.density);
+syncSegState('list-style-seg', 'style', LIST_STYLES.includes(state.listStyle) ? state.listStyle : 'classic');
+syncSegState('list-tint-seg', 'tint', state.listTint ? 'on' : 'off');
 syncSegState('landing-seg', 'landing', state.landing);
 syncSegState('lang-seg', 'lang', state.preferEnglish ? 'english' : 'default');
 syncSegState('relations-seg', 'relations', state.strictRelations ? 'strict' : 'all');
@@ -1473,9 +1475,12 @@ function openSortModal(currentValue, onSelect, title, options) {
   const list = document.getElementById('sort-list');
   const check = '<svg class="sort-option-check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
   const opts = options || MEDIA_SORT_OPTIONS;
+  // An option may carry a count — My List's lists do — shown before the tick.
+  // null means "not known yet", which shows nothing rather than a zero.
   list.innerHTML = opts.map(o => `
     <div class="sort-option" data-value="${o.value}">
       <div class="sort-option-name">${escapeHtml(o.label)}</div>
+      ${o.count !== undefined && o.count !== null ? `<span class="sort-option-count">${formatNum(o.count)}</span>` : ''}
       ${o.value === currentValue ? check : ''}
     </div>
   `).join('');
@@ -1504,7 +1509,7 @@ document.getElementById('seasonal-sort-btn').addEventListener('click', () => {
 });
 
 // ============ MY LIST CONTROLS ============
-// Which list is a rail of chips with counts; sort and list/grid sit in the bar.
+// Which list is the bar's title, a dropdown; sort and list/grid sit beside it.
 
 // Counts per status, for the chips. Its own lean query — every entry's status
 // and nothing else — rather than the full list, which only ever holds one
@@ -1554,51 +1559,36 @@ async function loadListCounts() {
 // that they have none.
 function paintCounts(result) {
   if (!result?.MediaListCollection) return;
-  const first = listCounts === null;
   listCounts = countByStatus(result);
-  renderStatusRail();
-  // The numbers widen every chip, which can push the selected one off the
-  // edge. Re-reveal on the first paint only: a later refresh must not yank a
-  // rail the user has since scrolled themselves.
-  if (first) requestAnimationFrame(revealActiveChip);
+  renderListTitle();
 }
 
-function renderStatusRail() {
-  const rail = document.getElementById('status-rail');
-  if (!rail) return;
-  const keep = rail.scrollLeft;
-  rail.innerHTML = LIST_STATUS_OPTIONS.map((o) => {
-    const n = listCounts ? (listCounts[o.value] || 0) : null;
-    const on = o.value === state.listStatus;
-    return `<button class="chip status-chip${on ? ' active' : ''}${n === 0 && !on ? ' quiet' : ''}"
-      type="button" role="tab" aria-selected="${on}" data-status="${o.value}">${escapeHtml(o.label)}${
-      n === null ? '' : `<span class="chip-n">${formatNum(n)}</span>`}</button>`;
-  }).join('');
-  rail.scrollLeft = keep;
-}
-
-// Bring the selected chip into view — on first paint it may be "Completed",
-// off the right edge. scrollLeft by hand, not scrollIntoView(): that scrolls
-// every scrollable ancestor too, and drags the whole tab.
-function revealActiveChip() {
-  const rail = document.getElementById('status-rail');
-  const chip = rail?.querySelector('.chip.active');
-  if (!rail || !chip) return;
-  const r = rail.getBoundingClientRect();
-  const c = chip.getBoundingClientRect();
-  const pad = parseFloat(getComputedStyle(rail).paddingLeft) || 0;
-  if (c.left < r.left + pad || c.right > r.right - pad) {
-    rail.scrollLeft += c.left - r.left - pad;
+// The bar title is the list's name and its count, and opens the picker.
+function renderListTitle() {
+  const label = document.getElementById('list-status-label');
+  const count = document.getElementById('list-status-count');
+  if (label) label.textContent = listStatusLabel(state.listStatus);
+  if (count) {
+    const n = listCounts ? listCounts[state.listStatus] : null;
+    // Blank, not "0", until the count is known — and stays blank if it fails.
+    count.textContent = n === null || n === undefined ? '' : formatNum(n);
   }
 }
 
-document.getElementById('status-rail')?.addEventListener('click', (e) => {
-  const chip = e.target.closest('.status-chip');
-  if (!chip || chip.dataset.status === state.listStatus) return;
-  state.listStatus = chip.dataset.status;
-  savePrefs();
-  renderStatusRail();
-  if (state.user) loadMyList();
+// The same sheet Sort uses, so the two dropdowns on Home behave identically —
+// with each list's count alongside its name, which is what the chips offered.
+document.getElementById('list-status-btn')?.addEventListener('click', () => {
+  const options = LIST_STATUS_OPTIONS.map((o) => ({
+    ...o,
+    count: listCounts ? (listCounts[o.value] || 0) : null,
+  }));
+  openSortModal(state.listStatus, (v) => {
+    if (v === state.listStatus) return;
+    state.listStatus = v;
+    savePrefs();
+    renderListTitle();
+    if (state.user) loadMyList();
+  }, 'My List', options);
 });
 
 const listSortBtn = document.getElementById('list-sort-btn');
@@ -1625,7 +1615,7 @@ document.getElementById('list-view-seg')?.addEventListener('click', (e) => {
   if (state.user) loadMyList();
 });
 
-renderStatusRail();
+renderListTitle();
 syncListSortLabel();
 syncSegState('list-view-seg', 'view', state.listView === 'grid' ? 'grid' : 'list');
 
@@ -1675,17 +1665,12 @@ function updateAuthUI() {
   // The bar's sort and view controls and the status rail act on a list a
   // guest doesn't have.
   const listActions = document.getElementById('list-actions');
-  const statusRail = document.getElementById('status-rail');
   if (listActions) listActions.hidden = !signedIn;
-  if (statusRail) {
-    const wasHidden = statusRail.hidden;
-    statusRail.hidden = !signedIn;
-    // Revealing the selected chip has to wait until the rail is actually on
-    // screen: while hidden it measures zero, so doing it at boot did nothing
-    // and a saved "All" or "Rewatching" sat off the right edge, unhighlighted
-    // as far as you could see.
-    if (wasHidden && signedIn) requestAnimationFrame(revealActiveChip);
-  }
+  // Signed in, the title is the list picker; a guest has no list to pick.
+  const titleBtn = document.getElementById('list-status-btn');
+  const titleStatic = document.getElementById('list-title-static');
+  if (titleBtn) titleBtn.hidden = !signedIn;
+  if (titleStatic) titleStatic.hidden = signedIn;
   // Statistics are a projection of a signed-in library — for a guest the block
   // could only ever be zeroes.
   const statsSection = document.getElementById('stats-section');
@@ -2114,6 +2099,20 @@ async function removeFromList() {
 }
 
 let myListReqId = 0;
+
+function currentListStyle() {
+  return LIST_STYLES.includes(state.listStyle) ? state.listStyle : 'classic';
+}
+function myListOpts() { return { style: currentListStyle() }; }
+// Style and tint are classes on the container, so every rule for them is
+// scoped to My List — the schedule and other users' lists share the row
+// component and stay classic.
+function myListClass(asGrid) {
+  return [asGrid ? 'grid list-grid' : 'list-rows',
+    `lst-${currentListStyle()}`,
+    state.listTint ? 'lst-tint' : ''].filter(Boolean).join(' ');
+}
+
 async function loadMyList() {
   if (!state.user) return;
   // The chip counts follow the list: same call site, so a write that moves a
@@ -2126,7 +2125,7 @@ async function loadMyList() {
   // One container, two shapes. The id stays put — the swipe handlers, the
   // tests and the failure panel all find the list by it.
   const asGrid = state.listView === 'grid';
-  grid.className = asGrid ? 'grid list-grid' : 'list-rows';
+  grid.className = myListClass(asGrid);
   if (asGrid) skeletonFill(grid, 9);
   else skeletonFillRows(grid, 6);
 
@@ -2199,12 +2198,15 @@ async function loadMyList() {
       Your <strong>${escapeHtml(listStatusLabel(state.listStatus))}</strong> list is empty.
     </div>`;
   } else if (asGrid) {
-    grid.innerHTML = entries.map((e) => renderListCard(e)).join('');
+    const o = myListOpts();
+    grid.innerHTML = entries.map((e) => renderListCard(e, o)).join('');
   } else {
-    grid.innerHTML = entries.map((e) => renderListEntryRow(e)).join('');
-    // Attach swipe + tap handlers
+    // The style travels with the row's handlers, so the repaint after a swipe
+    // redraws it in the same style rather than falling back to classic.
+    const o = myListOpts();
+    grid.innerHTML = entries.map((e) => renderListEntryRow(e, o)).join('');
     Array.from(grid.children).forEach((wrap, i) => {
-      if (entries[i]) attachListRowHandlers(wrap, entries[i]);
+      if (entries[i]) attachListRowHandlers(wrap, entries[i], o);
     });
   }
   if (entries.length) {
@@ -3645,6 +3647,28 @@ document.querySelectorAll('#density-seg .seg-btn').forEach(b => {
     state.density = b.dataset.density;
     applyDensity();
     savePrefs();
+  });
+});
+
+// My List's look. Both repaint straight away — from cache, so no request —
+// rather than waiting for Home to be opened again.
+document.querySelectorAll('#list-style-seg .seg-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    state.listStyle = b.dataset.style;
+    syncSegState('list-style-seg', 'style', state.listStyle);
+    savePrefs();
+    if (state.user) loadMyList();
+  });
+});
+document.querySelectorAll('#list-tint-seg .seg-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    state.listTint = b.dataset.tint === 'on';
+    syncSegState('list-tint-seg', 'tint', state.listTint ? 'on' : 'off');
+    savePrefs();
+    // The tint is only a class: every row already carries its --tint, so this
+    // doesn't need the list rebuilt.
+    const grid = document.getElementById('my-list-grid');
+    if (grid) grid.classList.toggle('lst-tint', state.listTint);
   });
 });
 

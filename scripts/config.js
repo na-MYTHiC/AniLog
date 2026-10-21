@@ -234,6 +234,11 @@ const MIN_SCORE_OPTIONS = [
 
 const FILTER_YEAR_MIN = 1960;
 
+// My List's layouts, as set in Profile → Appearance. Here with the other option
+// lists rather than next to loadMyList: the settings sync reads it at load
+// time, long before that part of app.js has run.
+const LIST_STYLES = ['classic', 'cards', 'ring', 'editorial'];
+
 const SEASONS_ORDER = ['WINTER', 'SPRING', 'SUMMER', 'FALL'];
 
 const MEDIA_SORT_OPTIONS = [

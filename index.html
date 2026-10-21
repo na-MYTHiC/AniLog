@@ -59,7 +59,16 @@
            the right; the bell floats over the far end (it's anchored to .app
            so it stays put while Home scrolls) and the bar reserves its room. -->
       <div class="list-bar">
-        <div class="list-bar-title">My List</div>
+        <!-- The list name IS the dropdown, the way Seasonal's title opens its
+             season picker. It replaced a scrolling rail of chips: picking
+             Completed meant swiping sideways to find it. -->
+        <div class="list-bar-title" id="list-title-static">My List</div>
+        <button class="list-bar-title list-title-btn" id="list-status-btn" type="button" hidden
+                aria-haspopup="dialog">
+          <span class="list-title-label" id="list-status-label">Watching</span>
+          <span class="list-title-count" id="list-status-count"></span>
+          <svg class="list-title-caret" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
         <div class="list-bar-actions" id="list-actions" hidden>
           <button class="icon-btn" id="list-sort-btn" type="button" aria-label="Sort">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
@@ -75,10 +84,6 @@
         </div>
       </div>
 
-      <!-- Which list, as chips with counts. This was a dropdown: switching
-           took tap, sheet, tap, and how many shows each list held was only
-           visible once the sheet was open. Built by renderStatusRail(). -->
-      <div class="status-rail" id="status-rail" role="tablist" aria-label="Which list" hidden></div>
 
       <div class="empty empty-tall" id="home-empty">
         <div class="empty-icon">
@@ -324,6 +329,32 @@
             <button class="seg-btn" data-density="spacious">Spacious</button>
           </div>
         </div>
+        <!-- My List's look. Next to density because they're the same kind of
+             decision — how Home is drawn — and both apply to list and grid. -->
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">List Style</div>
+            <div class="settings-sub" id="list-style-sub">How My List draws each show</div>
+          </div>
+          <div class="seg" id="list-style-seg">
+            <button class="seg-btn active" data-style="classic">Classic</button>
+            <button class="seg-btn" data-style="cards">Cards</button>
+            <button class="seg-btn" data-style="ring">Ring</button>
+            <button class="seg-btn" data-style="editorial">Editorial</button>
+          </div>
+        </div>
+        <!-- A switch rather than a fifth style: it's a treatment, and it works
+             on top of any of the four layouts above. -->
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Cover Colours</div>
+            <div class="settings-sub">Tint each show with its own artwork's colour</div>
+          </div>
+          <div class="seg" id="list-tint-seg">
+            <button class="seg-btn active" data-tint="off">Off</button>
+            <button class="seg-btn" data-tint="on">On</button>
+          </div>
+        </div>
         <div class="settings-row">
           <div>
             <div class="settings-label">Screen Rotation</div>
@@ -463,7 +494,7 @@
         <div class="settings-row">
           <div>
             <div class="settings-label">App version</div>
-            <div class="settings-sub" id="update-status">v4.93</div>
+            <div class="settings-sub" id="update-status">v4.94</div>
           </div>
           <button class="btn-secondary" id="update-check-btn">Check for updates</button>
         </div>
@@ -481,7 +512,7 @@
       </div>
 
       <div class="app-footer">
-        AniLog · v4.93 · Powered by AniList
+        AniLog · v4.94 · Powered by AniList
       </div>
     </section>
 

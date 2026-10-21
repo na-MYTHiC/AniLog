@@ -56,6 +56,11 @@ const state = {
   // shows per screen, no swipe). Persisted: it's a way of looking at your
   // list, not a one-off filter.
   listView: 'list',
+  // How My List draws its rows and cards (classic, cards, ring, editorial),
+  // and whether each show is tinted with its cover colour. Separate because
+  // the tint is a treatment that composes with any of the four layouts.
+  listStyle: 'classic',
+  listTint: false,
   recentSearches: [],
   accessToken: null,
   user: null,

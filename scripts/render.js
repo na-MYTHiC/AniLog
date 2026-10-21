@@ -627,6 +627,46 @@ function renderRelationCard(edge) {
 }
 
 
+// Where an entry stands — shared by every row and card style, which used to
+// each work this out for themselves.
+function entryProgress(entry) {
+  const m = entry.media;
+  const progress = entry.progress || 0;
+  const total = m.episodes || 0;
+  const aired = airedCount(m);
+  const behind = Math.max(0, aired - progress);
+  const denom = total > 0 ? total : Math.max(aired, progress, 12);
+  const pct = (n) => Math.max(0, Math.min(100, (n / denom) * 100));
+  const nx = m.nextAiringEpisode;
+  return {
+    progress, total, aired, behind,
+    progressPct: pct(progress),
+    airedPct: pct(aired),
+    next: nx && nx.timeUntilAiring > 0 ? nx : null,
+  };
+}
+
+// The one unit that matters, for a number set large: "3d", "9h", "40m".
+function formatShortHM(seconds) {
+  if (!seconds || seconds <= 0) return 'soon';
+  if (seconds >= 86400) return `${Math.floor(seconds / 86400)}d`;
+  if (seconds >= 3600) return `${Math.floor(seconds / 3600)}h`;
+  return `${Math.max(1, Math.floor(seconds / 60))}m`;
+}
+
+// Progress ring for the Ring style. A fixed viewBox scaled by CSS, so one
+// drawing serves every density. Two arcs: what's aired (dim) and what you've
+// watched (bright), so the gap between them is the episodes waiting for you.
+function progressRing(p) {
+  const r = 20, c = 2 * Math.PI * r;
+  const arc = (pct, cls) => pct > 0
+    ? `<circle class="${cls}" cx="26" cy="26" r="${r}" stroke-dasharray="${(c * pct / 100).toFixed(2)} ${c.toFixed(2)}"/>`
+    : '';
+  return `<svg class="lr-ring-svg" viewBox="0 0 52 52" aria-hidden="true">
+    <circle class="lr-ring-track" cx="26" cy="26" r="${r}"/>
+    ${arc(p.airedPct, 'lr-ring-aired')}${arc(p.progressPct, 'lr-ring-watched')}</svg>`;
+}
+
 // Two modes, one component. The full row is what My List shows: progress bar,
 // how far behind you are, and the swipe targets behind it. `bare` drops all
 // three, which is what a schedule row for a show you AREN'T tracking needs —
@@ -637,18 +677,20 @@ function renderRelationCard(edge) {
 //
 // `opts` is defended against being a number because the common call is
 // `entries.map(renderListEntryRow)`, which would hand the array index in.
+//
+// `opts.style` picks one of My List's layouts (cards, ring, editorial); left
+// out, the row is classic — which is what the schedule and other users' lists
+// always get. Every style keeps the same outer structure (wrap, swipe targets,
+// .list-row, cover), so swipe-to-+1 and the in-place repaint after a write work
+// in all of them unchanged; only what's inside the row differs.
 function renderListEntryRow(entry, opts) {
   const m = entry.media;
   if (!m) return '';
   const o = (opts && typeof opts === 'object') ? opts : {};
+  const style = o.style && o.style !== 'classic' ? o.style : null;
+  if (style) return renderStyledRow(entry, style);
   const bare = o.bare === true;
-  const progress = entry.progress || 0;
-  const total = m.episodes || 0;
-  const aired = airedCount(m);
-  const behind = Math.max(0, aired - progress);
-  const denom = total > 0 ? total : Math.max(aired, progress, 12);
-  const progressPct = Math.max(0, Math.min(100, (progress / denom) * 100));
-  const airedPct = Math.max(0, Math.min(100, (aired / denom) * 100));
+  const { progress, total, aired, behind, progressPct, airedPct } = entryProgress(entry);
 
   // TWO meta lines, not one.
   //
@@ -697,8 +739,14 @@ function renderListEntryRow(entry, opts) {
     secondary.length ? `<div class="list-row-meta list-row-meta-sub">${secondary.join(' ' + sep + ' ')}</div>` : '',
   ].join('');
 
+  // A My List row (any opts.style, classic included) carries its cover colour
+  // for the Cover Colours tint. Without it --tint is undefined, which makes
+  // the whole --row-accent declaration invalid — Classic + Cover Colours
+  // rendered with no tint at all. Schedule and other-user rows pass no style
+  // and are left exactly as they were.
+  const tintAttr = o.style ? ` style="--tint:${safeTint(m.coverImage?.color)}"` : '';
   return `
-    <div class="list-row-wrap" data-media-id="${m.id}">
+    <div class="list-row-wrap" data-media-id="${m.id}"${tintAttr}>
       ${bare ? '' : `<div class="list-row-action list-row-action-sub">−1</div>
       <div class="list-row-action list-row-action-add">+1</div>`}
       <div class="list-row">
@@ -716,6 +764,101 @@ function renderListEntryRow(entry, opts) {
   `;
 }
 
+// A cover colour, but only if it's actually a hex colour. It's written into a
+// style attribute, and escaping stops a quote but not a ';' — so anything else
+// from the API could append declarations of its own. Falls back to the theme
+// accent.
+function safeTint(c) {
+  return typeof c === 'string' && /^#[0-9a-f]{3,8}$/i.test(c) ? c : 'var(--accent)';
+}
+
+// The outer shell every My List row shares, whatever its style. --tint is the
+// show's own cover colour; it only shows when Cover colours is switched on,
+// but it rides on every row so turning it on doesn't need a re-render.
+function styledRowShell(m, inner, rowClass) {
+  return `
+    <div class="list-row-wrap" data-media-id="${m.id}" style="--tint:${safeTint(m.coverImage?.color)}">
+      <div class="list-row-action list-row-action-sub">−1</div>
+      <div class="list-row-action list-row-action-add">+1</div>
+      <div class="list-row${rowClass ? ' ' + rowClass : ''}">
+        <div class="list-row-cover" style="background-color:${m.coverImage?.color || 'var(--surface-2)'};">${coverImg(m.coverImage?.large)}</div>
+        ${inner}
+      </div>
+    </div>
+  `;
+}
+
+function renderStyledRow(entry, style) {
+  const m = entry.media;
+  const p = entryProgress(entry);
+  const title = `<div class="list-row-title">${escapeHtml(pickTitle(m.title) || 'Unknown')}</div>`;
+  const total = p.total || '?';
+  const score = m.averageScore ? `★ ${(m.averageScore / 10).toFixed(1)}` : '';
+  const sep = ' <span class="sep">·</span> ';
+
+  if (style === 'cards') {
+    // The art runs the full height of the card, the "N new" pill takes the
+    // right end of the title line, and progress becomes a hairline along the
+    // card's foot.
+    const meta = [`<span><strong>${p.progress}</strong>/${total} eps</span>`];
+    if (score) meta.push(`<span class="row-score-community">${score}</span>`);
+    if (entry.score > 0) meta.push(`<span class="row-score-user">★ ${entry.score}</span>`);
+    return styledRowShell(m, `
+      <div class="list-row-body">
+        <div class="lr-head">${title}${p.behind ? `<span class="lr-pill">${p.behind} new</span>` : ''}</div>
+        <div class="list-row-meta">${meta.join(sep)}</div>
+        ${p.next ? `<div class="list-row-meta list-row-meta-sub">Ep ${p.next.episode} airs in ${formatHM(p.next.timeUntilAiring)}</div>` : ''}
+      </div>
+      <div class="lr-edge">
+        ${p.aired ? `<i class="lr-edge-aired" style="width:${p.airedPct}%"></i>` : ''}
+        ${p.progress ? `<i class="lr-edge-watched" style="width:${p.progressPct}%"></i>` : ''}
+      </div>`);
+  }
+
+  if (style === 'ring') {
+    // The ring replaces the bar and takes the empty right-hand side; the
+    // body keeps the scores and what airs next.
+    const scores = [];
+    if (score) scores.push(`<span class="row-score-community">${score}</span>`);
+    if (entry.score > 0) scores.push(`<span class="row-score-user">★ ${entry.score} you</span>`);
+    const note = p.behind
+      ? `<div class="lr-note behind">${p.behind} behind</div>`
+      : `<div class="lr-note">${entry.status === 'COMPLETED' ? 'complete' : 'up to date'}</div>`;
+    return styledRowShell(m, `
+      <div class="list-row-body">
+        ${title}
+        ${scores.length ? `<div class="list-row-meta">${scores.join(sep)}</div>` : ''}
+        ${p.next ? `<div class="list-row-meta list-row-meta-sub">Ep ${p.next.episode} in ${formatHM(p.next.timeUntilAiring)}</div>` : ''}
+      </div>
+      <div class="lr-aside">
+        <div class="lr-ring">${progressRing(p)}
+          <div class="lr-ring-n"><strong${p.progress >= 1000 ? ' class="long"' : ''}>${p.progress}</strong><span>/${total}</span></div>
+        </div>
+        ${note}
+      </div>`);
+  }
+
+  // editorial — the number that matters, set large: how many you can watch
+  // right now. Caught up, it's when the next one lands; finished, a tick.
+  const big = p.behind
+    ? `<strong>${p.behind}</strong><span>to watch</span>`
+    : p.next
+      ? `<strong class="dim">${formatShortHM(p.next.timeUntilAiring)}</strong><span>next ep</span>`
+      : `<strong class="dim">✓</strong><span>${entry.status === 'COMPLETED' ? 'done' : 'up to date'}</span>`;
+  const meta = [`Ep ${p.progress} of ${total}`];
+  if (score) meta.push(score);
+  return styledRowShell(m, `
+    <div class="list-row-body">
+      ${title}
+      <div class="list-row-bar">
+        ${p.aired ? `<div class="list-row-bar-aired" style="width:${p.airedPct}%"></div>` : ''}
+        ${p.progress ? `<div class="list-row-bar-watched" style="width:${p.progressPct}%"></div>` : ''}
+      </div>
+      <div class="list-row-meta lr-caps">${meta.join(sep)}</div>
+    </div>
+    <div class="lr-aside lr-big">${big}</div>`, p.behind ? 'is-behind' : '');
+}
+
 // ============ MY LIST GRID CARD ============
 // My List as posters. A .card like every other grid in the app, so it gets the
 // density-driven sizing, the cover corner and shadow, and content-visibility
@@ -726,32 +869,44 @@ function renderListEntryRow(entry, opts) {
 //
 // No swipe here: a poster has nowhere to put one. Tapping opens the detail
 // page, where the list controls are.
-function renderListCard(entry) {
+function renderListCard(entry, opts) {
   const m = entry?.media;
   if (!m) return '';
-  const progress = entry.progress || 0;
-  const total = m.episodes || 0;
-  const aired = airedCount(m);
-  const behind = Math.max(0, aired - progress);
-  const denom = total > 0 ? total : Math.max(aired, progress, 12);
-  const pct = Math.max(0, Math.min(100, (progress / denom) * 100));
-  // A Planning card at 0/12 with an empty bar says nothing a Planning list
-  // doesn't already say. Shown once you've started, or while it's something
-  // you're actively watching.
-  const showProgress = progress > 0 || entry.status === 'CURRENT' || entry.status === 'REPEATING';
-  return `
-    <div class="card list-card" data-media-id="${m.id}" onclick="openMedia(${m.id})">
-      <div class="card-image" style="background-color:${m.coverImage?.color || 'var(--surface-2)'};">
-        ${coverImg(m.coverImage?.large)}
-        ${showProgress ? `<div class="card-progress">
-          <span class="card-progress-n">${progress}/${total || '?'}</span>
-          <span class="card-progress-track"><i style="width:${pct.toFixed(1)}%"></i></span>
-        </div>` : ''}
+  const style = opts?.style || 'classic';
+  const p = entryProgress(entry);
+  const total = p.total || '?';
+  const tint = safeTint(m.coverImage?.color);
+  const art = (inner) => `<div class="card-image" style="background-color:${m.coverImage?.color || 'var(--surface-2)'};">${coverImg(m.coverImage?.large)}${inner}</div>`;
+  const title = `<div class="card-title">${escapeHtml(pickTitle(m.title) || 'Unknown')}</div>`;
+  const open = (cls, inner) => `
+    <div class="card list-card${cls}" data-media-id="${m.id}" style="--tint:${tint}" onclick="openMedia(${m.id})">${inner}</div>`;
+
+  if (style === 'cards') {
+    return open(' lc-cards', `${art('')}
+      <div class="lc-body">${title}
+        <div class="lc-meta"><span>${p.progress}/${total}</span>${p.behind ? `<b>${p.behind} new</b>` : ''}</div>
       </div>
-      <div class="card-title">${escapeHtml(pickTitle(m.title) || 'Unknown')}</div>
-      ${behind > 0 ? `<div class="card-behind">${behind} behind</div>` : ''}
-    </div>
-  `;
+      <div class="lr-edge">${p.progress ? `<i class="lr-edge-watched" style="width:${p.progressPct}%"></i>` : ''}</div>`);
+  }
+  if (style === 'ring') {
+    return open(' lc-ring', `${art(`<div class="lc-ring-badge">${progressRing(p)}<b${p.progress >= 1000 ? ' class="long"' : ''}>${p.progress}</b></div>`)}
+      ${title}${p.behind ? `<div class="card-behind">${p.behind} behind</div>` : ''}`);
+  }
+  if (style === 'editorial') {
+    return open(' lc-editorial', `${art(`${p.behind ? `<div class="lc-big">${p.behind}<small>to watch</small></div>` : ''}
+        <div class="lc-thin">${p.progress ? `<i style="width:${p.progressPct}%"></i>` : ''}</div>`)}
+      ${title}<div class="lc-caps">Ep ${p.progress} of ${total}</div>`);
+  }
+
+  // classic. A Planning card at 0/12 with an empty bar says nothing a Planning
+  // list doesn't already say, so progress shows once you've started, or while
+  // it's something you're actively watching.
+  const showProgress = p.progress > 0 || entry.status === 'CURRENT' || entry.status === 'REPEATING';
+  return open('', `${art(showProgress ? `<div class="card-progress">
+          <span class="card-progress-n">${p.progress}/${total}</span>
+          <span class="card-progress-track"><i style="width:${p.progressPct.toFixed(1)}%"></i></span>
+        </div>` : '')}
+      ${title}${p.behind > 0 ? `<div class="card-behind">${p.behind} behind</div>` : ''}`);
 }
 
 // ============ PROFILE STATISTICS ============

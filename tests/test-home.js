@@ -1,12 +1,15 @@
-// The Home tab's controls: the status rail with counts, the list/grid switch,
-// sort in the bar, and the bar sharing its corner with the floating bell.
+// The Home tab: the list dropdown in the bar title, the list/grid switch, sort,
+// the bar sharing its corner with the floating bell, and the four list styles
+// with the Cover Colours tint.
 //
 // What this guards:
 //  - the counts are the server's truth, and a FAILED count is not a zero
-//  - one tap on a chip switches list (it used to be tap, sheet, tap)
-//  - a saved off-screen status is scrolled into view once the rail shows
+//  - the list dropdown switches with one list request and no sideways scroll
 //  - grid view renders cards, survives a reload, and its retry panel spans
 //    the whole grid instead of one cell
+//  - every style renders in list and grid, with and without the tint, and a
+//    swipe still writes +1 and repaints in the SAME style
+//  - a cover colour that isn't a hex colour can't inject CSS
 //  - All excludes custom lists (they repeat entries already under a status)
 //  - the bar's controls never slide under the bell
 //  - one-line titles keep every row the same height
@@ -50,39 +53,55 @@ const truth = (S) => {
 (async () => {
   const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 
-  // ---- rail and counts ------------------------------------------------------
-  console.log('Status rail');
+  // ---- list dropdown and counts ------------------------------------------------
+  console.log('List dropdown');
   {
     const { page, S, seen } = await boot(b, { listStatus: 'CURRENT' });
     const t = truth(S);
-    const chips = await page.evaluate(() => [...document.querySelectorAll('.status-chip')].map(c => ({
-      status: c.dataset.status,
-      n: c.querySelector('.chip-n')?.textContent ?? null,
-      active: c.classList.contains('active'),
-      selected: c.getAttribute('aria-selected'),
-    })));
-    check('a chip for every status plus All', chips.length === STATUSES.length + 1,
-      chips.map(c => c.status).join(','));
-    check('counts match the server', chips.every(c => String(t[c.status] || 0) === c.n),
-      chips.map(c => `${c.status}=${c.n}/${t[c.status] || 0}`).join(' '));
-    check('selected list is the active chip, and says so',
-      chips.filter(c => c.active).length === 1 && chips.find(c => c.active).status === 'CURRENT'
-        && chips.find(c => c.active).selected === 'true');
+    await page.waitForTimeout(800);   // the counts are on the low-priority lane
+    const title = await page.evaluate(() => ({
+      label: document.getElementById('list-status-label').textContent,
+      count: document.getElementById('list-status-count').textContent,
+      shown: getComputedStyle(document.getElementById('list-status-btn')).display !== 'none',
+      rail: !!document.getElementById('status-rail'),
+    }));
+    check('title is the list name and its count', title.shown && title.label === 'Watching'
+      && title.count === String(t.CURRENT), JSON.stringify(title));
+    check('no sideways-scrolling rail any more', !title.rail);
 
-    // One tap switches list.
+    await page.evaluate(() => document.getElementById('list-status-btn').click());
+    await page.waitForTimeout(400);
+    const sheet = await page.evaluate(() => ({
+      open: document.getElementById('sort-modal').classList.contains('visible'),
+      title: document.getElementById('sort-modal-title').textContent,
+      opts: [...document.querySelectorAll('#sort-list .sort-option')].map(o => ({
+        v: o.dataset.value,
+        n: o.querySelector('.sort-option-count')?.textContent ?? null,
+        on: !!o.querySelector('.sort-option-check'),
+      })),
+    }));
+    check('dropdown opens the list sheet', sheet.open && sheet.title === 'My List', JSON.stringify(sheet.title));
+    check('every list is in the sheet, all visible at once', sheet.opts.length === STATUSES.length + 1,
+      sheet.opts.map(o => o.v).join(','));
+    check('each list shows its server count', sheet.opts.every(o => o.n === String(t[o.v] || 0)),
+      sheet.opts.map(o => `${o.v}=${o.n}/${t[o.v] || 0}`).join(' '));
+    check('current list is ticked', sheet.opts.filter(o => o.on).map(o => o.v).join() === 'CURRENT');
+
     seen.length = 0;
-    await page.evaluate(() => document.querySelector('.status-chip[data-status="PLANNING"]').click());
+    await page.evaluate(() => document.querySelector('#sort-list .sort-option[data-value="COMPLETED"]').click());
     await page.waitForTimeout(1200);
     const after = await page.evaluate(() => ({
       status: state.listStatus,
-      active: document.querySelector('.status-chip.active')?.dataset.status,
+      label: document.getElementById('list-status-label').textContent,
+      count: document.getElementById('list-status-count').textContent,
       rows: document.querySelectorAll('#my-list-grid .list-row-wrap').length,
       sheetOpen: document.getElementById('sort-modal').classList.contains('visible'),
     }));
-    check('one tap switches list, no sheet', after.status === 'PLANNING' && after.active === 'PLANNING'
-      && !after.sheetOpen, JSON.stringify(after));
-    check('rows are the tapped list', after.rows === t.PLANNING, `${after.rows} rows, server has ${t.PLANNING}`);
-    const listReqs = seen.filter(r => r.q.includes('MediaListCollection') && r.v.status === 'PLANNING').length;
+    check('picking a list switches to it and closes the sheet', after.status === 'COMPLETED'
+      && after.label === 'Completed' && !after.sheetOpen, JSON.stringify(after));
+    check('title count follows', after.count === String(t.COMPLETED), `${after.count} / ${t.COMPLETED}`);
+    check('rows are the picked list', after.rows === t.COMPLETED, `${after.rows} rows, server has ${t.COMPLETED}`);
+    const listReqs = seen.filter(r => r.q.includes('MediaListCollection') && r.v.status === 'COMPLETED').length;
     check('switching is one list request', listReqs === 1, `${listReqs}`);
     await page.close();
   }
@@ -96,27 +115,18 @@ const truth = (S) => {
       return h(route);
     });
     await page.waitForTimeout(3500);
+    await page.evaluate(() => document.getElementById('list-status-btn').click());
+    await page.waitForTimeout(400);
     const r = await page.evaluate(() => ({
-      chips: document.querySelectorAll('.status-chip').length,
-      numbers: [...document.querySelectorAll('.status-chip .chip-n')].map(e => e.textContent),
+      title: document.getElementById('list-status-count').textContent,
+      sheetCounts: [...document.querySelectorAll('#sort-list .sort-option-count')].map(e => e.textContent),
+      opts: document.querySelectorAll('#sort-list .sort-option').length,
       rows: document.querySelectorAll('#my-list-grid .list-row-wrap').length,
     }));
-    check('chips still render', r.chips === STATUSES.length + 1);
-    check('no chip claims zero when the count failed', r.numbers.length === 0, JSON.stringify(r.numbers));
+    check('title shows no count rather than a wrong one', r.title === '', JSON.stringify(r.title));
+    check('sheet lists every list without claiming zeros', r.opts === STATUSES.length + 1 && r.sheetCounts.length === 0,
+      JSON.stringify(r.sheetCounts));
     check('the list itself still loads', r.rows > 0, `${r.rows} rows`);
-    await page.close();
-  }
-
-  // ---- saved off-screen status is revealed ----------------------------------
-  console.log('Reveal');
-  {
-    const { page } = await boot(b, { listStatus: 'ALL' });
-    const r = await page.evaluate(() => {
-      const rail = document.getElementById('status-rail').getBoundingClientRect();
-      const c = document.querySelector('.status-chip.active').getBoundingClientRect();
-      return { left: Math.round(c.left), right: Math.round(c.right), railL: Math.round(rail.left), railR: Math.round(rail.right) };
-    });
-    check('saved "All" chip is on screen after boot', r.left >= r.railL && r.right <= r.railR, JSON.stringify(r));
     await page.close();
   }
 
@@ -213,12 +223,12 @@ const truth = (S) => {
     const r = await page.evaluate(() => ({
       rows: document.querySelectorAll('#my-list-grid .list-row-wrap').length,
       ids: [...document.querySelectorAll('#my-list-grid .list-row-wrap')].map(w => w.dataset.mediaId),
-      allChip: document.querySelector('.status-chip[data-status="ALL"] .chip-n')?.textContent,
+      allChip: document.getElementById('list-status-count').textContent,
     }));
     const total = truth(S).ALL;
     check('All shows each show once', r.rows === total && new Set(r.ids).size === r.ids.length,
       `${r.rows} rows, ${new Set(r.ids).size} unique, server ${total}`);
-    check('All chip agrees with the rows', r.allChip === String(r.rows), `chip ${r.allChip} / rows ${r.rows}`);
+    check('All count in the title agrees with the rows', r.allChip === String(r.rows), `title ${r.allChip} / rows ${r.rows}`);
     await page.close();
   }
 
@@ -263,15 +273,159 @@ const truth = (S) => {
     await page.close();
   }
 
+  // ---- list styles ---------------------------------------------------------------
+  console.log('List styles');
+  const MARK = { classic: '.list-row-meta-sub', cards: '.lr-edge', ring: '.lr-ring', editorial: '.lr-big' };
+  const GMARK = { classic: '.card-progress, .card-title', cards: '.lc-body', ring: '.lc-ring-badge', editorial: '.lc-caps' };
+  for (const style of ['classic', 'cards', 'ring', 'editorial']) {
+    for (const tint of [false, true]) {
+      const tag = `${style}${tint ? '+tint' : ''}`;
+      const { page, seen } = await boot(b, { listStatus: 'CURRENT', listView: 'list', listStyle: style, listTint: tint });
+      const l = await page.evaluate(([mark]) => {
+        const g = document.getElementById('my-list-grid');
+        const wraps = [...g.querySelectorAll('.list-row-wrap')];
+        const frame = document.querySelector('.app').getBoundingClientRect();
+        const spill = [...g.querySelectorAll('*')].filter(e => {
+          const r = e.getBoundingClientRect();
+          return r.width && (r.right > frame.right + 1 || r.left < frame.left - 1);
+        }).length;
+        const w0 = wraps[0];
+        const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+        const rowAccent = w0 ? getComputedStyle(w0).getPropertyValue('--row-accent').trim() : '';
+        return {
+          cls: g.className, rows: wraps.length,
+          marked: wraps.filter(w => w.querySelector(mark)).length,
+          swipeTargets: wraps.filter(w => w.querySelector('.list-row-action-add')).length,
+          tinted: wraps.every(w => /^--tint:\s*(#[0-9a-f]{3,8}|var\(--accent\))/i.test(w.getAttribute('style') || '')),
+          rowAccent, accent, spill,
+        };
+      }, [MARK[style]]);
+      check(`${tag}: list renders in its style`, l.rows > 0 && l.marked === l.rows
+        && new RegExp(`\\blst-${style}\\b`).test(l.cls) && /\blst-tint\b/.test(l.cls) === tint,
+        `${l.marked}/${l.rows} · ${l.cls}`);
+      check(`${tag}: nothing spills off the screen`, l.spill === 0, `${l.spill} elements`);
+      if (style !== 'classic') check(`${tag}: every row keeps its swipe targets`, l.swipeTargets === l.rows);
+      check(`${tag}: tint ${tint ? 'replaces' : 'leaves'} the theme accent`,
+        tint ? (l.rowAccent && l.rowAccent !== l.accent) : !l.rowAccent, `row-accent="${l.rowAccent}"`);
+
+      // A real swipe: +1 written once, and the row repainted in the same style.
+      if (!tint) {
+        const box = await page.evaluate(() => {
+          const r = document.querySelector('#my-list-grid .list-row').getBoundingClientRect();
+          return { x: r.left + r.width * 0.75, y: r.top + r.height / 2,
+                   id: +document.querySelector('#my-list-grid .list-row-wrap').dataset.mediaId };
+        });
+        const before = await page.evaluate((id) => {
+          for (const g of Object.values(cache)) {
+            const e = (g?.MediaListCollection?.lists || []).flatMap(l => l.entries || []).find(x => x.media?.id === id);
+            if (e) return e.progress;
+          }
+          return null;
+        }, box.id);
+        seen.length = 0;
+        await page.mouse.move(box.x, box.y);
+        await page.mouse.down();
+        await page.mouse.move(box.x - 130, box.y, { steps: 10 });
+        await page.mouse.up();
+        await page.waitForTimeout(1000);
+        const muts = seen.filter(r => r.q.includes('SaveMediaListEntry'));
+        const kept = await page.evaluate(([id, mark]) =>
+          !!document.querySelector(`#my-list-grid .list-row-wrap[data-media-id="${id}"] ${mark}`), [box.id, MARK[style]]);
+        check(`${tag}: swipe writes +1 once`, muts.length === 1 && muts[0].v.mediaId === box.id
+          && muts[0].v.progress === (before || 0) + 1, JSON.stringify(muts.map(m => m.v)));
+        check(`${tag}: the repainted row keeps its style`, kept);
+      }
+
+      // Same style in grid.
+      await page.evaluate(() => document.querySelector('#list-view-seg [data-view="grid"]').click());
+      await page.waitForTimeout(800);
+      // Layout, not just markup: the Ring grid once had every card collapse into
+      // one 27px circle (a class-name collision) while a markup check passed.
+      const gr = await page.evaluate(([mark]) => {
+        const g = document.getElementById('my-list-grid');
+        const cols = getComputedStyle(g).gridTemplateColumns.split(' ').length;
+        const gw = g.getBoundingClientRect().width;
+        const cards = [...g.querySelectorAll('.list-card')];
+        const boxes = cards.map(c => c.getBoundingClientRect());
+        const minW = gw / cols * 0.7;
+        const tops = new Set(boxes.map(r => Math.round(r.top)));
+        return {
+          n: cards.length,
+          marked: cards.filter(c => c.querySelector(mark)).length,
+          sized: boxes.filter(r => r.width >= minW && r.height >= r.width).length,
+          rows: tops.size, cols,
+          positionedCards: cards.filter(c => getComputedStyle(c).position === 'absolute').length,
+        };
+      }, [GMARK[style]]);
+      check(`${tag}: grid renders in its style`, gr.n > 0 && gr.marked === gr.n, `${gr.marked}/${gr.n}`);
+      check(`${tag}: every card is laid out as a real grid cell`,
+        gr.sized === gr.n && gr.positionedCards === 0 && gr.rows === Math.ceil(gr.n / gr.cols),
+        `${gr.sized}/${gr.n} sized, ${gr.rows} rows x ${gr.cols} cols, ${gr.positionedCards} absolutely positioned`);
+      await page.close();
+    }
+  }
+
+  // ---- settings drive it live ----------------------------------------------------
+  console.log('Settings');
+  {
+    const { page } = await boot(b, { listStatus: 'CURRENT', listView: 'list' });
+    await page.evaluate(() => switchTab('profile'));
+    await page.waitForTimeout(400);
+    const rows = await page.evaluate(() => ({
+      style: !!document.querySelector('#list-style-seg'),
+      tint: !!document.querySelector('#list-tint-seg'),
+      // Both live in Appearance, after Card Density.
+      order: [...document.querySelectorAll('#tab-profile .settings-label')].map(e => e.textContent.trim()),
+    }));
+    const iDensity = rows.order.indexOf('Card Density');
+    check('List Style and Cover Colours are in Appearance, after Card Density',
+      rows.style && rows.tint && rows.order[iDensity + 1] === 'List Style' && rows.order[iDensity + 2] === 'Cover Colours',
+      rows.order.slice(iDensity, iDensity + 3).join(' → '));
+    await page.evaluate(() => document.querySelector('#list-style-seg [data-style="editorial"]').click());
+    await page.waitForTimeout(800);
+    await page.evaluate(() => document.querySelector('#list-tint-seg [data-tint="on"]').click());
+    await page.waitForTimeout(200);
+    const live = await page.evaluate(() => ({
+      cls: document.getElementById('my-list-grid').className,
+      big: document.querySelectorAll('#my-list-grid .lr-big').length,
+      saved: JSON.parse(localStorage.getItem('anilog-prefs')),
+    }));
+    check('choosing a style repaints My List straight away', /\blst-editorial\b/.test(live.cls) && live.big > 0, live.cls);
+    check('the tint switch applies without a rebuild', /\blst-tint\b/.test(live.cls));
+    check('both are saved', live.saved.listStyle === 'editorial' && live.saved.listTint === true,
+      JSON.stringify({ s: live.saved.listStyle, t: live.saved.listTint }));
+    await page.close();
+  }
+
+  // ---- a cover colour can't inject CSS -------------------------------------------
+  console.log('Tint safety');
+  {
+    const { page } = await boot(b, {});
+    const r = await page.evaluate(() => {
+      const evil = { id: 5, title: { userPreferred: 'X' }, episodes: 12,
+        coverImage: { large: '', color: '#fff;background:url(https://evil.example/x)' } };
+      const html = renderListEntryRow({ id: 1, status: 'CURRENT', progress: 1, score: 0, media: evil }, { style: 'cards' })
+        + renderListCard({ id: 1, status: 'CURRENT', progress: 1, score: 0, media: evil }, { style: 'ring' });
+      const el = document.createElement('div');
+      el.innerHTML = html;
+      return [...el.querySelectorAll('[style*="--tint"]')].map(e => e.getAttribute('style'));
+    });
+    check('a non-hex cover colour falls back to the accent', r.length === 2
+      && r.every(st => st.includes('--tint:var(--accent)') && !st.includes('url(')), JSON.stringify(r));
+    await page.close();
+  }
+
   // ---- guest -------------------------------------------------------------------
   console.log('Signed out');
   {
     const { page } = await boot(b, { accessToken: null });
     const r = await page.evaluate(() => ({
-      rail: getComputedStyle(document.getElementById('status-rail')).display,
+      picker: getComputedStyle(document.getElementById('list-status-btn')).display,
+      plain: getComputedStyle(document.getElementById('list-title-static')).display,
       actions: getComputedStyle(document.getElementById('list-actions')).display,
     }));
-    check('rail and list controls hidden for a guest', r.rail === 'none' && r.actions === 'none', JSON.stringify(r));
+    check('a guest sees a plain "My List" title, no list controls',
+      r.picker === 'none' && r.plain !== 'none' && r.actions === 'none', JSON.stringify(r));
     await page.close();
   }
 

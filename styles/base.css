@@ -63,18 +63,20 @@
   --grid-gap: 14px;
   --grid-pad-y: 16px;
   /* List row sizing — drives My List, the schedule and other users' lists.
-     Tightened a full step from 92x130 covers: a row was 163px at Cozy and
-     four of them filled a phone. The text block (one-line title, bar, two
-     meta lines) is ~71px, so the cover is sized to that rather than the text
-     floating in the middle of a cover twice its height. */
-  --row-cover-w: 60px;
-  --row-cover-h: 88px;
+     Compact is anchored to the cover size chosen from the layout mock-ups
+     (60x88); Cozy and Spacious sit a step above it. v4.93 had shrunk every
+     density a full step at once, which took Compact down to 48x70 — small
+     enough that the art stopped being recognisable. */
+  --row-cover-w: 70px;
+  --row-cover-h: 102px;
   --row-pad-y: 11px;
-  --row-gap: 13px;
+  --row-gap: 14px;
   --row-title-size: 15.5px;
   --row-meta-size: 13px;
   --row-bar-h: 5px;
   --row-body-gap: 5px;
+  /* Ring list style: the progress ring on the right of each row. */
+  --row-ring: 52px;
   /* My List as a poster grid. One column more than the browse grids at
      every density: those are sized so a stranger's title stays legible, but
      on your own list you recognise the cover, and density is the point. */
@@ -144,14 +146,15 @@
   --grid-cols: 3;
   --grid-gap: 8px;
   --grid-pad-y: 10px;
-  --row-cover-w: 48px;
-  --row-cover-h: 70px;
+  --row-cover-w: 60px;
+  --row-cover-h: 88px;
   --row-pad-y: 9px;
   --row-gap: 12px;
   --row-title-size: 14px;
   --row-meta-size: 12px;
   --row-bar-h: 4px;
   --row-body-gap: 4px;
+  --row-ring: 46px;
   --list-grid-cols: 4;
   --list-card-est-h: 176px;
   --va-img-w: 70px;
@@ -194,14 +197,15 @@
   --grid-cols: 1;
   --grid-gap: 22px;
   --grid-pad-y: 24px;
-  --row-cover-w: 78px;
-  --row-cover-h: 114px;
+  --row-cover-w: 86px;
+  --row-cover-h: 126px;
   --row-pad-y: 14px;
   --row-gap: 16px;
   --row-title-size: 17.5px;
   --row-meta-size: 14.5px;
   --row-bar-h: 6px;
   --row-body-gap: 6px;
+  --row-ring: 60px;
   --list-grid-cols: 2;
   --list-card-est-h: 312px;
   --va-img-w: 90px;
