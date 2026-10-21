@@ -54,22 +54,31 @@
 
     <!-- HOME — My List -->
     <section class="tab active" id="tab-home">
-      <div class="my-list-header">
-        <div class="my-list-title">My List</div>
-        <div class="my-list-sub">Your watching & planning library</div>
+      <!-- One bar instead of a header block and a row of dropdowns. Sort and
+           the list/grid switch are display options, so they sit together on
+           the right; the bell floats over the far end (it's anchored to .app
+           so it stays put while Home scrolls) and the bar reserves its room. -->
+      <div class="list-bar">
+        <div class="list-bar-title">My List</div>
+        <div class="list-bar-actions" id="list-actions" hidden>
+          <button class="icon-btn" id="list-sort-btn" type="button" aria-label="Sort">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
+          </button>
+          <div class="seg view-seg" id="list-view-seg" role="group" aria-label="View">
+            <button class="seg-btn" type="button" data-view="list" aria-label="List view">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+            </button>
+            <button class="seg-btn" type="button" data-view="grid" aria-label="Grid view">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+            </button>
+          </div>
+        </div>
       </div>
 
-      <div class="list-controls">
-        <button class="sort-trigger" id="list-status-btn">
-          <strong id="list-status-label">Watching</strong>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-        </button>
-        <button class="sort-trigger" id="list-sort-btn">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
-          <span>Sort: <strong id="list-sort-label">Score</strong></span>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-        </button>
-      </div>
+      <!-- Which list, as chips with counts. This was a dropdown: switching
+           took tap, sheet, tap, and how many shows each list held was only
+           visible once the sheet was open. Built by renderStatusRail(). -->
+      <div class="status-rail" id="status-rail" role="tablist" aria-label="Which list" hidden></div>
 
       <div class="empty empty-tall" id="home-empty">
         <div class="empty-icon">
@@ -454,7 +463,7 @@
         <div class="settings-row">
           <div>
             <div class="settings-label">App version</div>
-            <div class="settings-sub" id="update-status">v4.92</div>
+            <div class="settings-sub" id="update-status">v4.93</div>
           </div>
           <button class="btn-secondary" id="update-check-btn">Check for updates</button>
         </div>
@@ -472,7 +481,7 @@
       </div>
 
       <div class="app-footer">
-        AniLog · v4.92 · Powered by AniList
+        AniLog · v4.93 · Powered by AniList
       </div>
     </section>
 

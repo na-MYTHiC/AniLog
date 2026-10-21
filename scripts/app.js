@@ -191,7 +191,7 @@ async function loadUserList() {
   const q = isAll
     ? `query ($userId: Int, $sort: [MediaListSort]) {
         MediaListCollection(userId: $userId, type: ANIME, sort: $sort) {
-          lists { entries { id status score progress media { ${mediaShape} } } }
+          lists { isCustomList entries { id status score progress media { ${mediaShape} } } }
         }
       }`
     : `query ($userId: Int, $status: MediaListStatus, $sort: [MediaListSort]) {
@@ -216,7 +216,11 @@ async function loadUserList() {
     rows.querySelector('.retry-btn')?.addEventListener('click', () => loadUserList());
     return;
   }
-  let entries = (data.MediaListCollection.lists || []).flatMap(l => l.entries || []);
+  // Custom lists repeat entries already under their real status — see
+  // loadMyList.
+  let entries = (data.MediaListCollection.lists || [])
+    .filter(l => !l?.isCustomList)
+    .flatMap(l => l.entries || []);
   if (isClientScoreSort) {
     entries = entries.slice().sort((a, b) => (b.media?.averageScore || 0) - (a.media?.averageScore || 0));
   }
@@ -1254,7 +1258,7 @@ function paintSchedule(items) {
 
   rail.innerHTML = days.map((d, i) => `
     <button class="chip day-chip${i === 0 ? ' active' : ''}${byDay[i].length ? '' : ' quiet'}" data-day="${i}">
-      ${escapeHtml(d.chip)}<span class="day-n">${byDay[i].length}</span>
+      ${escapeHtml(d.chip)}<span class="chip-n">${byDay[i].length}</span>
     </button>`).join('');
 
   if (!items.length) {
@@ -1499,29 +1503,131 @@ document.getElementById('seasonal-sort-btn').addEventListener('click', () => {
   });
 });
 
-// My List dropdowns (status + sort) — values apply when AniList sign-in is wired
+// ============ MY LIST CONTROLS ============
+// Which list is a rail of chips with counts; sort and list/grid sit in the bar.
 
+// Counts per status, for the chips. Its own lean query — every entry's status
+// and nothing else — rather than the full list, which only ever holds one
+// status at a time. Custom lists are skipped because their entries already
+// appear under their real status, so counting them would double up.
+const LIST_COUNTS_QUERY = `query ($userId: Int) {
+  MediaListCollection(userId: $userId, type: ANIME) {
+    lists { isCustomList entries { status } }
+  }
+}`;
 
-document.getElementById('list-status-label').textContent = listStatusLabel(state.listStatus);
-document.getElementById('list-sort-label').textContent = listSortLabel(state.listSort);
+let listCounts = null;
+let countsReqId = 0;
 
-document.getElementById('list-status-btn').addEventListener('click', () => {
-  openSortModal(state.listStatus, (v) => {
-    state.listStatus = v;
-    document.getElementById('list-status-label').textContent = listStatusLabel(v);
-    savePrefs();
-    if (state.user) loadMyList();
-  }, 'My List', LIST_STATUS_OPTIONS);
+function countByStatus(result) {
+  const counts = {};
+  let total = 0;
+  (result?.MediaListCollection?.lists || []).forEach((l) => {
+    if (!l || l.isCustomList) return;
+    (l.entries || []).forEach((e) => {
+      if (!e?.status) return;
+      counts[e.status] = (counts[e.status] || 0) + 1;
+      total++;
+    });
+  });
+  counts.ALL = total;
+  return counts;
+}
+
+// Low priority: the rows are what you're waiting for, and the chips are
+// already usable without their numbers. A write marks this key stale like any
+// other MediaListCollection, so the counts follow an add or a status change
+// through the usual background refresh.
+async function loadListCounts() {
+  if (!state.user) return;
+  const myReq = ++countsReqId;
+  const data = await anilist(LIST_COUNTS_QUERY, { userId: state.user.id }, {
+    priority: 'low',
+    onFresh: (fresh) => { if (countsReqId === myReq) paintCounts(fresh); },
+  });
+  if (countsReqId !== myReq) return;
+  paintCounts(data);
+}
+
+// A failed count is not a zero. Leave the rail as it was — labels alone, or the
+// last good numbers — rather than telling someone with 198 completed shows
+// that they have none.
+function paintCounts(result) {
+  if (!result?.MediaListCollection) return;
+  const first = listCounts === null;
+  listCounts = countByStatus(result);
+  renderStatusRail();
+  // The numbers widen every chip, which can push the selected one off the
+  // edge. Re-reveal on the first paint only: a later refresh must not yank a
+  // rail the user has since scrolled themselves.
+  if (first) requestAnimationFrame(revealActiveChip);
+}
+
+function renderStatusRail() {
+  const rail = document.getElementById('status-rail');
+  if (!rail) return;
+  const keep = rail.scrollLeft;
+  rail.innerHTML = LIST_STATUS_OPTIONS.map((o) => {
+    const n = listCounts ? (listCounts[o.value] || 0) : null;
+    const on = o.value === state.listStatus;
+    return `<button class="chip status-chip${on ? ' active' : ''}${n === 0 && !on ? ' quiet' : ''}"
+      type="button" role="tab" aria-selected="${on}" data-status="${o.value}">${escapeHtml(o.label)}${
+      n === null ? '' : `<span class="chip-n">${formatNum(n)}</span>`}</button>`;
+  }).join('');
+  rail.scrollLeft = keep;
+}
+
+// Bring the selected chip into view — on first paint it may be "Completed",
+// off the right edge. scrollLeft by hand, not scrollIntoView(): that scrolls
+// every scrollable ancestor too, and drags the whole tab.
+function revealActiveChip() {
+  const rail = document.getElementById('status-rail');
+  const chip = rail?.querySelector('.chip.active');
+  if (!rail || !chip) return;
+  const r = rail.getBoundingClientRect();
+  const c = chip.getBoundingClientRect();
+  const pad = parseFloat(getComputedStyle(rail).paddingLeft) || 0;
+  if (c.left < r.left + pad || c.right > r.right - pad) {
+    rail.scrollLeft += c.left - r.left - pad;
+  }
+}
+
+document.getElementById('status-rail')?.addEventListener('click', (e) => {
+  const chip = e.target.closest('.status-chip');
+  if (!chip || chip.dataset.status === state.listStatus) return;
+  state.listStatus = chip.dataset.status;
+  savePrefs();
+  renderStatusRail();
+  if (state.user) loadMyList();
 });
 
-document.getElementById('list-sort-btn').addEventListener('click', () => {
+const listSortBtn = document.getElementById('list-sort-btn');
+// The visible "Sort: Score" label is gone, so the button says it instead.
+function syncListSortLabel() {
+  listSortBtn?.setAttribute('aria-label', `Sort: ${listSortLabel(state.listSort)}`);
+}
+listSortBtn?.addEventListener('click', () => {
   openSortModal(state.listSort, (v) => {
     state.listSort = v;
-    document.getElementById('list-sort-label').textContent = listSortLabel(v);
     savePrefs();
+    syncListSortLabel();
     if (state.user) loadMyList();
   }, 'Sort My List', LIST_SORT_OPTIONS);
 });
+
+document.getElementById('list-view-seg')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.seg-btn');
+  if (!btn || btn.dataset.view === state.listView) return;
+  state.listView = btn.dataset.view;
+  savePrefs();
+  syncSegState('list-view-seg', 'view', state.listView);
+  // Same query either way, so this repaints from cache rather than refetching.
+  if (state.user) loadMyList();
+});
+
+renderStatusRail();
+syncListSortLabel();
+syncSegState('list-view-seg', 'view', state.listView === 'grid' ? 'grid' : 'list');
 
 // ============ MY LIST (authenticated) ============
 function updateAuthUI() {
@@ -1566,6 +1672,20 @@ function updateAuthUI() {
   if (homeEmpty) homeEmpty.hidden = signedIn || hasToken;
   if (homeOffline) homeOffline.hidden = !knownOffline;
   if (myGrid) myGrid.hidden = !signedIn;
+  // The bar's sort and view controls and the status rail act on a list a
+  // guest doesn't have.
+  const listActions = document.getElementById('list-actions');
+  const statusRail = document.getElementById('status-rail');
+  if (listActions) listActions.hidden = !signedIn;
+  if (statusRail) {
+    const wasHidden = statusRail.hidden;
+    statusRail.hidden = !signedIn;
+    // Revealing the selected chip has to wait until the rail is actually on
+    // screen: while hidden it measures zero, so doing it at boot did nothing
+    // and a saved "All" or "Rewatching" sat off the right edge, unhighlighted
+    // as far as you could see.
+    if (wasHidden && signedIn) requestAnimationFrame(revealActiveChip);
+  }
   // Statistics are a projection of a signed-in library — for a guest the block
   // could only ever be zeroes.
   const statsSection = document.getElementById('stats-section');
@@ -1996,11 +2116,19 @@ async function removeFromList() {
 let myListReqId = 0;
 async function loadMyList() {
   if (!state.user) return;
+  // The chip counts follow the list: same call site, so a write that moves a
+  // show between lists updates both.
+  loadListCounts();
   const myReq = ++myListReqId;
   const grid = document.getElementById('my-list-grid');
   if (!grid) return;
   grid.hidden = false;
-  skeletonFillRows(grid, 6);
+  // One container, two shapes. The id stays put — the swipe handlers, the
+  // tests and the failure panel all find the list by it.
+  const asGrid = state.listView === 'grid';
+  grid.className = asGrid ? 'grid list-grid' : 'list-rows';
+  if (asGrid) skeletonFill(grid, 9);
+  else skeletonFillRows(grid, 6);
 
   const mediaShape = `
     id
@@ -2017,7 +2145,7 @@ async function loadMyList() {
   const q = isAll
     ? `query ($userId: Int, $sort: [MediaListSort]) {
         MediaListCollection(userId: $userId, type: ANIME, sort: $sort) {
-          lists { entries { id status score progress media { ${mediaShape} } } }
+          lists { isCustomList entries { id status score progress media { ${mediaShape} } } }
         }
       }`
     : `query ($userId: Int, $status: MediaListStatus, $sort: [MediaListSort]) {
@@ -2056,7 +2184,13 @@ async function loadMyList() {
     grid.querySelector('.retry-btn')?.addEventListener('click', () => loadMyList());
     return;
   }
-  let entries = (result.MediaListCollection.lists || []).flatMap(l => l.entries || []);
+  // Custom lists are skipped: AniList returns them alongside the status lists
+  // when no status is given, so in All every show you'd put in a custom list
+  // appeared twice — and the All chip, which skips them, disagreed with the
+  // rows beneath it.
+  let entries = (result.MediaListCollection.lists || [])
+    .filter(l => !l?.isCustomList)
+    .flatMap(l => l.entries || []);
   if (isClientScoreSort) {
     entries = entries.slice().sort((a, b) => (b.media?.averageScore || 0) - (a.media?.averageScore || 0));
   }
@@ -2064,12 +2198,16 @@ async function loadMyList() {
     grid.innerHTML = `<div class="no-results" style="padding: 50px 20px;">
       Your <strong>${escapeHtml(listStatusLabel(state.listStatus))}</strong> list is empty.
     </div>`;
+  } else if (asGrid) {
+    grid.innerHTML = entries.map((e) => renderListCard(e)).join('');
   } else {
     grid.innerHTML = entries.map((e) => renderListEntryRow(e)).join('');
     // Attach swipe + tap handlers
     Array.from(grid.children).forEach((wrap, i) => {
       if (entries[i]) attachListRowHandlers(wrap, entries[i]);
     });
+  }
+  if (entries.length) {
     // Warm the top few rows — tapping a top-of-list show is the most
     // common action from Home, and touch has no hover to trigger the
     // usual prefetch path. Fires on idle so it never delays the render.

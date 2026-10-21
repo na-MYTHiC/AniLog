@@ -52,6 +52,10 @@ const state = {
   allowRotation: false,
   listStatus: 'CURRENT',
   listSort: 'MEDIA_AVERAGE_SCORE_DESC',
+  // My List as rows (swipe to update progress) or as a poster grid (more
+  // shows per screen, no swipe). Persisted: it's a way of looking at your
+  // list, not a one-off filter.
+  listView: 'list',
   recentSearches: [],
   accessToken: null,
   user: null,

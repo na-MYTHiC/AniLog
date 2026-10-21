@@ -62,14 +62,24 @@
   --grid-cols: 2;
   --grid-gap: 14px;
   --grid-pad-y: 16px;
-  /* List row sizing — drives My List row scale with density */
-  --row-cover-w: 92px;
-  --row-cover-h: 130px;
-  --row-pad-y: 16px;
-  --row-gap: 16px;
-  --row-title-size: 18px;
-  --row-meta-size: 14px;
-  --row-bar-h: 7px;
+  /* List row sizing — drives My List, the schedule and other users' lists.
+     Tightened a full step from 92x130 covers: a row was 163px at Cozy and
+     four of them filled a phone. The text block (one-line title, bar, two
+     meta lines) is ~71px, so the cover is sized to that rather than the text
+     floating in the middle of a cover twice its height. */
+  --row-cover-w: 60px;
+  --row-cover-h: 88px;
+  --row-pad-y: 11px;
+  --row-gap: 13px;
+  --row-title-size: 15.5px;
+  --row-meta-size: 13px;
+  --row-bar-h: 5px;
+  --row-body-gap: 5px;
+  /* My List as a poster grid. One column more than the browse grids at
+     every density: those are sized so a stranger's title stays legible, but
+     on your own list you recognise the cover, and density is the point. */
+  --list-grid-cols: 3;
+  --list-card-est-h: 222px;
   /* Voice-actor role rows carry TWO portraits (character + show), so they
      can't reuse --row-cover-*: two of those side by side leave no room for
      the text between them. Own scale, still density-driven. */
@@ -134,13 +144,16 @@
   --grid-cols: 3;
   --grid-gap: 8px;
   --grid-pad-y: 10px;
-  --row-cover-w: 70px;
-  --row-cover-h: 100px;
-  --row-pad-y: 12px;
-  --row-gap: 14px;
-  --row-title-size: 15px;
+  --row-cover-w: 48px;
+  --row-cover-h: 70px;
+  --row-pad-y: 9px;
+  --row-gap: 12px;
+  --row-title-size: 14px;
   --row-meta-size: 12px;
-  --row-bar-h: 6px;
+  --row-bar-h: 4px;
+  --row-body-gap: 4px;
+  --list-grid-cols: 4;
+  --list-card-est-h: 176px;
   --va-img-w: 70px;
   --va-img-h: 98px;
   --va-row-pad-y: 12px;
@@ -181,13 +194,16 @@
   --grid-cols: 1;
   --grid-gap: 22px;
   --grid-pad-y: 24px;
-  --row-cover-w: 116px;
-  --row-cover-h: 166px;
-  --row-pad-y: 20px;
-  --row-gap: 20px;
-  --row-title-size: 20px;
-  --row-meta-size: 16px;
-  --row-bar-h: 8px;
+  --row-cover-w: 78px;
+  --row-cover-h: 114px;
+  --row-pad-y: 14px;
+  --row-gap: 16px;
+  --row-title-size: 17.5px;
+  --row-meta-size: 14.5px;
+  --row-bar-h: 6px;
+  --row-body-gap: 6px;
+  --list-grid-cols: 2;
+  --list-card-est-h: 312px;
   --va-img-w: 90px;
   --va-img-h: 126px;
   --va-row-pad-y: 15px;
@@ -394,6 +410,10 @@ html, body {
   }
   [data-density="compact"] { --grid-cols: 4; }
   [data-density="spacious"] { --grid-cols: 3; }
+  /* The list grid keeps its one-column lead over the browse grids. */
+  :root { --list-grid-cols: 4; }
+  [data-density="compact"] { --list-grid-cols: 5; }
+  [data-density="spacious"] { --list-grid-cols: 4; }
 }
 
 /* Respect the OS "Reduce Motion" toggle (iOS Settings → Accessibility →

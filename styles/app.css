@@ -865,6 +865,19 @@
   border-color: var(--accent);
   color: var(--accent-on);
 }
+/* A count riding inside a chip — days on the schedule rail, lists on the Home
+   rail. Inside rather than under, so a rail stays one line tall. */
+.chip .chip-n {
+  margin-left: 6px;
+  font-weight: 800;
+  opacity: 0.6;
+}
+.chip.active .chip-n { opacity: 0.8; }
+/* An empty day or an empty list stays in its rail — the gap is information —
+   but recedes so the eye skips it. `quiet`, not `empty`: .empty is already the
+   app's full-screen empty state, and a chip picking it up inherited 60px of
+   padding. */
+.chip.quiet { opacity: 0.45; }
 
 /* Overlays */
 .overlay {
@@ -1964,20 +1977,8 @@
   cursor: not-allowed;
 }
 
-.my-list-header {
-  padding: 20px var(--gutter) 0;
-}
-.my-list-title {
-  font-size: 26px;
-  font-weight: 800;
-  letter-spacing: -0.5px;
-}
-.my-list-sub {
-  font-size: 13px;
-  color: var(--text-dim);
-  margin-top: 4px;
-}
-/* Two-dropdown row on My List */
+/* Two-dropdown row on another user's list (the profile overlay). Home used
+   to share it; it has a status rail now. */
 .list-controls {
   display: flex;
   gap: 8px;
@@ -2059,10 +2060,10 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  /* 6px, down from 8: the row now carries two meta lines instead of one, and
-     the cover's height is the budget. Tightening the stack keeps the text
-     block optically centred against the artwork at every density. */
-  gap: 6px;
+  /* Tokenised: the row carries two meta lines and the cover's height is the
+     budget, so the stack tightens with density rather than being a flat 6px
+     that was right at one size. */
+  gap: var(--row-body-gap);
   overflow: hidden;
 }
 .list-row-title {
@@ -2071,9 +2072,13 @@
   line-height: 1.3;
   color: var(--text);
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  /* One line. Two let a long title push the text block past the cover, so
+     rows came out at different heights depending on how wordy the show's
+     name was — a list should keep a steady rhythm. */
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  overflow-wrap: anywhere;
 }
 .list-row-bar {
   position: relative;
@@ -2402,18 +2407,6 @@
 }
 .day-rail::-webkit-scrollbar { display: none; }
 .day-chip { scroll-snap-align: center; }
-/* The count rides along inside the chip rather than sitting under it, so the
-   rail stays one line tall at every density. */
-.day-chip .day-n {
-  margin-left: 5px;
-  font-weight: 800;
-  opacity: 0.6;
-}
-/* A day with nothing on it stays in the rail — the gap is information — but
-   recedes so the eye skips it. `quiet`, not `empty`: .empty is already the
-   app's full-screen empty state (60px of padding, centred text) and a chip
-   picking that up inherited both. */
-.day-chip.quiet { opacity: 0.4; }
 
 .schedule { padding-bottom: 12px; }
 .sched-day { padding-top: var(--section-pad-y); }
@@ -2787,3 +2780,131 @@
   line-height: 1.55;
 }
 .text-link { color: var(--accent); }
+
+/* ============ HOME: BAR, STATUS RAIL, LIST GRID ============ */
+
+/* One 44px row. The floating bell sits over its right end — it's anchored to
+   .app so it stays put while Home scrolls — so the bar lines its controls up
+   with it and keeps out of its way:
+   - top: the bell is at max(14px, inset); .content already pads by the
+     inset, so the bar adds whatever's left of the 14px.
+   - right: the bell's offset, its 44px, and a gap. */
+.list-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: max(0px, calc(14px - env(safe-area-inset-top, 0px)));
+  padding-bottom: 10px;
+  padding-left: var(--gutter);
+  padding-right: calc(max(14px, env(safe-area-inset-right, 0px)) + var(--tap) + 8px);
+  border-bottom: 1px solid var(--border);
+}
+.list-bar-title {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--tap);
+  display: flex;
+  align-items: center;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+}
+.list-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* A square button carrying only an icon. Same surface and corner as the sort
+   triggers it replaces, so it reads as the same family of control. */
+.icon-btn {
+  width: var(--tap); height: var(--tap);
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.12s ease;
+}
+.icon-btn:active { transform: scale(0.94); }
+@media (hover: hover) {
+  .icon-btn:hover { background: color-mix(in srgb, var(--surface-2) 80%, var(--text)); }
+}
+.view-seg .seg-btn {
+  min-width: 40px;
+  padding: 0 10px;
+  display: flex; align-items: center; justify-content: center;
+}
+.view-seg svg { display: block; }
+
+/* Full width, with the gutter inside it, so a chip scrolls right out to the
+   screen edge instead of being cut 20px short of it. */
+.status-rail {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  padding: 12px var(--gutter) 6px;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: var(--gutter);
+  scrollbar-width: none;
+  /* Both edges fade across the gutter, so only a chip that's actually running
+     off-screen is touched — that reads as "more this way" rather than as
+     clipped. At rest the leading fade sits over empty gutter and dims
+     nothing; it only shows once the rail has been scrolled. */
+  --rail-fade: linear-gradient(to right, transparent, #000 var(--gutter),
+                               #000 calc(100% - var(--gutter)), transparent);
+  mask-image: var(--rail-fade);
+  -webkit-mask-image: var(--rail-fade);
+}
+.status-rail::-webkit-scrollbar { display: none; }
+.status-chip { scroll-snap-align: start; }
+
+/* My List as a poster grid. Columns come from --list-grid-cols, one more than
+   the browse grids at every density. */
+.list-grid { grid-template-columns: repeat(var(--list-grid-cols), minmax(0, 1fr)); }
+.list-grid .card { contain-intrinsic-size: auto var(--list-card-est-h); }
+/* A retry or empty panel in a grid would otherwise be one cell wide. */
+.list-grid > .no-results { grid-column: 1 / -1; }
+
+/* Where you are, on the art. The browse card's score overlay is replaced
+   here — on your own list, progress is the thing you came to see. */
+.card-progress {
+  position: absolute;
+  left: 5px; right: 5px; bottom: 5px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.card-progress-n {
+  flex-shrink: 0;
+  font-size: calc(var(--card-meta-size) - 1px);
+  font-weight: 800;
+  line-height: 1.15;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.72);
+  padding: 2px 5px;
+  border-radius: var(--radius-xs);
+}
+.card-progress-track {
+  flex: 1;
+  min-width: 14px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+.card-progress-track i {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+}
+.card-behind {
+  margin-top: 4px;
+  font-size: var(--card-meta-size);
+  font-weight: 700;
+  color: var(--accent);
+}

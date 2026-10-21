@@ -420,7 +420,10 @@ function airedCount(m) {
 // every view consistent the moment the write lands.
 function repaintListBadges(mediaId, entry) {
   const label = LIST_STATUS_BADGES[entry?.status];
-  document.querySelectorAll(`.card[data-media-id="${mediaId}"]`).forEach((card) => {
+  // Not My List's own grid cards: they don't carry a status badge (every card
+  // in a status view has the same status), and loadMyList repaints them from
+  // the patched cache after any write anyway.
+  document.querySelectorAll(`.card[data-media-id="${mediaId}"]:not(.list-card)`).forEach((card) => {
     let wrap = card.querySelector('.card-badges');
     const existing = wrap?.querySelector('.card-badge-on');
 
@@ -709,6 +712,44 @@ function renderListEntryRow(entry, opts) {
           ${metaLines}
         </div>
       </div>
+    </div>
+  `;
+}
+
+// ============ MY LIST GRID CARD ============
+// My List as posters. A .card like every other grid in the app, so it gets the
+// density-driven sizing, the cover corner and shadow, and content-visibility
+// for free; what changes is what's ON it. A browse card's community-score
+// overlay becomes where you are — progress as a fraction and a bar along the
+// foot of the art — and "N behind" goes under the title. That's the reason to
+// look at your own list rather than a browse grid.
+//
+// No swipe here: a poster has nowhere to put one. Tapping opens the detail
+// page, where the list controls are.
+function renderListCard(entry) {
+  const m = entry?.media;
+  if (!m) return '';
+  const progress = entry.progress || 0;
+  const total = m.episodes || 0;
+  const aired = airedCount(m);
+  const behind = Math.max(0, aired - progress);
+  const denom = total > 0 ? total : Math.max(aired, progress, 12);
+  const pct = Math.max(0, Math.min(100, (progress / denom) * 100));
+  // A Planning card at 0/12 with an empty bar says nothing a Planning list
+  // doesn't already say. Shown once you've started, or while it's something
+  // you're actively watching.
+  const showProgress = progress > 0 || entry.status === 'CURRENT' || entry.status === 'REPEATING';
+  return `
+    <div class="card list-card" data-media-id="${m.id}" onclick="openMedia(${m.id})">
+      <div class="card-image" style="background-color:${m.coverImage?.color || 'var(--surface-2)'};">
+        ${coverImg(m.coverImage?.large)}
+        ${showProgress ? `<div class="card-progress">
+          <span class="card-progress-n">${progress}/${total || '?'}</span>
+          <span class="card-progress-track"><i style="width:${pct.toFixed(1)}%"></i></span>
+        </div>` : ''}
+      </div>
+      <div class="card-title">${escapeHtml(pickTitle(m.title) || 'Unknown')}</div>
+      ${behind > 0 ? `<div class="card-behind">${behind} behind</div>` : ''}
     </div>
   `;
 }

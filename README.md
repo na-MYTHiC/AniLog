@@ -75,6 +75,7 @@ Every one of these exists because something shipped broken:
 | `test-stampede` | a write not marking the whole cache due for refresh |
 | `test-failstates` | no view ever reporting "no results" when the request actually failed |
 | `test-newviews` | the weekly schedule, search filters and Profile statistics — including that filter values travel as GraphQL variables, and that a bar with a width actually paints one |
+| `test-home` | the status rail's counts matching the server (and a failed count never showing zeros), one-tap list switching, grid view persisting and its retry panel spanning the grid, All not repeating custom-list entries, the bar's controls clearing the bell, and one-line titles keeping rows a steady height |
 | `test-mobile` | the mobile contract: the notification badge being transparent and monochrome, no horizontal overflow and no touch target under 36px at four phone widths, no text field under 16px, `[hidden]` beating every component's display rule, and no inline styles in the markup |
 
 The recurring bug in this app has been treating a failed request as empty
