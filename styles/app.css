@@ -110,19 +110,15 @@
 }
 .sort-option:has(.sort-option-check) .sort-option-count { color: inherit; opacity: 0.7; }
 
-/* Floating notification bell — absolute (not fixed) so it's anchored to
-   .app's corner and stays pinned to the phone frame even when .app is
-   centered on a wide desktop browser window. Sits above tab content
-   (z-index) but below overlays (100+). Respects the safe-area inset so
-   it clears camera notches / dynamic islands. */
+/* Notification bell — the last control in Home's bar, so it scrolls away
+   with the header rather than floating over the list. Round, where the bar's
+   other controls are square, because it's a destination, not a display
+   option. position: relative anchors the count badge. */
 .notif-bell {
-  position: absolute;
-  top: max(14px, env(safe-area-inset-top, 0px));
-  right: max(14px, env(safe-area-inset-right, 0px));
-  z-index: 10;
-  background: color-mix(in srgb, var(--bg) 70%, transparent);
-  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--border);
+  position: relative;
+  flex-shrink: 0;
+  background: var(--surface-2);
+  border: none;
   color: var(--text);
   width: var(--tap); height: var(--tap);
   border-radius: 50%;
@@ -130,22 +126,9 @@
   display: flex; align-items: center; justify-content: center;
 }
 @media (hover: hover) {
-  .notif-bell:hover { background: var(--surface-2); }
+  .notif-bell:hover { background: color-mix(in srgb, var(--surface-2) 80%, var(--text)); }
 }
 .notif-bell:active { transform: scale(0.94); }
-
-/* The bell belongs to Home only. Search's search bar and Seasonal's
-   season-switcher both run their own controls to the right edge (the "next
-   season" arrow sits exactly where the bell floats), and Social and Profile
-   are their own destinations that a floating control from another screen
-   just clutters. :has() reacts to the same .active class switchTab() already
-   toggles, so no extra JS needed. */
-.app:has(#tab-search.active) .notif-bell,
-.app:has(#tab-seasonal.active) .notif-bell,
-.app:has(#tab-social.active) .notif-bell,
-.app:has(#tab-profile.active) .notif-bell {
-  display: none;
-}
 
 /* Bell badge — small pill anchored to the top-right of the bell icon */
 .notif-count-badge {
@@ -2790,12 +2773,8 @@
 
 /* ============ HOME: BAR, STATUS RAIL, LIST GRID ============ */
 
-/* One 44px row. The floating bell sits over its right end — it's anchored to
-   .app so it stays put while Home scrolls — so the bar lines its controls up
-   with it and keeps out of its way:
-   - top: the bell is at max(14px, inset); .content already pads by the
-     inset, so the bar adds whatever's left of the 14px.
-   - right: the bell's offset, its 44px, and a gap. */
+/* One 44px row: title, display options, bell. .content already pads by the
+   top inset, so the bar tops it up to 14px. */
 .list-bar {
   display: flex;
   align-items: center;
@@ -2803,7 +2782,7 @@
   padding-top: max(0px, calc(14px - env(safe-area-inset-top, 0px)));
   padding-bottom: 10px;
   padding-left: var(--gutter);
-  padding-right: calc(max(14px, env(safe-area-inset-right, 0px)) + var(--tap) + 8px);
+  padding-right: max(var(--gutter), env(safe-area-inset-right, 0px));
   border-bottom: 1px solid var(--border);
 }
 .list-bar-title {

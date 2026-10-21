@@ -41,23 +41,16 @@
 <body>
 <div class="app" id="app">
 
-  <!-- Floats at the top-right of the app frame (absolute, anchored to
-       .app — not viewport-fixed, so it stays pinned to the phone frame's
-       corner even when centered on a wide desktop browser window).
-       Independent of tab content, so it's visible on every tab. -->
-  <button class="notif-bell" id="notif-bell" aria-label="Notifications" onclick="onNotifBellTap()">
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-    <span class="notif-count-badge" id="notif-count-badge" hidden>0</span>
-  </button>
-
   <main class="content" id="content">
 
     <!-- HOME — My List -->
     <section class="tab active" id="tab-home">
       <!-- One bar instead of a header block and a row of dropdowns. Sort and
            the list/grid switch are display options, so they sit together on
-           the right; the bell floats over the far end (it's anchored to .app
-           so it stays put while Home scrolls) and the bar reserves its room. -->
+           the right, with the bell at the far end. The bell lives in the bar
+           rather than floating over the app, so it scrolls away with the
+           header instead of hovering over the list. It's Home-only: every
+           other tab runs its own controls to the right edge. -->
       <div class="list-bar">
         <!-- The list name IS the dropdown, the way Seasonal's title opens its
              season picker. It replaced a scrolling rail of chips: picking
@@ -82,6 +75,10 @@
             </button>
           </div>
         </div>
+        <button class="notif-bell" id="notif-bell" aria-label="Notifications" onclick="onNotifBellTap()">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="notif-count-badge" id="notif-count-badge" hidden>0</span>
+        </button>
       </div>
 
 
@@ -397,7 +394,7 @@
             <div class="settings-sub">First screen on launch</div>
           </div>
           <div class="seg" id="landing-seg">
-            <button class="seg-btn active" data-landing="home">Home</button>
+            <button class="seg-btn active" data-landing="home">List</button>
             <button class="seg-btn" data-landing="search">Search</button>
             <button class="seg-btn" data-landing="seasonal">Seasonal</button>
           </div>
@@ -494,7 +491,7 @@
         <div class="settings-row">
           <div>
             <div class="settings-label">App version</div>
-            <div class="settings-sub" id="update-status">v4.94</div>
+            <div class="settings-sub" id="update-status">v4.95</div>
           </div>
           <button class="btn-secondary" id="update-check-btn">Check for updates</button>
         </div>
@@ -512,7 +509,7 @@
       </div>
 
       <div class="app-footer">
-        AniLog · v4.94 · Powered by AniList
+        AniLog · v4.95 · Powered by AniList
       </div>
     </section>
 
@@ -530,9 +527,11 @@
   </div>
 
   <nav class="bottombar">
-    <button class="nav-btn active" data-tab="home" aria-label="Home">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12L12 3l9 9"/><path d="M5 10v10h14V10"/></svg>
-      <span>Home</span>
+    <!-- Bulleted lines: the list itself. Bullets keep it apart from the plain
+         three lines of the list/grid switch on the same screen. -->
+    <button class="nav-btn active" data-tab="home" aria-label="List">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h12"/><path d="M9 12h12"/><path d="M9 18h12"/><path d="M4 6h.01"/><path d="M4 12h.01"/><path d="M4 18h.01"/></svg>
+      <span>List</span>
     </button>
     <button class="nav-btn" data-tab="search" aria-label="Search">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>

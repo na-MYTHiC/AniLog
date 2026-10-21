@@ -233,24 +233,48 @@ const truth = (S) => {
   }
 
   // ---- the bar and the bell --------------------------------------------------
+  // The bell is the bar's last control: on its centre line, inside the gutter,
+  // and scrolling away with it rather than floating over the list.
   console.log('Bar and bell');
   for (const [w, density] of [[360, 'compact'], [393, 'comfortable'], [430, 'spacious']]) {
     const S = makeState();
     const page = await b.newPage({ viewport: { width: w, height: 860 } });
-    await page.addInitScript((p) => localStorage.setItem('anilog-prefs', JSON.stringify(p)), { ...BASE, density });
+    await page.addInitScript((p) => localStorage.setItem('anilog-prefs', JSON.stringify(p)), { ...BASE, density, listStatus: 'ALL' });
     await page.route('**/*', handler(S));
     await page.goto('http://localhost:8099/index.html', { waitUntil: 'load' });
     await page.waitForTimeout(2400);
-    const g = await page.evaluate(() => {
-      const bell = document.getElementById('notif-bell').getBoundingClientRect();
+    const g = await page.evaluate(async () => {
+      const bellEl = document.getElementById('notif-bell');
+      const bell = bellEl.getBoundingClientRect();
       const acts = document.getElementById('list-actions').getBoundingClientRect();
+      const bar = document.querySelector('#tab-home .list-bar').getBoundingClientRect();
+      const content = document.getElementById('content');
+      content.scrollTop = 300;
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const after = bellEl.getBoundingClientRect();
       return {
+        inBar: !!bellEl.closest('.list-bar'),
         gap: Math.round(bell.left - acts.right),
         dy: Math.round((acts.top + acts.height / 2) - (bell.top + bell.height / 2)),
+        right: Math.round(bar.right - bell.right),
+        scrolled: Math.round(bell.top - after.top), moved: content.scrollTop,
       };
     });
-    check(`${w}px: controls clear the bell and share its centre line`, g.gap >= 4 && Math.abs(g.dy) <= 1,
-      `gap ${g.gap}px, Δy ${g.dy}px`);
+    check(`${w}px: bell sits in the bar, after the controls, on their centre line`,
+      g.inBar && g.gap >= 4 && Math.abs(g.dy) <= 1 && g.right >= 14, JSON.stringify(g));
+    check(`${w}px: bell scrolls with the list`, g.moved > 0 && g.scrolled === g.moved, JSON.stringify(g));
+    await page.close();
+  }
+
+  // ---- the tab is called List --------------------------------------------------
+  {
+    const { page } = await boot(b, {});
+    const t = await page.evaluate(() => {
+      const n = document.querySelector('.nav-btn[data-tab="home"]');
+      return { label: n.textContent.trim(), aria: n.getAttribute('aria-label'),
+               landing: document.querySelector('[data-landing="home"]').textContent.trim() };
+    });
+    check('first tab reads List everywhere', t.label === 'List' && t.aria === 'List' && t.landing === 'List', JSON.stringify(t));
     await page.close();
   }
 
