@@ -210,6 +210,47 @@ const VIEWS = [
     check('document blocks overscroll chaining', /overscroll-behavior:\s*none/.test(css));
     check('text autosizing pinned', /text-size-adjust:\s*100%/.test(css));
 
+    // A closed overlay is parked below the frame, and three of them live
+    // outside .app where nothing clips them. On an iPhone home-screen app the
+    // screen runs past the layout viewport, so "off-screen" was on screen: the
+    // Activity header sat under the nav bar. Closed has to mean invisible.
+    const ov = await page.evaluate(async () => {
+      const shown = () => [...document.querySelectorAll('.overlay')]
+        .filter(o => getComputedStyle(o).visibility !== 'hidden').map(o => o.id);
+      const atRest = shown();
+      const el = document.getElementById('activity-overlay');
+      el.classList.add('visible');
+      const open = getComputedStyle(el).visibility;
+      el.classList.remove('visible');
+      const sliding = getComputedStyle(el).visibility;   // still animating out
+      await new Promise(r => setTimeout(r, 450));
+      return { atRest, open, sliding, after: getComputedStyle(el).visibility };
+    });
+    check('every closed overlay is invisible, not just off-screen', ov.atRest.length === 0, JSON.stringify(ov.atRest));
+    check('an overlay shows when opened, stays visible while sliding out, then hides',
+      ov.open === 'visible' && ov.sliding === 'visible' && ov.after === 'hidden', JSON.stringify(ov));
+
+    // Safari 26 tints the status bar from a fixed element at the top edge and
+    // blurs the content under it when there isn't one.
+    const scrim = await page.evaluate(() => {
+      const el = document.querySelector('.status-scrim');
+      const cs = getComputedStyle(el), r = el.getBoundingClientRect();
+      const bg = getComputedStyle(document.body).backgroundColor;
+      return { pos: cs.position, top: r.top, w: r.width, h: r.height, bg: cs.backgroundColor, body: bg,
+               under: +cs.zIndex < 100 };
+    });
+    check('a solid strip is pinned to the top edge in the page colour',
+      scrim.pos === 'fixed' && scrim.top === 0 && scrim.w === 393 && scrim.h >= 1 && scrim.bg === scrim.body && scrim.under,
+      JSON.stringify(scrim));
+
+    await page.close();
+  }
+
+  {
+    const page = await b.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.goto('http://localhost:8099/index.html', { waitUntil: 'load' });
+    const d = await page.evaluate(() => getComputedStyle(document.querySelector('.status-scrim')).display);
+    check('no status strip across a desktop window', d === 'none', d);
     await page.close();
   }
 

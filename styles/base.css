@@ -341,6 +341,26 @@ html, body {
   transition: background 0.3s ease;
 }
 
+/* An opaque strip pinned under the status bar. Safari 26 tints the status
+   bar from a fixed element touching the top edge and, finding none, blurs
+   whatever scrolls beneath it instead — the hazy band over the List bar on
+   iPhone. theme-color doesn't reach it there. At least 1px tall because iOS
+   26.1 can report a zero top inset; below every overlay (100+) so an open
+   page's header still owns the top. Phone widths only: on desktop it would
+   draw a band across the backdrop. */
+.status-scrim { display: none; }
+@media (max-width: 480px) {
+  .status-scrim {
+    display: block;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: max(1px, env(safe-area-inset-top, 0px));
+    background: var(--bg);
+    z-index: 50;
+    pointer-events: none;
+  }
+}
+
 /* When the viewport is wider than the phone frame, body shows the per-theme backdrop */
 @media (min-width: 481px) {
   body {
