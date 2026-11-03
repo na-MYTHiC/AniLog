@@ -266,6 +266,39 @@ const truth = (S) => {
     await page.close();
   }
 
+  // ---- the back gesture --------------------------------------------------------
+  // One page, so back used to close the app. It now walks back through what's
+  // open: the top layer, then the landing tab, then asks before leaving.
+  console.log('Back gesture');
+  {
+    const { page } = await boot(b, {});
+    await page.mouse.click(200, 400);           // a real gesture, as on a phone
+    const back = async () => { await page.evaluate(() => history.back()); await page.waitForTimeout(350); };
+    const snap = () => page.evaluate(() => ({
+      tab: state.activeTab,
+      open: [...document.querySelectorAll('.overlay.visible, .modal-backdrop.visible')].map(e => e.id),
+      trap: !!(history.state && history.state.anilogTrap),
+      toast: [...document.querySelectorAll('.toast-msg')].map(e => e.textContent).join('|'),
+    }));
+    await page.evaluate(() => { switchTab('search'); openMedia(1000); });
+    await page.waitForTimeout(500);
+    await page.evaluate(() => openSortModal('POPULARITY_DESC', () => {}));
+    await page.waitForTimeout(300);
+    const url = page.url();
+    await back(); const a = await snap();
+    check('back closes the sheet on top, leaving the page under it', a.open.join() === 'detail-overlay' && a.trap, JSON.stringify(a));
+    await back(); const c = await snap();
+    check('back closes the detail page', c.open.length === 0 && c.tab === 'search' && c.trap, JSON.stringify(c));
+    await back(); const d = await snap();
+    check('back from another tab goes to the landing tab', d.tab === 'home' && d.trap, JSON.stringify(d));
+    await back(); const e = await snap();
+    check('back on the landing tab asks first instead of closing', /again to close/.test(e.toast) && page.url() === url, JSON.stringify(e));
+    await page.waitForTimeout(2200);
+    const f = await snap();
+    check('and re-arms once the prompt has gone', f.trap, JSON.stringify(f));
+    await page.close();
+  }
+
   // ---- the tab is called List --------------------------------------------------
   {
     const { page } = await boot(b, {});

@@ -2739,6 +2739,37 @@ document.addEventListener('keydown', (e) => {
   if (closeTopLayer()) e.preventDefault();
 });
 
+// ============ BACK GESTURE ============
+// The app is one page, so the system back gesture (Android back, the edge
+// swipe in an installed PWA) used to have nothing to go back to and closed
+// the app. Instead, one spare history entry sits on top of the real one and
+// every back press lands on it:
+//   1. an open layer → close the top one (same as Escape)
+//   2. a tab other than the landing tab → go to the landing tab
+//   3. otherwise → "back again to close"; a second back within the toast's
+//      lifetime leaves, since the spare entry isn't re-armed until it ends.
+// A single entry rather than one per layer: layers also close by tap, swipe
+// and Escape, and a stack of entries would drift out of step with them.
+const BACK_EXIT_WINDOW = 2000;
+let backExitTimer = null;
+
+function armBackTrap() {
+  if (history.state && history.state.anilogTrap) return;
+  history.pushState({ anilogTrap: true }, '');
+}
+
+window.addEventListener('popstate', () => {
+  if (closeTopLayer()) return armBackTrap();
+  const landing = state.landing || 'home';
+  if (state.activeTab !== landing) {
+    switchTab(landing);
+    return armBackTrap();
+  }
+  if (backExitTimer) return;
+  showToast('Swipe back again to close', { duration: BACK_EXIT_WINDOW });
+  backExitTimer = setTimeout(() => { backExitTimer = null; armBackTrap(); }, BACK_EXIT_WINDOW);
+});
+
 // Returning focus to whatever opened a layer, so closing one doesn't strand
 // keyboard focus at the top of the document. Watching the class attribute
 // means every layer is covered without touching any of the open/close call
@@ -4570,6 +4601,13 @@ document.addEventListener('pointerover', (e) => {
 
 // ============ BOOT ============
 switchTab(state.landing || 'home');
+// After the OAuth hash (state.js) and the launch-URL params (above) have been
+// stripped, so the spare entry carries neither. Chrome skips history entries
+// pushed without a user gesture when you press back, so a tap re-arms it too —
+// a no-op whenever the entry is already there.
+armBackTrap();
+document.addEventListener('pointerdown', () => { if (!backExitTimer) armBackTrap(); },
+  { capture: true, passive: true });
 // Manual retry from the "couldn't reach AniList" state.
 document.getElementById('home-retry-btn')?.addEventListener('click', async () => {
   const btn = document.getElementById('home-retry-btn');
