@@ -43,6 +43,7 @@ const VIEWS = [
   ['social',   () => switchTab('social')],
   ['profile',  () => switchTab('profile')],
   ['settings', () => { switchTab('profile'); document.getElementById('settings-btn').click(); }],
+  ['follow list', () => { switchTab('profile'); setTimeout(() => openFollowList('following'), 600); }],
   ['detail',   () => openMedia(1000)],
   ['filters',  () => { switchTab('search'); setTimeout(() => document.getElementById('filter-btn').click(), 300); }],
   ['edit',     () => openListEditSheet({ id: 1000, title: { userPreferred: 'A' }, episodes: 12 },

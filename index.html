@@ -304,20 +304,6 @@
         <div class="carousel" id="favourites-carousel"></div>
       </div>
 
-      <!-- Following and Followers, as on AniList: one card, switched between
-           the two. Each person opens their profile — their stats and list. -->
-      <div id="following-section" hidden>
-        <div class="section-header section-header-spaced">
-          <div class="section-title">Social</div>
-        </div>
-        <div class="settings-group following-group">
-          <div class="seg follow-seg" id="follow-seg">
-            <button class="seg-btn active" type="button" data-follow="following">Following <span class="seg-n" id="following-count"></span></button>
-            <button class="seg-btn" type="button" data-follow="followers">Followers <span class="seg-n" id="followers-count"></span></button>
-          </div>
-          <div id="following-body"></div>
-        </div>
-      </div>
     </section>
 
   </main>
@@ -581,7 +567,7 @@
         <div class="settings-row">
           <div>
             <div class="settings-label">App version</div>
-            <div class="settings-sub" id="update-status">v5.03</div>
+            <div class="settings-sub" id="update-status">v5.04</div>
           </div>
           <button class="btn-secondary" id="update-check-btn">Check for updates</button>
         </div>
@@ -610,8 +596,29 @@
       </div>
 
       <div class="app-footer">
-        AniLog · v5.03 · Powered by AniList
+        AniLog · v5.04 · Powered by AniList
       </div>
+    </div>
+  </div>
+
+  <!-- Following / Followers, opened from the two counts under your name on
+       Profile. A full list of people rather than a card at the bottom of the
+       tab; the switch at the top flips between the two. -->
+  <div class="overlay" role="dialog" aria-modal="true" id="follow-overlay">
+    <header class="overlay-header">
+      <button class="back-btn" onclick="closeOverlay('follow-overlay')" aria-label="Back">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="overlay-title" id="follow-title">Following</div>
+    </header>
+    <div class="overlay-body">
+      <div class="follow-switch">
+        <div class="seg follow-seg" id="follow-seg">
+          <button class="seg-btn active" type="button" data-follow="following">Following <span class="seg-n" id="following-count"></span></button>
+          <button class="seg-btn" type="button" data-follow="followers">Followers <span class="seg-n" id="followers-count"></span></button>
+        </div>
+      </div>
+      <div class="follow-list" id="follow-list"></div>
     </div>
   </div>
 

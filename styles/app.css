@@ -981,26 +981,6 @@
    top of the screen and tops its padding up past the status bar; here it's
    mid-page, after the stats card. */
 .user-list-bar { padding-top: 6px; }
-/* Profile → Following. A wrapping grid, five across, rather than the
-   sideways strip a show's Friends row uses: this one can run to fifty. */
-.follow-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 14px 6px;
-  padding: 14px 10px;
-}
-.follow-grid .friend-avatar {
-  width: auto;
-  min-width: 0;
-  background: none;
-  border: 0;
-  padding: 0;
-  color: inherit;
-  font-family: inherit;
-}
-.follow-grid .friend-avatar-img { width: 52px; height: 52px; display: block; }
-.follow-grid .friend-avatar-name { max-width: 100%; display: block; }
-.follow-note { padding: 16px 18px; }
 
 .user-stats { margin-top: 4px; }
 .skel-line-lg { height: 20px; width: 60%; border-radius: 6px; margin-bottom: 8px; }
@@ -2760,8 +2740,42 @@
 .profile-follow-btn strong:empty { display: none; }
 .profile-follow-btn:active { transform: scale(0.97); }
 
-/* The Following / Followers switch, full width across the top of its card. */
-.follow-seg { display: grid; margin: 10px 10px 0; }
+/* Following / Followers page: the switch across the top, then one row per
+   person — avatar, name, chevron — the way a list of people reads on AniList. */
+.follow-switch { padding: 12px var(--gutter) 6px; }
+.follow-seg { display: grid; }
+.follow-list { padding-bottom: 24px; }
+.follow-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 64px;
+  padding: 10px var(--gutter);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.follow-row:active { background: var(--surface); }
+.follow-row-avatar {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--surface-2) center/cover no-repeat;
+}
+.follow-row-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.follow-row-chevron { color: var(--text-faint); flex-shrink: 0; }
+.follow-row .skel-line-sm { width: 40%; }
 .seg-n { margin-left: 4px; opacity: 0.7; font-weight: 800; }
 .seg-n:empty { display: none; }
 

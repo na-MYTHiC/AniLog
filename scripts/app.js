@@ -193,8 +193,7 @@ async function loadUserProfile() {
     </div>`;
   stats.hidden = !s;
   if (s) {
-    stats.innerHTML = statsHtml(s, 'ustats', true);
-    wireStatsMore(stats, 'ustats');
+    stats.innerHTML = statsHtml(s, 'Scores');
   }
 }
 
@@ -1676,7 +1675,7 @@ function updateAuthUI() {
       </div>
     `;
     card.querySelectorAll('.profile-follow-btn').forEach((b) => {
-      b.addEventListener('click', () => showFollowTab(b.dataset.follow, true));
+      b.addEventListener('click', () => openFollowList(b.dataset.follow));
     });
     if (followData) paintFollow(followData);
   }
@@ -1716,44 +1715,44 @@ function updateAuthUI() {
   // could only ever be zeroes.
   const statsSection = document.getElementById('stats-section');
   if (statsSection) statsSection.hidden = !signedIn;
-  const following = document.getElementById('following-section');
-  if (following) following.hidden = !signedIn;
 
   // Signing in or out changes whether there's a token to reveal.
   refreshSetupCodes();
 }
 
 // ============ FOLLOWING / FOLLOWERS ============
-// Who you follow and who follows you, as on your AniList profile: one card,
-// switched between the two, each a grid of avatars that wraps rather than a
-// sideways strip — the first rows show, the rest fold behind Show all. Each
-// person opens their profile. Both lists arrive in one request, at low
-// priority, when Profile opens.
-const FOLLOWING_SHOWN = 10;
+// Who you follow and who follows you, as on your AniList profile. The counts
+// sit under your name on Profile and arrive with one low-priority request when
+// the tab opens; tapping either opens the full list as its own page, switched
+// between the two at the top. Each person opens their profile.
+const FOLLOW_PER_PAGE = 50;
+const FOLLOW_FIELDS = 'id name avatar { medium large }';
 const FOLLOW_QUERY = `query ($id: Int!) {
-  following: Page(perPage: 50) {
-    pageInfo { total }
-    following(userId: $id, sort: [USERNAME]) { id name avatar { medium large } }
+  following: Page(perPage: ${FOLLOW_PER_PAGE}) {
+    pageInfo { total hasNextPage }
+    following(userId: $id, sort: [USERNAME]) { ${FOLLOW_FIELDS} }
   }
-  followers: Page(perPage: 50) {
-    pageInfo { total }
-    followers(userId: $id, sort: [USERNAME]) { id name avatar { medium large } }
+  followers: Page(perPage: ${FOLLOW_PER_PAGE}) {
+    pageInfo { total hasNextPage }
+    followers(userId: $id, sort: [USERNAME]) { ${FOLLOW_FIELDS} }
+  }
+}`;
+// One list's later pages, for Load more.
+const followPageQuery = (kind) => `query ($id: Int!, $page: Int) {
+  ${kind}: Page(page: $page, perPage: ${FOLLOW_PER_PAGE}) {
+    pageInfo { total hasNextPage }
+    ${kind}(userId: $id, sort: [USERNAME]) { ${FOLLOW_FIELDS} }
   }
 }`;
 let followingReqId = 0;
+// { following: { people, total, hasNext, page }, followers: {…} }, or null
+// until the first request succeeds.
 let followData = null;
 let followTab = 'following';
 
 async function loadFollowing() {
-  const section = document.getElementById('following-section');
-  const body = document.getElementById('following-body');
-  if (!section || !body || !state.user) return;
-  section.hidden = false;
+  if (!state.user) return;
   const myReq = ++followingReqId;
-  if (!followData) {
-    body.innerHTML = `<div class="follow-grid">${Array(5).fill(`
-      <div class="friend-avatar"><div class="friend-avatar-img skeleton"></div></div>`).join('')}</div>`;
-  }
   const data = await anilist(FOLLOW_QUERY, { id: state.user.id }, {
     priority: 'low',
     onFresh: (fresh) => { if (followingReqId === myReq) paintFollow(fresh); },
@@ -1764,64 +1763,92 @@ async function loadFollowing() {
 
 function paintFollow(data) {
   // A failed request is not "you follow nobody": keep what's up, or say so.
-  if (data?.following && data?.followers) followData = data;
-  const n = (k) => followData?.[k]?.pageInfo?.total ?? followData?.[k]?.[k]?.length;
-  const setN = (id, k) => { const el = document.getElementById(id); if (el) el.textContent = followData ? formatNum(n(k) || 0) : ''; };
-  setN('following-count', 'following');
-  setN('followers-count', 'followers');
-  setN('hero-following-n', 'following');
-  setN('hero-followers-n', 'followers');
-  renderFollowTab();
+  if (data?.following && data?.followers) {
+    const list = (k) => ({
+      people: (data[k][k] || []).filter(u => u?.id && u?.name),
+      total: data[k].pageInfo?.total ?? (data[k][k] || []).length,
+      hasNext: !!data[k].pageInfo?.hasNextPage,
+      page: 1,
+    });
+    followData = { following: list('following'), followers: list('followers') };
+  }
+  ['following', 'followers'].forEach((k) => {
+    const n = followData ? formatNum(followData[k].total) : '';
+    const seg = document.getElementById(`${k}-count`);
+    const hero = document.getElementById(`hero-${k}-n`);
+    if (seg) seg.textContent = n;
+    if (hero) hero.textContent = n;
+  });
+  if (document.getElementById('follow-overlay')?.classList.contains('visible')) renderFollowList();
 }
 
-function renderFollowTab() {
-  const body = document.getElementById('following-body');
-  if (!body) return;
+function openFollowList(tab) {
+  followTab = tab;
+  const ov = document.getElementById('follow-overlay');
+  ov.querySelector('.overlay-body').scrollTop = 0;
+  renderFollowList();
+  ov.classList.add('visible');
+  // Opened before the counts landed (or after they failed): ask now.
+  if (!followData) loadFollowing();
+}
+
+function renderFollowList() {
+  const list = document.getElementById('follow-list');
+  const title = document.getElementById('follow-title');
+  if (!list) return;
   syncSegState('follow-seg', 'follow', followTab);
+  if (title) title.textContent = followTab === 'following' ? 'Following' : 'Followers';
   if (!followData) {
-    body.innerHTML = `<div class="muted-note follow-note">Couldn't load your followers.
-      <button class="retry-btn" type="button">Retry</button></div>`;
-    body.querySelector('.retry-btn')?.addEventListener('click', () => loadFollowing());
+    list.innerHTML = followingReqId
+      ? Array(6).fill(`<div class="follow-row"><span class="follow-row-avatar skeleton"></span><span class="skeleton skel-line-sm"></span></div>`).join('')
+      : '';
     return;
   }
-  const people = (followData[followTab]?.[followTab] || []).filter(u => u?.id && u?.name);
-  if (!people.length) {
-    body.innerHTML = `<div class="muted-note follow-note">${followTab === 'following'
+  const d = followData[followTab];
+  if (!d.people.length) {
+    list.innerHTML = `<div class="no-results">${followTab === 'following'
       ? "You're not following anyone yet. Follow people on AniList and they'll show up here."
       : 'Nobody follows you yet.'}</div>`;
     return;
   }
-  const tile = (u, i) => `
-    <button class="friend-avatar user-tap" type="button" data-user-id="${u.id}" data-user-name="${escapeHtml(u.name)}"${i >= FOLLOWING_SHOWN ? ' hidden' : ''}>
-      <span class="friend-avatar-img" style="background-image:url('${u.avatar?.medium || u.avatar?.large || ''}');"></span>
-      <span class="friend-avatar-name">${escapeHtml(u.name)}</span>
-    </button>`;
-  const extra = people.length - FOLLOWING_SHOWN;
-  body.innerHTML = `<div class="follow-grid">${people.map(tile).join('')}</div>
-    ${extra > 0 ? `<button class="stat-more" type="button" id="following-more">Show all ${formatNum(people.length)}</button>` : ''}`;
-  document.getElementById('following-more')?.addEventListener('click', (e) => {
-    body.querySelectorAll('.follow-grid .user-tap[hidden]').forEach(el => { el.hidden = false; });
-    e.currentTarget.remove();
-  });
+  list.innerHTML = d.people.map((u) => `
+    <button class="follow-row user-tap" type="button" data-user-id="${u.id}" data-user-name="${escapeHtml(u.name)}">
+      <span class="follow-row-avatar" style="background-image:url('${u.avatar?.medium || u.avatar?.large || ''}');"></span>
+      <span class="follow-row-name">${escapeHtml(u.name)}</span>
+      <svg class="follow-row-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+    </button>`).join('')
+    + (d.hasNext ? '<button class="stat-more" type="button" id="follow-more">Load more</button>' : '');
+  document.getElementById('follow-more')?.addEventListener('click', () => loadMoreFollow(followTab));
 }
 
-function showFollowTab(tab, scroll) {
-  followTab = tab;
-  renderFollowTab();
-  if (!scroll) return;
-  const section = document.getElementById('following-section');
-  const content = document.getElementById('content');
-  if (section && content) {
-    content.scrollTo({ top: content.scrollTop + section.getBoundingClientRect().top - content.getBoundingClientRect().top - 8, behavior: 'smooth' });
+async function loadMoreFollow(kind) {
+  const d = followData?.[kind];
+  const btn = document.getElementById('follow-more');
+  if (!d || !btn) return;
+  btn.disabled = true;
+  btn.textContent = 'Loading…';
+  const data = await anilist(followPageQuery(kind), { id: state.user.id, page: d.page + 1 });
+  const page = data?.[kind];
+  if (!page) {
+    btn.disabled = false;
+    btn.textContent = "Couldn't load more. Retry";
+    return;
   }
+  d.page += 1;
+  d.people = d.people.concat((page[kind] || []).filter(u => u?.id && u?.name));
+  d.hasNext = !!page.pageInfo?.hasNextPage;
+  if (followTab === kind) renderFollowList();
 }
 
 document.getElementById('follow-seg')?.addEventListener('click', (e) => {
   const btn = e.target.closest('.seg-btn');
-  if (btn && btn.dataset.follow !== followTab) showFollowTab(btn.dataset.follow);
+  if (!btn || btn.dataset.follow === followTab) return;
+  followTab = btn.dataset.follow;
+  document.getElementById('follow-overlay').querySelector('.overlay-body').scrollTop = 0;
+  renderFollowList();
 });
 
-document.getElementById('following-body')?.addEventListener('click', (e) => {
+document.getElementById('follow-list')?.addEventListener('click', (e) => {
   const el = e.target.closest('.user-tap');
   if (!el) return;
   const id = parseInt(el.dataset.userId, 10);
@@ -1907,28 +1934,15 @@ function paintStats(s) {
     return;
   }
 
-  body.innerHTML = statsHtml(s, 'stats');
-  wireStatsMore(body, 'stats');
+  body.innerHTML = statsHtml(s);
 }
 
-// The statistics block, for you or for someone you follow. Three tiles: Mean
-// is gone, because AniList returns meanScore on the account's own scale
-// (10-point, 100-point, 5-star…) and dividing it by ten was only right for
-// one of them — a 10-point user saw 0.8 for a mean of 8.
-//
-// `compact` (a friend's profile) keeps the tiles and the status split up top
-// and folds everything else behind Show more, so their list isn't pushed a
-// screen down by a histogram.
-function statsHtml(s, prefix, compact) {
-  const genres = renderStatBars('Top genres', (s.genres || []).map(g => ({ name: g.genre, count: g.count })), 'genre');
-  const rest = `
-      ${renderStatBars('Formats', (s.formats || []).map(f => ({
-        // The option list's own label, not capitalize() — that turns "TV"
-        // into "Tv" and "TV_SHORT" into "Tv short".
-        name: FORMAT_OPTIONS.find(o => o.value === f.format)?.label || capitalize(f.format),
-        count: f.count,
-      })), 'format')}
-      ${renderStatBars('Release years', (s.releaseYears || []).map(y => ({ name: y.releaseYear, count: y.count })), 'year')}`;
+// The statistics block, for you or for someone you follow — everything at
+// once, no Show more. Three tiles: Mean is gone, because AniList returns
+// meanScore on the account's own scale (10-point, 100-point, 5-star…) and
+// dividing it by ten was only right for one of them — a 10-point user saw 0.8
+// for a mean of 8.
+function statsHtml(s, scoresLabel) {
   return `
     <div class="stat-tiles">
       ${statTile(formatNum(s.count || 0), 'Titles')}
@@ -1936,22 +1950,15 @@ function statsHtml(s, prefix, compact) {
       ${statTile(formatWatchTime(s.minutesWatched), 'Watched')}
     </div>
     ${renderStatStack(s.statuses)}
-    ${compact ? '' : `${renderStatHist(s.scores)}${genres}`}
-    <button class="stat-more" type="button" id="${prefix}-more-btn">Show more</button>
-    <div id="${prefix}-extra" hidden>
-      ${compact ? `${renderStatHist(s.scores, 'Scores')}${genres}` : ''}${rest}
-    </div>`;
-}
-
-function wireStatsMore(body, prefix) {
-  const more = document.getElementById(prefix + '-more-btn');
-  const extra = document.getElementById(prefix + '-extra');
-  if (more && extra) {
-    more.addEventListener('click', () => {
-      extra.hidden = !extra.hidden;
-      more.textContent = extra.hidden ? 'Show more' : 'Show less';
-    });
-  }
+    ${renderStatHist(s.scores, scoresLabel)}
+    ${renderStatBars('Top genres', (s.genres || []).map(g => ({ name: g.genre, count: g.count })), 'genre')}
+    ${renderStatBars('Formats', (s.formats || []).map(f => ({
+      // The option list's own label, not capitalize() — that turns "TV"
+      // into "Tv" and "TV_SHORT" into "Tv short".
+      name: FORMAT_OPTIONS.find(o => o.value === f.format)?.label || capitalize(f.format),
+      count: f.count,
+    })), 'format')}
+    ${renderStatBars('Release years', (s.releaseYears || []).map(y => ({ name: y.releaseYear, count: y.count })), 'year')}`;
 }
 
 // Every bar and column goes somewhere. A statistic you can't act on is just

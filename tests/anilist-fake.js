@@ -46,8 +46,7 @@ function handler(S, opts={}){
       favourites:{anime:{pageInfo:{total:5},nodes:Array.from({length:5},(_,i)=>withEntry(1000+i))}}}});
 
     // Profile → Following. 13 people, so the grid has more than its first
-    // ten to fold behind Show all.
-    // Followers are 4, a different count, so a test can tell the two apart.
+    // ten. Followers are 4, a different count, so a test can tell them apart.
     if(q.includes('following(')) return J({
       following:{pageInfo:{total:13},following:Array.from({length:13},(_,i)=>({id:7000+i,name:'friend'+i,avatar:{medium:IMG,large:IMG}}))},
       followers:{pageInfo:{total:4},followers:Array.from({length:4},(_,i)=>({id:7100+i,name:'fan'+i,avatar:{medium:IMG,large:IMG}}))}});

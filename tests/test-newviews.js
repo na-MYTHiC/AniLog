@@ -341,45 +341,50 @@ const label = (r) => r.q.includes('SaveMediaListEntry') ? 'MUTATION'
     const { page, seen } = await boot(b, { prefs: { listStyle } });
     await page.evaluate(() => switchTab('profile'));
     await page.waitForTimeout(1600);
-    const f = await page.evaluate(() => ({
-      shown: !document.getElementById('following-section').hidden,
-      count: document.getElementById('following-count').textContent.trim(),
-      visible: [...document.querySelectorAll('#following-body .user-tap')].filter(e => getComputedStyle(e).display !== 'none').length,
-      more: document.getElementById('following-more')?.textContent.trim(),
-      cols: getComputedStyle(document.querySelector('.follow-grid')).gridTemplateColumns.split(' ').length,
-    }));
     if (listStyle === 'ring') {
-      check('Following lists who you follow, ten at first', f.shown && f.count === '13' && f.visible === 10 && f.more === 'Show all 13', JSON.stringify(f));
       const hero = await page.evaluate(() => [...document.querySelectorAll('.profile-follow-btn')].map(b => b.textContent.replace(/\s+/g, ' ').trim()));
       check('your name carries Following and Followers counts, as on AniList', hero.join('|') === '13 Following|4 Followers', JSON.stringify(hero));
+      check('no Social card at the bottom of Profile', await page.evaluate(() => !document.getElementById('following-section')));
       const fav = await page.evaluate(() => ({ shown: !document.getElementById('favourites-section').hidden,
         cards: document.querySelectorAll('#favourites-carousel .card').length,
         count: document.getElementById('favourites-count').textContent }));
       check('Favourites show as a carousel, from the stats request', fav.shown && fav.cards === 5 && fav.count === '5', JSON.stringify(fav));
       const followCalls = seen.filter(r => r.q.includes('following(') && r.q.includes('followers('));
-      check('Following and Followers come in one request', followCalls.length === 1, `${followCalls.length}`);
+      check('Following and Followers counts come in one request', followCalls.length === 1, `${followCalls.length}`);
+    }
+    // Tapping a count opens the list of people as its own page.
+    const list = () => page.evaluate(() => ({
+      open: document.getElementById('follow-overlay').classList.contains('visible'),
+      title: document.getElementById('follow-title').textContent,
+      active: document.querySelector('#follow-seg .seg-btn.active')?.dataset.follow,
+      names: [...document.querySelectorAll('#follow-list .follow-row.user-tap')].map(e => e.dataset.userName),
+    }));
+    if (listStyle === 'ring') {
       await page.evaluate(() => document.querySelector('.profile-follow-btn[data-follow="followers"]').click());
       await page.waitForTimeout(500);
-      const fl = await page.evaluate(() => ({
-        active: document.querySelector('#follow-seg .seg-btn.active')?.dataset.follow,
-        names: [...document.querySelectorAll('#following-body .user-tap')].map(e => e.dataset.userName).join(),
-      }));
-      check('Followers opens the people who follow you', fl.active === 'followers' && fl.names === 'fan0,fan1,fan2,fan3', JSON.stringify(fl));
+      const fl = await list();
+      check('Followers opens a list of the people who follow you', fl.open && fl.title === 'Followers' && fl.active === 'followers'
+        && fl.names.join() === 'fan0,fan1,fan2,fan3', JSON.stringify(fl));
       await page.evaluate(() => document.querySelector('#follow-seg [data-follow="following"]').click());
-      check('a wrapping grid, not a sideways strip', f.cols === 5, JSON.stringify(f));
-      await page.evaluate(() => document.getElementById('following-more').click());
-      const all = await page.evaluate(() => [...document.querySelectorAll('#following-body .user-tap')].filter(e => getComputedStyle(e).display !== 'none').length);
-      check('Show all reveals everyone', all === 13, `${all}`);
+      await page.waitForTimeout(300);
+      const fg = await list();
+      check('the switch at the top flips to Following, everyone listed', fg.title === 'Following' && fg.names.length === 13, JSON.stringify(fg));
+      await page.evaluate(() => closeOverlay('follow-overlay'));
+      await page.waitForTimeout(400);
     }
+    await page.evaluate(() => document.querySelector('.profile-follow-btn[data-follow="following"]').click());
+    await page.waitForTimeout(500);
     seen.length = 0;
-    await page.evaluate(() => document.querySelector('#following-body .user-tap').click());
+    await page.evaluate(() => document.querySelector('#follow-list .user-tap').click());
     await page.waitForTimeout(1800);
     const u = await page.evaluate(() => ({
       open: document.getElementById('user-overlay').classList.contains('visible'),
       title: document.getElementById('user-title').textContent,
       tiles: [...document.querySelectorAll('#ustats-body .stat-tile-label')].map(e => e.textContent.trim()).join(','),
       stack: document.querySelectorAll('#ustats-body .stat-seg').length,
-      histHidden: !!document.querySelector('#ustats-extra .stat-hist') && document.getElementById('ustats-extra').hidden,
+      hist: document.querySelectorAll('#ustats-body .stat-hist').length,
+      allBars: document.querySelectorAll('#ustats-body .stat-bar-row').length,
+      moreBtn: !!document.querySelector('#ustats-body .stat-more'),
       bar: !!document.querySelector('#user-body .list-bar #user-status-btn') && !!document.getElementById('user-sort-btn'),
       oldTriggers: document.querySelectorAll('#user-body .sort-trigger').length,
       label: document.getElementById('user-status-label').textContent.trim(),
@@ -392,8 +397,8 @@ const label = (r) => r.q.includes('SaveMediaListEntry') ? 'MUTATION'
     }));
     check(`${listStyle}: tapping someone opens their profile`, u.open && u.title === 'friend0', JSON.stringify(u));
     if (listStyle === 'ring') {
-      check('their stats: the same three tiles and status split, the rest folded away',
-        u.tiles === 'Titles,Episodes,Watched' && u.stack === 3 && u.histHidden, JSON.stringify(u));
+      check('their stats: the same three tiles, all of it showing, no Show more',
+        u.tiles === 'Titles,Episodes,Watched' && u.stack === 3 && u.hist === 1 && u.allBars === 6 && !u.moreBtn, JSON.stringify(u));
       check('their list has your bar: the list name with its count, and sort', u.bar && u.oldTriggers === 0
         && u.label === 'Watching' && /^\d+$/.test(u.count), JSON.stringify(u));
       check('drawn in your List Style', /\blst-ring\b/.test(u.cls) && u.rows > 0, u.cls);
@@ -435,8 +440,7 @@ const label = (r) => r.q.includes('SaveMediaListEntry') ? 'MUTATION'
       cols: document.querySelectorAll('.stat-hist-col').length,
       bars: document.querySelectorAll('.stat-bar-row').length,
       skeletons: document.querySelectorAll('#stats-body .skeleton').length,
-      more: !!document.getElementById('stats-more-btn'),
-      extraHidden: document.getElementById('stats-extra')?.hidden,
+      more: !!document.querySelector('#stats-body .stat-more'),
       // The card above must agree with the Watched tile.
       card: document.getElementById('profile-card').textContent,
     }));
@@ -457,8 +461,6 @@ const label = (r) => r.q.includes('SaveMediaListEntry') ? 'MUTATION'
     // Painted width, not just markup. The fill is a span inside a span, and
     // an inline box ignores width — every bar rendered empty and the markup
     // assertion above was perfectly happy about it.
-    // Direct children only — the Show-more block is still collapsed, and a
-    // hidden element measures zero.
     const widths = await page.evaluate(() =>
       [...document.querySelectorAll('#stats-body > .stat-block .stat-bar-fill')]
         .map(e => Math.round(e.getBoundingClientRect().width)));
@@ -468,19 +470,10 @@ const label = (r) => r.q.includes('SaveMediaListEntry') ? 'MUTATION'
       Math.max(...widths) >= Math.round(
         await page.evaluate(() => document.querySelector('.stat-bar-track').getBoundingClientRect().width)) - 1,
       `max=${Math.max(...widths)}`);
-    check('extra stats collapsed behind Show more', st.more && st.extraHidden === true);
-
-    await page.evaluate(() => document.getElementById('stats-more-btn').click());
-    await page.waitForTimeout(400);
-    const opened = await page.evaluate(() => ({
-      hidden: document.getElementById('stats-extra').hidden,
-      label: document.getElementById('stats-more-btn').textContent.trim(),
-      bars: document.querySelectorAll('#stats-extra .stat-bar-row').length,
-    }));
-    check('Show more reveals formats and years',
-      !opened.hidden && opened.label === 'Show less' && opened.bars > 0, JSON.stringify(opened));
+    // Everything at once: genres, formats and release years, no Show more.
+    check('every statistic shows, nothing behind Show more', !st.more && st.bars === 6, `${st.bars} bars, more=${st.more}`);
     const fmtNames = await page.evaluate(() =>
-      [...document.querySelectorAll('#stats-extra .stat-bar-name')].map(e => e.textContent.trim()));
+      [...document.querySelectorAll('#stats-body .stat-bar-name')].map(e => e.textContent.trim()));
     check('format labels keep their real casing',
       fmtNames.includes('TV') && !fmtNames.includes('Tv'), JSON.stringify(fmtNames));
 
