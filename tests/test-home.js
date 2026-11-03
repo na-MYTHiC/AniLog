@@ -299,6 +299,39 @@ const truth = (S) => {
     await page.close();
   }
 
+  // ---- coming back is smooth --------------------------------------------------
+  // Returning to List used to wipe it to skeletons and jump to the top.
+  console.log('Returning to List');
+  {
+    const { page } = await boot(b, { listStatus: 'ALL' });
+    const r = await page.evaluate(async () => {
+      const wait = (ms) => new Promise(r => setTimeout(r, ms));
+      const content = document.getElementById('content');
+      const grid = document.getElementById('my-list-grid');
+      content.scrollTop = 400;
+      const before = content.scrollTop;
+      switchTab('search'); await wait(300);
+      let skeleton = false;
+      const mo = new MutationObserver(() => { if (grid.querySelector('.skeleton')) skeleton = true; });
+      mo.observe(grid, { childList: true, subtree: true });
+      history.back(); await wait(600);      // the back gesture, to the landing tab
+      mo.disconnect();
+      const restored = content.scrollTop;
+      const tab = state.activeTab;
+      // Retapping the tab you're on: to the top, no reload.
+      let reloaded = false;
+      const mo2 = new MutationObserver(() => { reloaded = true; });
+      mo2.observe(grid, { childList: true });
+      document.querySelector('.nav-btn[data-tab="home"]').click(); await wait(900);
+      mo2.disconnect();
+      return { before, restored, tab, skeleton, top: content.scrollTop, reloaded };
+    });
+    check('back to List keeps your place', r.tab === 'home' && r.before > 0 && Math.abs(r.restored - r.before) <= 1, JSON.stringify(r));
+    check('back to List doesn\'t flash placeholders over the list you left', !r.skeleton, JSON.stringify(r));
+    check('retapping List scrolls to the top without reloading it', r.top === 0 && !r.reloaded, JSON.stringify(r));
+    await page.close();
+  }
+
   // ---- the tab is called List --------------------------------------------------
   {
     const { page } = await boot(b, {});

@@ -445,13 +445,26 @@ Object.entries(state.notifs).forEach(([key, on]) => {
 });
 
 // ============ TAB SWITCHING ============
+// Every tab shares one scroller (#content), so each one's position is kept
+// here and put back on return — coming back to List (by tap or by the back
+// gesture) used to jump to the top. Retapping the tab you're on scrolls it to
+// the top instead, the way native tab bars do, rather than reloading it.
+const tabScroll = {};
+let tabsBooted = false;
 function switchTab(tab) {
+  const content = document.getElementById('content');
+  if (tabsBooted && tab === state.activeTab) {
+    content.scrollTo({ top: 0, behavior: 'smooth' });
+    return;
+  }
+  if (tabsBooted) tabScroll[state.activeTab] = content.scrollTop;
+  tabsBooted = true;
   state.activeTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
   document.querySelector(`.nav-btn[data-tab="${tab}"]`).classList.add('active');
-  document.getElementById('content').scrollTop = 0;
+  content.scrollTop = tabScroll[tab] || 0;
 
   if (tab === 'search') loadSearchTab();
   if (tab === 'seasonal') loadSeasonal();
@@ -2126,8 +2139,16 @@ async function loadMyList() {
   // tests and the failure panel all find the list by it.
   const asGrid = state.listView === 'grid';
   grid.className = myListClass(asGrid);
-  if (asGrid) skeletonFill(grid, 9);
-  else skeletonFillRows(grid, 6);
+  // Placeholders only when what's on screen is a different list. Returning
+  // to a list you were just looking at kept wiping it to skeletons and
+  // rebuilding it — a flash, and the scroll position collapsing with it.
+  // Same list: leave it up and swap in the fresh copy when it lands.
+  const shape = [state.listStatus, state.listSort, state.listView, currentListStyle()].join('|');
+  if (grid.dataset.shape !== shape) {
+    delete grid.dataset.shape;
+    if (asGrid) skeletonFill(grid, 9);
+    else skeletonFillRows(grid, 6);
+  }
 
   const mediaShape = `
     id
@@ -2181,8 +2202,10 @@ async function loadMyList() {
       <button class="retry-btn" type="button" style="margin-top: 10px;">Retry</button>
     </div>`;
     grid.querySelector('.retry-btn')?.addEventListener('click', () => loadMyList());
+    delete grid.dataset.shape;
     return;
   }
+  grid.dataset.shape = shape;
   // Custom lists are skipped: AniList returns them alongside the status lists
   // when no status is given, so in All every show you'd put in a custom list
   // appeared twice — and the All chip, which skips them, disagreed with the
