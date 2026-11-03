@@ -79,6 +79,10 @@ const label = (r) => r.q.includes('SaveMediaListEntry') ? 'MUTATION'
       title: document.getElementById('seasonal-title').textContent.trim(),
       chips: document.querySelectorAll('.day-chip').length,
       days: document.querySelectorAll('.sched-day').length,
+      emptyDays: [...document.querySelectorAll('.sched-day')].filter(d => !d.querySelector('.list-row-wrap')).length,
+      chipDays: [...document.querySelectorAll('.day-chip')].map(c => c.dataset.day).join(),
+      sectionDays: [...document.querySelectorAll('.sched-day')].map(d => d.dataset.day).join(),
+      nothing: /Nothing airing/.test(document.getElementById('schedule-days').textContent),
       rows: document.querySelectorAll('#schedule-days .list-row-wrap').length,
       skeletons: document.querySelectorAll('#schedule-days .skeleton').length,
       times: [...document.querySelectorAll('#schedule-days .row-time')].slice(0, 3).map(e => e.textContent),
@@ -88,8 +92,29 @@ const label = (r) => r.q.includes('SaveMediaListEntry') ? 'MUTATION'
       JSON.stringify({ s: sched.schedShown, g: sched.gridShown, so: sched.sortShown, sc: sched.scopeShown }));
     check('season arrows hidden (no season to step)', !sched.arrowsShown);
     check('header reads This Week', sched.title === 'This Week', `"${sched.title}"`);
-    check('seven day chips', sched.chips === 7, `${sched.chips}`);
-    check('seven day sections', sched.days === 7, `${sched.days}`);
+    // Only days with something airing: four "Nothing airing" headings in a
+    // row pushed the week's episodes below the fold.
+    check('a section per day that has episodes, and no empty ones',
+      sched.days > 0 && sched.days <= 7 && sched.emptyDays === 0 && !sched.nothing, JSON.stringify(sched));
+    check('the day chips are the same days as the sections',
+      sched.chips === sched.days && sched.chipDays === sched.sectionDays, `${sched.chipDays} / ${sched.sectionDays}`);
+    // Pinned on the painter itself: two shows on days 2 and 5 of the week.
+    const skip = await page.evaluate(() => {
+      const days = scheduleWindow();
+      const mk = (d, id) => ({ airingAt: days[d].from + 3600, episode: 3,
+        media: { id, title: { userPreferred: 'S' + id }, episodes: 12, coverImage: {} }, entry: null });
+      const saved = scheduleItems;
+      paintSchedule([mk(2, 801), mk(5, 802)]);
+      const r = {
+        sections: [...document.querySelectorAll('.sched-day')].map(d => d.dataset.day).join(),
+        chips: [...document.querySelectorAll('.day-chip')].map(c => c.dataset.day).join(),
+        active: document.querySelector('.day-chip.active')?.dataset.day,
+      };
+      paintSchedule(saved);
+      return r;
+    });
+    check('quiet days are skipped, busy ones kept in order', skip.sections === '2,5' && skip.chips === '2,5', JSON.stringify(skip));
+    check('the first day shown starts highlighted', skip.active === '2', JSON.stringify(skip));
     check('rows rendered, not skeletons', sched.rows > 0 && sched.skeletons === 0,
       `${sched.rows} rows / ${sched.skeletons} skeletons`);
     check('rows lead with an airing time', sched.times.length > 0 && sched.times.every(t => /\d/.test(t)),

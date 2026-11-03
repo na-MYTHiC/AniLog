@@ -237,7 +237,10 @@ const FILTER_YEAR_MIN = 1960;
 // My List's layouts, as set in Profile → Appearance. Here with the other option
 // lists rather than next to loadMyList: the settings sync reads it at load
 // time, long before that part of app.js has run.
-const LIST_STYLES = ['classic', 'cards', 'ring', 'editorial'];
+// Grid is one of them rather than a separate list/grid switch in the List bar:
+// it's another way of drawing the list, and the bar keeps only what you change
+// often (which list, and its sort).
+const LIST_STYLES = ['classic', 'cards', 'ring', 'editorial', 'grid'];
 
 const SEASONS_ORDER = ['WINTER', 'SPRING', 'SUMMER', 'FALL'];
 

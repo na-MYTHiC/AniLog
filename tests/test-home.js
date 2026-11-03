@@ -130,11 +130,17 @@ const truth = (S) => {
     await page.close();
   }
 
-  // ---- grid view ---------------------------------------------------------------
-  console.log('Grid view');
+  // ---- the Grid style ------------------------------------------------------------
+  // Grid is the fifth List Style; the List bar has no view switch any more.
+  console.log('Grid style');
   {
-    const { page, S } = await boot(b, { listStatus: 'CURRENT', listView: 'list' });
-    await page.evaluate(() => document.querySelector('#list-view-seg [data-view="grid"]').click());
+    const { page, S } = await boot(b, { listStatus: 'CURRENT', listStyle: 'classic' });
+    const bar = await page.evaluate(() => ({
+      seg: !!document.getElementById('list-view-seg'),
+      actions: [...document.querySelectorAll('#list-actions > *')].map(e => e.id),
+    }));
+    check('the List bar has no list/grid switch, just sort', !bar.seg && bar.actions.join() === 'list-sort-btn', JSON.stringify(bar));
+    await page.evaluate(() => { switchTab('profile'); document.querySelector('#list-style-seg [data-style="grid"]').click(); switchTab('home'); });
     await page.waitForTimeout(900);
     const g = await page.evaluate(() => ({
       cards: document.querySelectorAll('#my-list-grid .list-card').length,
@@ -143,43 +149,48 @@ const truth = (S) => {
       progress: [...document.querySelectorAll('#my-list-grid .card-progress-n')].map(e => e.textContent),
       fills: [...document.querySelectorAll('#my-list-grid .card-progress-track i')]
         .map(e => Math.round(e.getBoundingClientRect().width)),
-      pressed: document.querySelector('#list-view-seg [data-view="grid"]').classList.contains('active'),
     }));
     const watching = truth(S).CURRENT;
-    check('grid renders a card per entry and no rows', g.cards === watching && g.rows === 0,
+    check('Grid renders a card per entry and no rows', g.cards === watching && g.rows === 0,
       `${g.cards} cards / ${g.rows} rows (server ${watching})`);
-    check('grid uses the list-grid columns', /\blist-grid\b/.test(g.cls), g.cls);
+    check('grid uses the list-grid columns', /\blist-grid\b/.test(g.cls) && /\blst-grid\b/.test(g.cls), g.cls);
     check('cards show progress as a fraction', g.progress.length > 0 && g.progress.every(p => /^\d+\/(\d+|\?)$/.test(p)),
       JSON.stringify(g.progress));
     check('progress fills actually paint', g.fills.some(w => w > 0), JSON.stringify(g.fills));
-    check('toggle reflects grid', g.pressed);
 
-    // Survives a reload.
     await page.reload({ waitUntil: 'load' });
     await page.waitForTimeout(2600);
     const reloaded = await page.evaluate(() => ({
-      view: state.listView,
+      style: state.listStyle,
       cards: document.querySelectorAll('#my-list-grid .list-card').length,
     }));
-    check('grid view persists across reload', reloaded.view === 'grid' && reloaded.cards > 0, JSON.stringify(reloaded));
+    check('Grid persists across reload', reloaded.style === 'grid' && reloaded.cards > 0, JSON.stringify(reloaded));
 
-    // Back to list: rows return with their swipe targets.
-    await page.evaluate(() => document.querySelector('#list-view-seg [data-view="list"]').click());
+    await page.evaluate(() => document.querySelector('#list-style-seg [data-style="classic"]').click());
     await page.waitForTimeout(900);
     const back = await page.evaluate(() => ({
       rows: document.querySelectorAll('#my-list-grid .list-row-wrap').length,
       swipe: document.querySelectorAll('#my-list-grid .list-row-action-add').length,
       cards: document.querySelectorAll('#my-list-grid .list-card').length,
     }));
-    check('list view returns rows with swipe targets', back.rows > 0 && back.swipe === back.rows && back.cards === 0,
+    check('a row style brings rows back with swipe targets', back.rows > 0 && back.swipe === back.rows && back.cards === 0,
       JSON.stringify(back));
+    await page.close();
+  }
+
+  // Someone who had the old grid switch on lands on the Grid style.
+  {
+    const { page } = await boot(b, { listStatus: 'CURRENT', listView: 'grid', listStyle: 'ring' });
+    const m = await page.evaluate(() => ({ style: state.listStyle, view: 'listView' in state,
+      cards: document.querySelectorAll('#my-list-grid .list-card').length }));
+    check('the old grid switch migrates to the Grid style', m.style === 'grid' && !m.view && m.cards > 0, JSON.stringify(m));
     await page.close();
   }
 
   // ---- grid failure panel spans the grid -----------------------------------
   console.log('Grid fails');
   {
-    const { page } = await boot(b, { listStatus: 'CURRENT', listView: 'grid' }, (h) => async (route) => {
+    const { page } = await boot(b, { listStatus: 'CURRENT', listStyle: 'grid' }, (h) => async (route) => {
       const q = JSON.parse(route.request().postData() || '{}').query || '';
       if (q.includes('MediaListCollection') && q.includes('progress media')) return route.abort('failed');
       return h(route);
@@ -400,11 +411,10 @@ const truth = (S) => {
   // ---- list styles ---------------------------------------------------------------
   console.log('List styles');
   const MARK = { classic: '.list-row-meta-sub', cards: '.lr-edge', ring: '.lr-ring', editorial: '.lr-big' };
-  const GMARK = { classic: '.card-progress, .card-title', cards: '.lc-body', ring: '.lc-ring-badge', editorial: '.lc-caps' };
   for (const style of ['classic', 'cards', 'ring', 'editorial']) {
     for (const tint of [false, true]) {
       const tag = `${style}${tint ? '+tint' : ''}`;
-      const { page, seen } = await boot(b, { listStatus: 'CURRENT', listView: 'list', listStyle: style, listTint: tint });
+      const { page, seen } = await boot(b, { listStatus: 'CURRENT', listStyle: style, listTint: tint });
       const l = await page.evaluate(([mark]) => {
         const g = document.getElementById('my-list-grid');
         const wraps = [...g.querySelectorAll('.list-row-wrap')];
@@ -460,39 +470,40 @@ const truth = (S) => {
         check(`${tag}: the repainted row keeps its style`, kept);
       }
 
-      // Same style in grid.
-      await page.evaluate(() => document.querySelector('#list-view-seg [data-view="grid"]').click());
-      await page.waitForTimeout(800);
-      // Layout, not just markup: the Ring grid once had every card collapse into
-      // one 27px circle (a class-name collision) while a markup check passed.
-      const gr = await page.evaluate(([mark]) => {
-        const g = document.getElementById('my-list-grid');
-        const cols = getComputedStyle(g).gridTemplateColumns.split(' ').length;
-        const gw = g.getBoundingClientRect().width;
-        const cards = [...g.querySelectorAll('.list-card')];
-        const boxes = cards.map(c => c.getBoundingClientRect());
-        const minW = gw / cols * 0.7;
-        const tops = new Set(boxes.map(r => Math.round(r.top)));
-        return {
-          n: cards.length,
-          marked: cards.filter(c => c.querySelector(mark)).length,
-          sized: boxes.filter(r => r.width >= minW && r.height >= r.width).length,
-          rows: tops.size, cols,
-          positionedCards: cards.filter(c => getComputedStyle(c).position === 'absolute').length,
-        };
-      }, [GMARK[style]]);
-      check(`${tag}: grid renders in its style`, gr.n > 0 && gr.marked === gr.n, `${gr.marked}/${gr.n}`);
-      check(`${tag}: every card is laid out as a real grid cell`,
-        gr.sized === gr.n && gr.positionedCards === 0 && gr.rows === Math.ceil(gr.n / gr.cols),
-        `${gr.sized}/${gr.n} sized, ${gr.rows} rows x ${gr.cols} cols, ${gr.positionedCards} absolutely positioned`);
       await page.close();
     }
+  }
+
+  // Grid with Cover Colours, laid out as a real grid. Layout, not just markup:
+  // a grid card once collapsed into one 27px circle while a markup check passed.
+  for (const tint of [false, true]) {
+    const { page } = await boot(b, { listStatus: 'CURRENT', listStyle: 'grid', listTint: tint });
+    const gr = await page.evaluate(() => {
+      const g = document.getElementById('my-list-grid');
+      const cols = getComputedStyle(g).gridTemplateColumns.split(' ').length;
+      const gw = g.getBoundingClientRect().width;
+      const cards = [...g.querySelectorAll('.list-card')];
+      const boxes = cards.map(c => c.getBoundingClientRect());
+      const tops = new Set(boxes.map(r => Math.round(r.top)));
+      const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+      return {
+        n: cards.length, cols, rows: tops.size, cls: g.className,
+        sized: boxes.filter(r => r.width >= gw / cols * 0.7 && r.height >= r.width).length,
+        rowAccent: cards[0] ? getComputedStyle(cards[0]).getPropertyValue('--row-accent').trim() : '', accent,
+      };
+    });
+    const tag = `grid${tint ? '+tint' : ''}`;
+    check(`${tag}: every card is laid out as a real grid cell`,
+      gr.n > 0 && gr.sized === gr.n && gr.rows === Math.ceil(gr.n / gr.cols), JSON.stringify(gr));
+    check(`${tag}: tint ${tint ? 'replaces' : 'leaves'} the theme accent`,
+      tint ? (gr.rowAccent && gr.rowAccent !== gr.accent) : !gr.rowAccent, `row-accent="${gr.rowAccent}"`);
+    await page.close();
   }
 
   // ---- settings drive it live ----------------------------------------------------
   console.log('Settings');
   {
-    const { page } = await boot(b, { listStatus: 'CURRENT', listView: 'list' });
+    const { page } = await boot(b, { listStatus: 'CURRENT' });
     await page.evaluate(() => switchTab('profile'));
     await page.waitForTimeout(400);
     const rows = await page.evaluate(() => ({

@@ -67,14 +67,6 @@
           <button class="icon-btn" id="list-sort-btn" type="button" aria-label="Sort">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
           </button>
-          <div class="seg view-seg" id="list-view-seg" role="group" aria-label="View">
-            <button class="seg-btn" type="button" data-view="list" aria-label="List view">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
-            </button>
-            <button class="seg-btn" type="button" data-view="grid" aria-label="Grid view">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
-            </button>
-          </div>
         </div>
         <button class="notif-bell" id="notif-bell" aria-label="Notifications" onclick="onNotifBellTap()">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
@@ -328,7 +320,8 @@
           </div>
         </div>
         <!-- My List's look. Next to density because they're the same kind of
-             decision — how Home is drawn — and both apply to list and grid. -->
+             decision — how List is drawn. Grid is one of the styles; it used
+             to be a switch in the List bar. -->
         <div class="settings-row">
           <div>
             <div class="settings-label">List Style</div>
@@ -339,10 +332,11 @@
             <button class="seg-btn" data-style="cards">Cards</button>
             <button class="seg-btn" data-style="ring">Ring</button>
             <button class="seg-btn" data-style="editorial">Editorial</button>
+            <button class="seg-btn" data-style="grid">Grid</button>
           </div>
         </div>
-        <!-- A switch rather than a fifth style: it's a treatment, and it works
-             on top of any of the four layouts above. -->
+        <!-- A switch rather than another style: it's a treatment, and it works
+             on top of any of the layouts above. -->
         <div class="settings-row">
           <div>
             <div class="settings-label">Cover Colours</div>
@@ -492,7 +486,7 @@
         <div class="settings-row">
           <div>
             <div class="settings-label">App version</div>
-            <div class="settings-sub" id="update-status">v4.99</div>
+            <div class="settings-sub" id="update-status">v5.00</div>
           </div>
           <button class="btn-secondary" id="update-check-btn">Check for updates</button>
         </div>
@@ -510,7 +504,7 @@
       </div>
 
       <div class="app-footer">
-        AniLog · v4.99 · Powered by AniList
+        AniLog · v5.00 · Powered by AniList
       </div>
     </section>
 

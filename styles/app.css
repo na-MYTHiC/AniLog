@@ -863,11 +863,6 @@
   opacity: 0.6;
 }
 .chip.active .chip-n { opacity: 0.8; }
-/* An empty day or an empty list stays in its rail — the gap is information —
-   but recedes so the eye skips it. `quiet`, not `empty`: .empty is already the
-   app's full-screen empty state, and a chip picking it up inherited 60px of
-   padding. */
-.chip.quiet { opacity: 0.45; }
 
 /* Overlays */
 .overlay {
@@ -2411,13 +2406,6 @@
 .schedule { padding-bottom: 12px; }
 .sched-day { padding-top: var(--section-pad-y); }
 .sched-day .section-header { margin-bottom: 6px; }
-/* A quiet day is a heading and nothing else — its "Nothing airing" rides in
-   the count slot on the same line. It stays in the list so the rail's chip has
-   somewhere to jump to, but it recedes and costs one row instead of three. */
-.sched-day.quiet { padding-top: 10px; }
-.sched-day.quiet .section-title { color: var(--text-dim); font-weight: 600; }
-.sched-day.quiet .section-header { margin-bottom: 0; }
-.sched-day.quiet .section-count { color: var(--text-faint); }
 
 /* A dim one-line note where a block has nothing to show. Shared by the filter
    sheet's empty chip rows and the statistics error. */
@@ -2853,12 +2841,6 @@
 @media (hover: hover) {
   .icon-btn:hover { background: color-mix(in srgb, var(--surface-2) 80%, var(--text)); }
 }
-.view-seg .seg-btn {
-  min-width: 40px;
-  padding: 0 10px;
-  display: flex; align-items: center; justify-content: center;
-}
-.view-seg svg { display: block; }
 
 
 /* My List as a poster grid. Columns come from --list-grid-cols, one more than
@@ -3071,90 +3053,7 @@
   color: var(--text-faint);
 }
 
-/* ---- Grid: the same three ideas on a poster ----
-   Card modifiers are lc-cards / lc-ring / lc-editorial; nothing INSIDE a card
-   may reuse one of those names. The ring's badge was once called .lc-ring as
-   well, so every Ring card took the badge's 27px absolute styling and the
-   whole grid collapsed into one circle in a corner. */
-.lc-cards {
-  position: relative;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-.lc-cards .card-image { border-radius: 0; box-shadow: none; padding-bottom: 132%; }
-.lc-body { padding: 7px 8px 10px; }
-.lc-cards .card-title { margin-top: 0; }
-.lc-meta {
-  margin-top: 4px;
-  display: flex;
-  justify-content: space-between;
-  gap: 6px;
-  font-size: var(--card-meta-size);
-  font-weight: 600;
-  color: var(--text-dim);
-}
-.lc-meta b { color: var(--row-accent, var(--accent)); font-weight: 800; white-space: nowrap; }
-.lc-cards .lr-edge { left: 0; }
-
-.lc-ring-badge {
-  position: absolute;
-  right: 6px;
-  bottom: 6px;
-  width: calc(var(--card-meta-size) * 3);
-  height: calc(var(--card-meta-size) * 3);
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.66);
-}
-.lc-ring-badge .lr-ring-track { stroke: rgba(255, 255, 255, 0.18); }
-.lc-ring-badge b {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--card-meta-size);
-  font-weight: 800;
-  color: #fff;
-}
-.lc-ring-badge b.long { font-size: calc(var(--card-meta-size) * 0.75); letter-spacing: -0.3px; }
-
-.lc-editorial .card-image { border-radius: var(--radius-xs); }
-.lc-big {
-  position: absolute;
-  left: 0;
-  top: 0;
-  padding: 6px 9px 8px 8px;
-  background: linear-gradient(135deg, rgba(0, 0, 0, 0.78), rgba(0, 0, 0, 0) 85%);
-  color: #fff;
-  font-size: calc(var(--card-title-size) * 2);
-  font-weight: 900;
-  line-height: 1;
-  letter-spacing: -1px;
-}
-.lc-big small {
-  display: block;
-  margin-top: 2px;
-  font-size: 8.5px;
-  font-weight: 800;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.75);
-}
-.lc-thin { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(0, 0, 0, 0.5); }
-.lc-thin i { display: block; height: 100%; background: var(--row-accent, var(--accent)); }
-.lc-editorial .card-title { font-weight: 800; letter-spacing: -0.1px; }
-.lc-caps {
-  margin-top: 3px;
-  font-size: calc(var(--card-meta-size) - 1px);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-faint);
-}
-
-/* ---- Cover Colours: works on top of any of the four ----
+/* ---- Cover Colours: works on top of any style ----
    Each show's own colour (AniLog already receives coverImage.color with the
    list, so this costs no request) washes its row, glows behind its art and
    replaces the theme accent for that show's progress and counts.
@@ -3186,6 +3085,4 @@
 .lst-tint .list-row-cover { box-shadow: 0 6px 18px color-mix(in srgb, var(--tint) 45%, transparent); }
 .lst-tint.lst-cards .list-row-cover { box-shadow: none; }
 .lst-tint .list-card .card-image { box-shadow: 0 10px 24px color-mix(in srgb, var(--tint) 45%, transparent); }
-.lst-tint .lc-cards {
-  background: linear-gradient(180deg, var(--surface) 60%, color-mix(in srgb, var(--tint) 18%, var(--surface)));
-}
+

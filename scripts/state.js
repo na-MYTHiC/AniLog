@@ -52,13 +52,10 @@ const state = {
   allowRotation: false,
   listStatus: 'CURRENT',
   listSort: 'MEDIA_AVERAGE_SCORE_DESC',
-  // My List as rows (swipe to update progress) or as a poster grid (more
-  // shows per screen, no swipe). Persisted: it's a way of looking at your
-  // list, not a one-off filter.
-  listView: 'list',
-  // How My List draws its rows and cards (classic, cards, ring, editorial),
-  // and whether each show is tinted with its cover colour. Separate because
-  // the tint is a treatment that composes with any of the four layouts.
+  // How My List draws each show — four row layouts (classic, cards, ring,
+  // editorial) or a poster grid — and whether each is tinted with its cover
+  // colour. Separate because the tint is a treatment that composes with any
+  // of them.
   listStyle: 'classic',
   listTint: false,
   recentSearches: [],
@@ -133,6 +130,11 @@ try {
   // a client-side sentinel. Upgrade any existing pref so users don't stay
   // stuck on personal-score ordering.
   if (state.listSort === 'SCORE_DESC') state.listSort = 'MEDIA_AVERAGE_SCORE_DESC';
+  // Migration: grid used to be a list/grid switch in the List bar (listView),
+  // separate from the style. It's now the Grid style, so anyone who had the
+  // grid on keeps it.
+  if (state.listView === 'grid') state.listStyle = 'grid';
+  delete state.listView;
   // Backward compat: prefs stored before the preset-only theme picker had
   // a themeId of 'custom'. Snap any legacy custom to Iris so we always
   // resolve to one of the 10 presets.

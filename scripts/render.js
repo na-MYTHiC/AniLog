@@ -869,40 +869,23 @@ function renderStyledRow(entry, style) {
 //
 // No swipe here: a poster has nowhere to put one. Tapping opens the detail
 // page, where the list controls are.
-function renderListCard(entry, opts) {
+function renderListCard(entry) {
   const m = entry?.media;
   if (!m) return '';
-  const style = opts?.style || 'classic';
   const p = entryProgress(entry);
   const total = p.total || '?';
   const tint = safeTint(m.coverImage?.color);
   const art = (inner) => `<div class="card-image" style="background-color:${m.coverImage?.color || 'var(--surface-2)'};">${coverImg(m.coverImage?.large)}${inner}</div>`;
   const title = `<div class="card-title">${escapeHtml(pickTitle(m.title) || 'Unknown')}</div>`;
-  const open = (cls, inner) => `
-    <div class="card list-card${cls}" data-media-id="${m.id}" style="--tint:${tint}" onclick="openMedia(${m.id})">${inner}</div>`;
+  const open = (inner) => `
+    <div class="card list-card" data-media-id="${m.id}" style="--tint:${tint}" onclick="openMedia(${m.id})">${inner}</div>`;
 
-  if (style === 'cards') {
-    return open(' lc-cards', `${art('')}
-      <div class="lc-body">${title}
-        <div class="lc-meta"><span>${p.progress}/${total}</span>${p.behind ? `<b>${p.behind} new</b>` : ''}</div>
-      </div>
-      <div class="lr-edge">${p.progress ? `<i class="lr-edge-watched" style="width:${p.progressPct}%"></i>` : ''}</div>`);
-  }
-  if (style === 'ring') {
-    return open(' lc-ring', `${art(`<div class="lc-ring-badge">${progressRing(p)}<b${p.progress >= 1000 ? ' class="long"' : ''}>${p.progress}</b></div>`)}
-      ${title}${p.behind ? `<div class="card-behind">${p.behind} behind</div>` : ''}`);
-  }
-  if (style === 'editorial') {
-    return open(' lc-editorial', `${art(`${p.behind ? `<div class="lc-big">${p.behind}<small>to watch</small></div>` : ''}
-        <div class="lc-thin">${p.progress ? `<i style="width:${p.progressPct}%"></i>` : ''}</div>`)}
-      ${title}<div class="lc-caps">Ep ${p.progress} of ${total}</div>`);
-  }
-
-  // classic. A Planning card at 0/12 with an empty bar says nothing a Planning
+  // One design: Grid is its own List Style, not a grid version of each row
+  // style. A Planning card at 0/12 with an empty bar says nothing a Planning
   // list doesn't already say, so progress shows once you've started, or while
   // it's something you're actively watching.
   const showProgress = p.progress > 0 || entry.status === 'CURRENT' || entry.status === 'REPEATING';
-  return open('', `${art(showProgress ? `<div class="card-progress">
+  return open(`${art(showProgress ? `<div class="card-progress">
           <span class="card-progress-n">${p.progress}/${total}</span>
           <span class="card-progress-track"><i style="width:${p.progressPct.toFixed(1)}%"></i></span>
         </div>` : '')}

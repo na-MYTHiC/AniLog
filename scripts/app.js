@@ -1271,9 +1271,14 @@ function paintSchedule(items) {
   const days = scheduleWindow();
   const byDay = days.map(d => items.filter(it => it.airingAt >= d.from && it.airingAt < d.to));
 
-  rail.innerHTML = days.map((d, i) => `
-    <button class="chip day-chip${i === 0 ? ' active' : ''}${byDay[i].length ? '' : ' quiet'}" data-day="${i}">
-      ${escapeHtml(d.chip)}<span class="chip-n">${byDay[i].length}</span>
+  // Only days that have something airing. Four "Nothing airing" headings in a
+  // row pushed the week's actual episodes below the fold to say nothing. The
+  // index stays the day's place in the week, so chips and headings still pair.
+  const busy = days.map((d, i) => i).filter(i => byDay[i].length);
+
+  rail.innerHTML = busy.map((i, n) => `
+    <button class="chip day-chip${n === 0 ? ' active' : ''}" data-day="${i}">
+      ${escapeHtml(days[i].chip)}<span class="chip-n">${byDay[i].length}</span>
     </button>`).join('');
 
   if (!items.length) {
@@ -1285,21 +1290,13 @@ function paintSchedule(items) {
     return;
   }
 
-  // An empty day keeps its heading — the rail's chip needs somewhere to land,
-  // and a gap in the week is information. It says so on the heading line
-  // rather than below it: three quiet days in a row is common, and a stacked
-  // note under each cost 70px apiece to say nothing.
-  body.innerHTML = days.map((d, i) => `
-    <div class="sched-day${byDay[i].length ? '' : ' quiet'}" id="sched-day-${i}" data-day="${i}">
+  body.innerHTML = busy.map((i) => `
+    <div class="sched-day" id="sched-day-${i}" data-day="${i}">
       <div class="section-header">
-        <div class="section-title">${escapeHtml(d.title)}</div>
-        <span class="section-count">${byDay[i].length
-          ? `${byDay[i].length} ${byDay[i].length === 1 ? 'episode' : 'episodes'}`
-          : 'Nothing airing'}</span>
+        <div class="section-title">${escapeHtml(days[i].title)}</div>
+        <span class="section-count">${byDay[i].length} ${byDay[i].length === 1 ? 'episode' : 'episodes'}</span>
       </div>
-      ${byDay[i].length
-        ? `<div class="list-rows">${byDay[i].map(renderScheduleRow).join('')}</div>`
-        : ''}
+      <div class="list-rows">${byDay[i].map(renderScheduleRow).join('')}</div>
     </div>`).join('');
 
   wireScheduleRows(body);
@@ -1345,10 +1342,9 @@ function observeScheduleDays(body) {
   const content = document.getElementById('content');
   if (!('IntersectionObserver' in window) || !content) return;
   // The active day is the LAST section whose heading has passed under the
-  // rail, not the first one intersecting a band. Picking the first meant that
-  // with three quiet days stacked at the top of the week, opening the tab
-  // highlighted whichever day happened to cross the band — Sunday — while the
-  // user was plainly looking at Today.
+  // rail, not the first one intersecting a band — the first one crossing a
+  // band can be a day further down while you're plainly looking at the top.
+  // With none passed yet, it's the first day shown.
   //
   // Reading seven rects inside the observer is fine: it only runs when a
   // section enters or leaves, not on every scroll frame, which is the whole
@@ -1356,7 +1352,7 @@ function observeScheduleDays(body) {
   const markActive = () => {
     const rail = document.getElementById('day-rail');
     const line = content.getBoundingClientRect().top + (rail?.offsetHeight || 0) + 4;
-    let active = '0';
+    let active = body.querySelector('.sched-day')?.dataset.day;
     body.querySelectorAll('.sched-day').forEach((el) => {
       if (el.getBoundingClientRect().top <= line) active = el.dataset.day;
     });
@@ -1618,19 +1614,8 @@ listSortBtn?.addEventListener('click', () => {
   }, 'Sort My List', LIST_SORT_OPTIONS);
 });
 
-document.getElementById('list-view-seg')?.addEventListener('click', (e) => {
-  const btn = e.target.closest('.seg-btn');
-  if (!btn || btn.dataset.view === state.listView) return;
-  state.listView = btn.dataset.view;
-  savePrefs();
-  syncSegState('list-view-seg', 'view', state.listView);
-  // Same query either way, so this repaints from cache rather than refetching.
-  if (state.user) loadMyList();
-});
-
 renderListTitle();
 syncListSortLabel();
-syncSegState('list-view-seg', 'view', state.listView === 'grid' ? 'grid' : 'list');
 
 // ============ MY LIST (authenticated) ============
 function updateAuthUI() {
@@ -2116,7 +2101,12 @@ let myListReqId = 0;
 function currentListStyle() {
   return LIST_STYLES.includes(state.listStyle) ? state.listStyle : 'classic';
 }
-function myListOpts() { return { style: currentListStyle() }; }
+// Grid cards are drawn in the classic card style; the other four styles are
+// row layouts.
+function myListOpts() {
+  const style = currentListStyle();
+  return { style: style === 'grid' ? 'classic' : style };
+}
 // Style and tint are classes on the container, so every rule for them is
 // scoped to My List — the schedule and other users' lists share the row
 // component and stay classic.
@@ -2137,13 +2127,13 @@ async function loadMyList() {
   grid.hidden = false;
   // One container, two shapes. The id stays put — the swipe handlers, the
   // tests and the failure panel all find the list by it.
-  const asGrid = state.listView === 'grid';
+  const asGrid = currentListStyle() === 'grid';
   grid.className = myListClass(asGrid);
   // Placeholders only when what's on screen is a different list. Returning
   // to a list you were just looking at kept wiping it to skeletons and
   // rebuilding it — a flash, and the scroll position collapsing with it.
   // Same list: leave it up and swap in the fresh copy when it lands.
-  const shape = [state.listStatus, state.listSort, state.listView, currentListStyle()].join('|');
+  const shape = [state.listStatus, state.listSort, currentListStyle()].join('|');
   if (grid.dataset.shape !== shape) {
     delete grid.dataset.shape;
     if (asGrid) skeletonFill(grid, 9);
@@ -2221,8 +2211,7 @@ async function loadMyList() {
       Your <strong>${escapeHtml(listStatusLabel(state.listStatus))}</strong> list is empty.
     </div>`;
   } else if (asGrid) {
-    const o = myListOpts();
-    grid.innerHTML = entries.map((e) => renderListCard(e, o)).join('');
+    grid.innerHTML = entries.map((e) => renderListCard(e)).join('');
   } else {
     // The style travels with the row's handlers, so the repaint after a swipe
     // redraws it in the same style rather than falling back to classic.
