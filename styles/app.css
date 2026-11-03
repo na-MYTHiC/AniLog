@@ -1801,7 +1801,7 @@
   content-visibility: auto;
   /* Cover + padding, same idea as the list rows. Text length varies so this
      can't be exact, but it tracks density instead of sitting at one value. */
-  contain-intrinsic-size: auto calc(var(--mini-cover-h) + 2 * var(--mini-pad-y) + 14px);
+  contain-intrinsic-size: auto calc(var(--activity-cover-h) + 2 * var(--mini-pad-y) + 14px);
   contain: layout style paint;
 }
 .activity-card:last-child { border-bottom: none; }
@@ -1860,10 +1860,10 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-/* Small anime cover thumbnail on the right of the card — taps to detail */
+/* The show's cover on the right of the card — taps to detail */
 .activity-thumb {
-  width: var(--mini-cover-w);
-  height: var(--mini-cover-h);
+  width: var(--activity-cover-w);
+  height: var(--activity-cover-h);
   border-radius: var(--radius-xs);
   overflow: hidden;
   flex-shrink: 0;
