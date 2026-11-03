@@ -262,6 +262,17 @@
 
     <!-- PROFILE -->
     <section class="tab" id="tab-profile">
+      <!-- Profile is about you: who you are on AniList, your numbers, your
+           favourites and your people. Every setting lives one tap away behind
+           the gear, in Settings — they used to be stacked under all of this
+           in no particular order. -->
+      <div class="list-bar profile-bar">
+        <div class="list-bar-title">Profile</div>
+        <button class="icon-btn" id="settings-btn" type="button" aria-label="Settings">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      </div>
+
       <div class="empty profile-card" id="profile-card">
         <div class="empty-icon profile-avatar">
           <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
@@ -283,16 +294,87 @@
         <div class="settings-group stats-group" id="stats-body"></div>
       </div>
 
-      <!-- The people you follow, each opening their profile: their stats and
-           their list. Signed-in only, loaded with the statistics. -->
-      <div id="following-section" hidden>
+      <!-- Your AniList favourites, the same as your AniList profile shows.
+           Arrives with the statistics, in the same request. -->
+      <div id="favourites-section" hidden>
         <div class="section-header section-header-spaced">
-          <div class="section-title">Following</div>
-          <span class="section-count" id="following-count"></span>
+          <div class="section-title">Favourites</div>
+          <span class="section-count" id="favourites-count"></span>
         </div>
-        <div class="settings-group following-group" id="following-body"></div>
+        <div class="carousel" id="favourites-carousel"></div>
       </div>
 
+      <!-- Following and Followers, as on AniList: one card, switched between
+           the two. Each person opens their profile — their stats and list. -->
+      <div id="following-section" hidden>
+        <div class="section-header section-header-spaced">
+          <div class="section-title">Social</div>
+        </div>
+        <div class="settings-group following-group">
+          <div class="seg follow-seg" id="follow-seg">
+            <button class="seg-btn active" type="button" data-follow="following">Following <span class="seg-n" id="following-count"></span></button>
+            <button class="seg-btn" type="button" data-follow="followers">Followers <span class="seg-n" id="followers-count"></span></button>
+          </div>
+          <div id="following-body"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Raised by app.js when a new service worker has installed and is
+       waiting. Persistent by design: it's a decision, not a notification. -->
+  <div class="update-banner" id="update-banner" role="status" hidden>
+    <div class="update-banner-text">
+      <strong>Update available</strong>
+      <span>Tap reload to apply it.</span>
+    </div>
+    <button class="btn-primary update-banner-btn" id="update-banner-reload">Reload</button>
+    <button class="update-banner-close" id="update-banner-dismiss" aria-label="Dismiss update banner">&times;</button>
+  </div>
+
+  <nav class="bottombar">
+    <!-- Bulleted lines: the list itself. Bullets keep it apart from the plain
+         three lines of the list/grid switch on the same screen. -->
+    <button class="nav-btn active" data-tab="home" aria-label="List">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h12"/><path d="M9 12h12"/><path d="M9 18h12"/><path d="M4 6h.01"/><path d="M4 12h.01"/><path d="M4 18h.01"/></svg>
+      <span>List</span>
+    </button>
+    <button class="nav-btn" data-tab="search" aria-label="Search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <span>Search</span>
+    </button>
+    <button class="nav-btn" data-tab="seasonal" aria-label="Seasonal">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg>
+      <span>Seasonal</span>
+    </button>
+    <button class="nav-btn" data-tab="social" aria-label="Social">
+      <!-- Two figures (a group) — deliberately distinct from Profile's
+           single figure enclosed in a circle, so the two don't blur
+           together at 24px. -->
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span>Social</span>
+    </button>
+    <button class="nav-btn" data-tab="profile" aria-label="Profile">
+      <!-- Single figure inside a circle (avatar framing) — the enclosing
+           circle is what separates it at a glance from Social's two
+           un-enclosed figures. -->
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="10" r="3"/><path d="M6.8 18.2a6.5 6.5 0 0 1 10.4 0"/></svg>
+      <span>Profile</span>
+    </button>
+  </nav>
+
+  <!-- Settings. Every preference, grouped by what it changes, behind the
+       gear on Profile. A plain overlay, so back and Escape close it like any
+       other page. -->
+  <div class="overlay" role="dialog" aria-modal="true" id="settings-overlay">
+    <header class="overlay-header">
+      <button class="back-btn" onclick="closeOverlay('settings-overlay')" aria-label="Back">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      </button>
+      <div class="overlay-title">Settings</div>
+    </header>
+    <div class="overlay-body settings-body">
       <div class="section-header section-header-spaced">
         <div class="section-title">Appearance</div>
       </div>
@@ -329,9 +411,14 @@
             <button class="seg-btn" data-density="spacious">Spacious</button>
           </div>
         </div>
-        <!-- My List's look. Next to density because they're the same kind of
-             decision — how List is drawn. Grid is one of the styles; it used
-             to be a switch in the List bar. -->
+      </div>
+
+      <!-- How your list is drawn. Its own card: these two change one screen,
+           where the ones above change the whole app. -->
+      <div class="section-header">
+        <div class="section-title">Your List</div>
+      </div>
+      <div class="settings-group">
         <div class="settings-row">
           <div>
             <div class="settings-label">List Style</div>
@@ -345,8 +432,6 @@
             <button class="seg-btn" data-style="grid">Grid</button>
           </div>
         </div>
-        <!-- A switch rather than another style: it's a treatment, and it works
-             on top of any of the layouts above. -->
         <div class="settings-row">
           <div>
             <div class="settings-label">Cover Colours</div>
@@ -357,16 +442,12 @@
             <button class="seg-btn" data-tint="on">On</button>
           </div>
         </div>
-        <div class="settings-row">
-          <div>
-            <div class="settings-label">Screen Rotation</div>
-            <div class="settings-sub" id="rotation-sub">Keep the app upright</div>
-          </div>
-          <div class="seg" id="rotation-seg">
-            <button class="seg-btn active" data-rotation="locked">Locked</button>
-            <button class="seg-btn" data-rotation="auto">Auto</button>
-          </div>
-        </div>
+      </div>
+
+      <div class="section-header">
+        <div class="section-title">Browsing</div>
+      </div>
+      <div class="settings-group">
         <div class="settings-row">
           <div>
             <div class="settings-label">English Titles</div>
@@ -387,12 +468,6 @@
             <button class="seg-btn" data-relations="all">All</button>
           </div>
         </div>
-      </div>
-
-      <div class="section-header">
-        <div class="section-title">Defaults</div>
-      </div>
-      <div class="settings-group">
         <div class="settings-row">
           <div>
             <div class="settings-label">Landing Tab</div>
@@ -402,6 +477,16 @@
             <button class="seg-btn active" data-landing="home">List</button>
             <button class="seg-btn" data-landing="search">Search</button>
             <button class="seg-btn" data-landing="seasonal">Seasonal</button>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Screen Rotation</div>
+            <div class="settings-sub" id="rotation-sub">Keep the app upright</div>
+          </div>
+          <div class="seg" id="rotation-seg">
+            <button class="seg-btn active" data-rotation="locked">Locked</button>
+            <button class="seg-btn" data-rotation="auto">Auto</button>
           </div>
         </div>
       </div>
@@ -496,7 +581,7 @@
         <div class="settings-row">
           <div>
             <div class="settings-label">App version</div>
-            <div class="settings-sub" id="update-status">v5.02</div>
+            <div class="settings-sub" id="update-status">v5.03</div>
           </div>
           <button class="btn-secondary" id="update-check-btn">Check for updates</button>
         </div>
@@ -513,54 +598,22 @@
         </div>
       </div>
 
-      <div class="app-footer">
-        AniLog · v5.02 · Powered by AniList
+      <!-- Signed in only: signing out is an account action, so it sits at
+           the very end rather than under your avatar on Profile. -->
+      <div class="settings-group" id="account-group" hidden>
+        <div class="settings-row settings-row-tappable" id="signout-row" role="button" tabindex="0">
+          <div>
+            <div class="settings-label signout-label">Sign out</div>
+            <div class="settings-sub" id="signout-sub"></div>
+          </div>
+        </div>
       </div>
-    </section>
 
-  </main>
-
-  <!-- Raised by app.js when a new service worker has installed and is
-       waiting. Persistent by design: it's a decision, not a notification. -->
-  <div class="update-banner" id="update-banner" role="status" hidden>
-    <div class="update-banner-text">
-      <strong>Update available</strong>
-      <span>Tap reload to apply it.</span>
+      <div class="app-footer">
+        AniLog · v5.03 · Powered by AniList
+      </div>
     </div>
-    <button class="btn-primary update-banner-btn" id="update-banner-reload">Reload</button>
-    <button class="update-banner-close" id="update-banner-dismiss" aria-label="Dismiss update banner">&times;</button>
   </div>
-
-  <nav class="bottombar">
-    <!-- Bulleted lines: the list itself. Bullets keep it apart from the plain
-         three lines of the list/grid switch on the same screen. -->
-    <button class="nav-btn active" data-tab="home" aria-label="List">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h12"/><path d="M9 12h12"/><path d="M9 18h12"/><path d="M4 6h.01"/><path d="M4 12h.01"/><path d="M4 18h.01"/></svg>
-      <span>List</span>
-    </button>
-    <button class="nav-btn" data-tab="search" aria-label="Search">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-      <span>Search</span>
-    </button>
-    <button class="nav-btn" data-tab="seasonal" aria-label="Seasonal">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg>
-      <span>Seasonal</span>
-    </button>
-    <button class="nav-btn" data-tab="social" aria-label="Social">
-      <!-- Two figures (a group) — deliberately distinct from Profile's
-           single figure enclosed in a circle, so the two don't blur
-           together at 24px. -->
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      <span>Social</span>
-    </button>
-    <button class="nav-btn" data-tab="profile" aria-label="Profile">
-      <!-- Single figure inside a circle (avatar framing) — the enclosing
-           circle is what separates it at a glance from Social's two
-           un-enclosed figures. -->
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="10" r="3"/><path d="M6.8 18.2a6.5 6.5 0 0 1 10.4 0"/></svg>
-      <span>Profile</span>
-    </button>
-  </nav>
 
   <!-- Category overlay -->
   <div class="overlay" role="dialog" aria-modal="true" id="category-overlay">

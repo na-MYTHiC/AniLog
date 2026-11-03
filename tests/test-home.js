@@ -510,12 +510,12 @@ const truth = (S) => {
       style: !!document.querySelector('#list-style-seg'),
       tint: !!document.querySelector('#list-tint-seg'),
       // Both live in Appearance, after Card Density.
-      order: [...document.querySelectorAll('#tab-profile .settings-label')].map(e => e.textContent.trim()),
+      order: [...document.querySelectorAll('#settings-overlay .settings-label')].map(e => e.textContent.trim()),
     }));
-    const iDensity = rows.order.indexOf('Card Density');
-    check('List Style and Cover Colours are in Appearance, after Card Density',
-      rows.style && rows.tint && rows.order[iDensity + 1] === 'List Style' && rows.order[iDensity + 2] === 'Cover Colours',
-      rows.order.slice(iDensity, iDensity + 3).join(' → '));
+    const iStyle = rows.order.indexOf('List Style');
+    check('List Style and Cover Colours sit together in Settings',
+      rows.style && rows.tint && iStyle >= 0 && rows.order[iStyle + 1] === 'Cover Colours',
+      rows.order.join(' → '));
     await page.evaluate(() => document.querySelector('#list-style-seg [data-style="editorial"]').click());
     await page.waitForTimeout(800);
     await page.evaluate(() => document.querySelector('#list-tint-seg [data-tint="on"]').click());

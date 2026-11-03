@@ -1670,9 +1670,20 @@ function updateAuthUI() {
       <div class="empty-text">
         <strong>${stats?.count || 0}</strong> anime · <strong>${watched}</strong> watched
       </div>
-      <button class="btn-secondary" onclick="signOut()">Sign out</button>
+      <div class="profile-follow">
+        <button type="button" class="profile-follow-btn" data-follow="following"><strong id="hero-following-n"></strong> Following</button>
+        <button type="button" class="profile-follow-btn" data-follow="followers"><strong id="hero-followers-n"></strong> Followers</button>
+      </div>
     `;
+    card.querySelectorAll('.profile-follow-btn').forEach((b) => {
+      b.addEventListener('click', () => showFollowTab(b.dataset.follow, true));
+    });
+    if (followData) paintFollow(followData);
   }
+  const account = document.getElementById('account-group');
+  if (account) account.hidden = !state.user;
+  const signoutSub = document.getElementById('signout-sub');
+  if (signoutSub) signoutSub.textContent = state.user ? `Signed in as ${state.user.name}` : '';
   // Three states, not two. A token that exists but whose Viewer fetch failed
   // is a connection problem — showing "Sign in to see your list" there claims
   // the user is signed out, which is both wrong and actively unhelpful: the
@@ -1712,18 +1723,26 @@ function updateAuthUI() {
   refreshSetupCodes();
 }
 
-// ============ FOLLOWING ============
-// Who you follow, as a grid of avatars that wraps rather than a sideways
-// strip — the first rows show, the rest fold behind Show all. Each opens that
-// person's profile. Loaded with the statistics, at low priority.
+// ============ FOLLOWING / FOLLOWERS ============
+// Who you follow and who follows you, as on your AniList profile: one card,
+// switched between the two, each a grid of avatars that wraps rather than a
+// sideways strip — the first rows show, the rest fold behind Show all. Each
+// person opens their profile. Both lists arrive in one request, at low
+// priority, when Profile opens.
 const FOLLOWING_SHOWN = 10;
-const FOLLOWING_QUERY = `query ($id: Int!) {
-  Page(perPage: 50) {
+const FOLLOW_QUERY = `query ($id: Int!) {
+  following: Page(perPage: 50) {
     pageInfo { total }
     following(userId: $id, sort: [USERNAME]) { id name avatar { medium large } }
   }
+  followers: Page(perPage: 50) {
+    pageInfo { total }
+    followers(userId: $id, sort: [USERNAME]) { id name avatar { medium large } }
+  }
 }`;
 let followingReqId = 0;
+let followData = null;
+let followTab = 'following';
 
 async function loadFollowing() {
   const section = document.getElementById('following-section');
@@ -1731,36 +1750,45 @@ async function loadFollowing() {
   if (!section || !body || !state.user) return;
   section.hidden = false;
   const myReq = ++followingReqId;
-  if (!body.querySelector('.follow-grid')) {
+  if (!followData) {
     body.innerHTML = `<div class="follow-grid">${Array(5).fill(`
       <div class="friend-avatar"><div class="friend-avatar-img skeleton"></div></div>`).join('')}</div>`;
   }
-  const data = await anilist(FOLLOWING_QUERY, { id: state.user.id }, {
+  const data = await anilist(FOLLOW_QUERY, { id: state.user.id }, {
     priority: 'low',
-    onFresh: (fresh) => { if (followingReqId === myReq) paintFollowing(fresh); },
+    onFresh: (fresh) => { if (followingReqId === myReq) paintFollow(fresh); },
   });
   if (followingReqId !== myReq) return;
-  paintFollowing(data);
+  paintFollow(data);
 }
 
-function paintFollowing(data) {
+function paintFollow(data) {
+  // A failed request is not "you follow nobody": keep what's up, or say so.
+  if (data?.following && data?.followers) followData = data;
+  const n = (k) => followData?.[k]?.pageInfo?.total ?? followData?.[k]?.[k]?.length;
+  const setN = (id, k) => { const el = document.getElementById(id); if (el) el.textContent = followData ? formatNum(n(k) || 0) : ''; };
+  setN('following-count', 'following');
+  setN('followers-count', 'followers');
+  setN('hero-following-n', 'following');
+  setN('hero-followers-n', 'followers');
+  renderFollowTab();
+}
+
+function renderFollowTab() {
   const body = document.getElementById('following-body');
-  const count = document.getElementById('following-count');
   if (!body) return;
-  const page = data?.Page;
-  // A failed request is not "you follow nobody".
-  if (!page) {
-    if (body.querySelector('.follow-grid .user-tap')) return;
-    body.innerHTML = `<div class="muted-note follow-note">Couldn't load who you follow.
+  syncSegState('follow-seg', 'follow', followTab);
+  if (!followData) {
+    body.innerHTML = `<div class="muted-note follow-note">Couldn't load your followers.
       <button class="retry-btn" type="button">Retry</button></div>`;
     body.querySelector('.retry-btn')?.addEventListener('click', () => loadFollowing());
     return;
   }
-  const people = (page.following || []).filter(u => u?.id && u?.name);
-  const total = page.pageInfo?.total || people.length;
-  if (count) count.textContent = people.length ? formatNum(total) : '';
+  const people = (followData[followTab]?.[followTab] || []).filter(u => u?.id && u?.name);
   if (!people.length) {
-    body.innerHTML = `<div class="muted-note follow-note">You're not following anyone yet. Follow people on AniList and they'll show up here.</div>`;
+    body.innerHTML = `<div class="muted-note follow-note">${followTab === 'following'
+      ? "You're not following anyone yet. Follow people on AniList and they'll show up here."
+      : 'Nobody follows you yet.'}</div>`;
     return;
   }
   const tile = (u, i) => `
@@ -1777,11 +1805,38 @@ function paintFollowing(data) {
   });
 }
 
+function showFollowTab(tab, scroll) {
+  followTab = tab;
+  renderFollowTab();
+  if (!scroll) return;
+  const section = document.getElementById('following-section');
+  const content = document.getElementById('content');
+  if (section && content) {
+    content.scrollTo({ top: content.scrollTop + section.getBoundingClientRect().top - content.getBoundingClientRect().top - 8, behavior: 'smooth' });
+  }
+}
+
+document.getElementById('follow-seg')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.seg-btn');
+  if (btn && btn.dataset.follow !== followTab) showFollowTab(btn.dataset.follow);
+});
+
 document.getElementById('following-body')?.addEventListener('click', (e) => {
   const el = e.target.closest('.user-tap');
   if (!el) return;
   const id = parseInt(el.dataset.userId, 10);
   if (id > 0 && el.dataset.userName) openUser(id, el.dataset.userName);
+});
+
+// ============ SETTINGS ============
+document.getElementById('settings-btn')?.addEventListener('click', () => {
+  const ov = document.getElementById('settings-overlay');
+  ov.querySelector('.overlay-body').scrollTop = 0;
+  ov.classList.add('visible');
+});
+document.getElementById('signout-row')?.addEventListener('click', () => {
+  closeOverlay('settings-overlay');
+  signOut();
 });
 
 // ============ PROFILE STATISTICS ============
@@ -1802,13 +1857,38 @@ async function loadProfileStats() {
 
   const myReq = ++statsReqId;
   const q = `query ($id: Int) {
-    User(id: $id) { id statistics { anime { ${VIEWER_STATS_FIELDS} } } }
+    User(id: $id) {
+      id
+      statistics { anime { ${VIEWER_STATS_FIELDS} } }
+      favourites { anime(perPage: 25) { pageInfo { total } nodes { ${MEDIA_FRAGMENT} } } }
+    }
   }`;
+  const paint = (r) => { paintStats(r?.User?.statistics?.anime); paintFavourites(r?.User); };
   const data = await anilist(q, { id: state.user.id }, {
-    onFresh: (fresh) => { if (statsReqId === myReq) paintStats(fresh?.User?.statistics?.anime); },
+    onFresh: (fresh) => { if (statsReqId === myReq) paint(fresh); },
   });
   if (statsReqId !== myReq) return;
-  paintStats(data?.User?.statistics?.anime);
+  paint(data);
+}
+
+// Your AniList favourites, as a carousel like the Search tab's. Rides on the
+// statistics request. Hidden when you have none; on a failed request it keeps
+// whatever it last showed rather than offering an empty row.
+function paintFavourites(user) {
+  const section = document.getElementById('favourites-section');
+  const row = document.getElementById('favourites-carousel');
+  const count = document.getElementById('favourites-count');
+  if (!section || !row) return;
+  const fav = user?.favourites?.anime;
+  if (!fav) {
+    if (!row.querySelector('.card')) section.hidden = true;
+    return;
+  }
+  const nodes = (fav.nodes || []).filter(m => m?.id);
+  section.hidden = !nodes.length;
+  if (!nodes.length) return;
+  if (count) count.textContent = formatNum(fav.pageInfo?.total || nodes.length);
+  renderCarouselInto(row, nodes);
 }
 
 function paintStats(s) {

@@ -287,13 +287,11 @@
      of line with the title directly above it. */
   margin: 0 var(--gutter);
   padding: 0 0 4px;
-  /* proximity, NOT mandatory. Mandatory means the scroll port has to come to
-     rest on a snap point no matter what, so Chrome hands a flick to the snap
-     animation instead of the momentum curve — every flick, however hard,
-     glides to a nearby card at the same speed and stops. Proximity only
-     snaps when the fling was going to land near a card edge anyway, so a
-     gentle swipe still tidies up but a hard flick keeps its momentum. */
-  scroll-snap-type: x proximity;
+  /* No scroll snapping. Mandatory snapping handed every flick to the snap
+     animation; proximity was meant to spare hard flicks, but with cards ~90px
+     apart a flick ALWAYS ends near a snap point, so on a phone it still
+     stopped dead on release however fast you swiped. Without snap the
+     carousel scrolls on the native momentum curve, like the lists do. */
   scrollbar-width: none;
 }
 /* When a carousel sits inside a detail-section, the section already
@@ -305,7 +303,6 @@
 .card {
   flex-shrink: 0;
   width: var(--card-w);
-  scroll-snap-align: start;
   cursor: pointer;
   transition: transform 0.2s ease;
   /* Self-contained painting unit, so a hover doesn't invalidate its
@@ -1413,8 +1410,7 @@
   display: flex; gap: var(--char-gap);
   overflow-x: auto;
   padding: 4px 0 8px;
-  /* Same reasoning as .carousel above — mandatory snapping eats the fling. */
-  scroll-snap-type: x proximity;
+  /* No snapping — see .carousel: it eats the fling. */
   scrollbar-width: none;
 }
 .character-row::-webkit-scrollbar { display: none; }
@@ -1425,7 +1421,6 @@
   width: calc((100% - (var(--char-cols) - 1) * var(--char-gap)) / var(--char-cols));
   cursor: pointer;
   text-align: center;
-  scroll-snap-align: start;
   transition: transform 0.15s ease;
 }
 .character-card:active { transform: scale(0.96); }
@@ -2397,6 +2392,8 @@
    alone. */
 #tab-search .carousel .card-badge:not(.card-badge-on) { display: none; }
 #tab-search .carousel .card-badges:empty { display: none; }
+#favourites-carousel .card-badge:not(.card-badge-on) { display: none; }
+#favourites-carousel .card-badges:empty { display: none; }
 
 /* ============ SECTION COUNT ============
    The right-hand slot of a .section-header when what belongs there is a
@@ -2740,7 +2737,38 @@
 /* A section heading that follows another block rather than opening the tab. */
 .section-header-spaced { margin-top: 16px; }
 
-.profile-card { padding: 30px var(--gutter) 16px; }
+/* Profile opens on the same 44px bar as List — title left, its one control
+   (the Settings gear) right — so the two tabs start the same way. */
+.profile-bar { border-bottom: none; }
+.profile-card { padding: 12px var(--gutter) 8px; }
+.profile-card .empty-text { margin-bottom: 14px; }
+/* Following / Followers under your name, as on an AniList profile. Each one
+   jumps to the Social card below and opens that list. */
+.profile-follow { display: flex; justify-content: center; gap: 8px; }
+.profile-follow-btn {
+  min-height: var(--tap-sm);
+  padding: 0 14px;
+  background: var(--surface-2);
+  border: none;
+  border-radius: var(--radius-pill);
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.profile-follow-btn strong { color: var(--text); font-weight: 800; margin-right: 2px; }
+.profile-follow-btn strong:empty { display: none; }
+.profile-follow-btn:active { transform: scale(0.97); }
+
+/* The Following / Followers switch, full width across the top of its card. */
+.follow-seg { display: grid; margin: 10px 10px 0; }
+.seg-n { margin-left: 4px; opacity: 0.7; font-weight: 800; }
+.seg-n:empty { display: none; }
+
+/* Settings, behind the gear on Profile. */
+.settings-body { padding-bottom: 24px; }
+.signout-label { color: #ef4444; font-weight: 600; }
+
 .profile-avatar {
   width: 72px; height: 72px;
   border-radius: 50%;

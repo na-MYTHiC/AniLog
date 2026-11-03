@@ -42,6 +42,7 @@ const VIEWS = [
   ['schedule', () => { state.seasonalView = 'schedule'; switchTab('seasonal'); }],
   ['social',   () => switchTab('social')],
   ['profile',  () => switchTab('profile')],
+  ['settings', () => { switchTab('profile'); document.getElementById('settings-btn').click(); }],
   ['detail',   () => openMedia(1000)],
   ['filters',  () => { switchTab('search'); setTimeout(() => document.getElementById('filter-btn').click(), 300); }],
   ['edit',     () => openListEditSheet({ id: 1000, title: { userPreferred: 'A' }, episodes: 12 },
@@ -209,6 +210,18 @@ const VIEWS = [
     check('app height uses dvh, not vh', !/height:\s*min\([^)]*100vh/.test(css) && /100dvh/.test(css));
     check('document blocks overscroll chaining', /overscroll-behavior:\s*none/.test(css));
     check('text autosizing pinned', /text-size-adjust:\s*100%/.test(css));
+
+    // Horizontal rows scroll on the native momentum curve. Any snap type —
+    // proximity included, with cards ~90px apart — turns a hard flick into a
+    // short glide to the nearest card that stops dead on release.
+    const snaps = await page.evaluate(async () => {
+      switchTab('search');
+      await new Promise(r => setTimeout(r, 600));
+      const rows = [...document.querySelectorAll('.carousel, .character-row')];
+      return { n: rows.length, snapping: rows.filter(r => getComputedStyle(r).scrollSnapType !== 'none').length };
+    });
+    check('carousels keep their momentum (no scroll snap)', snaps.n > 0 && snaps.snapping === 0, JSON.stringify(snaps));
+    await page.evaluate(() => switchTab('home'));
 
     // A closed overlay is parked below the frame, and three of them live
     // outside .app where nothing clips them. On an iPhone home-screen app the

@@ -405,8 +405,10 @@ html, body {
    peeking past the edge and made every card narrower than it needed to be.
    Deriving the width from the container instead means 4 cards and the 3 gaps
    between them fill the row precisely, at any screen width: each card gets
-   the leftover space rather than a guessed constant. */
-#tab-search .carousel {
+   the leftover space rather than a guessed constant. Profile's Favourites row
+   is the same component and takes the same sizing. */
+#tab-search .carousel,
+#favourites-carousel {
   --card-gap: 12px;
   --card-w: calc((100% - 3 * var(--card-gap)) / 4);
   --card-title-size: 11px;
@@ -420,7 +422,8 @@ html, body {
    width: var(--card-w), and now that --card-w is a percentage of the row it
    would resolve a second time against the card — a quarter of a quarter,
    collapsing the cover to 18px. */
-#tab-search .carousel .card-image {
+#tab-search .carousel .card-image,
+#favourites-carousel .card-image {
   width: 100%;
   height: auto;
   aspect-ratio: 1 / 1.46;

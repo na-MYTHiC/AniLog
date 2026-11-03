@@ -350,6 +350,22 @@ const label = (r) => r.q.includes('SaveMediaListEntry') ? 'MUTATION'
     }));
     if (listStyle === 'ring') {
       check('Following lists who you follow, ten at first', f.shown && f.count === '13' && f.visible === 10 && f.more === 'Show all 13', JSON.stringify(f));
+      const hero = await page.evaluate(() => [...document.querySelectorAll('.profile-follow-btn')].map(b => b.textContent.replace(/\s+/g, ' ').trim()));
+      check('your name carries Following and Followers counts, as on AniList', hero.join('|') === '13 Following|4 Followers', JSON.stringify(hero));
+      const fav = await page.evaluate(() => ({ shown: !document.getElementById('favourites-section').hidden,
+        cards: document.querySelectorAll('#favourites-carousel .card').length,
+        count: document.getElementById('favourites-count').textContent }));
+      check('Favourites show as a carousel, from the stats request', fav.shown && fav.cards === 5 && fav.count === '5', JSON.stringify(fav));
+      const followCalls = seen.filter(r => r.q.includes('following(') && r.q.includes('followers('));
+      check('Following and Followers come in one request', followCalls.length === 1, `${followCalls.length}`);
+      await page.evaluate(() => document.querySelector('.profile-follow-btn[data-follow="followers"]').click());
+      await page.waitForTimeout(500);
+      const fl = await page.evaluate(() => ({
+        active: document.querySelector('#follow-seg .seg-btn.active')?.dataset.follow,
+        names: [...document.querySelectorAll('#following-body .user-tap')].map(e => e.dataset.userName).join(),
+      }));
+      check('Followers opens the people who follow you', fl.active === 'followers' && fl.names === 'fan0,fan1,fan2,fan3', JSON.stringify(fl));
+      await page.evaluate(() => document.querySelector('#follow-seg [data-follow="following"]').click());
       check('a wrapping grid, not a sideways strip', f.cols === 5, JSON.stringify(f));
       await page.evaluate(() => document.getElementById('following-more').click());
       const all = await page.evaluate(() => [...document.querySelectorAll('#following-body .user-tap')].filter(e => getComputedStyle(e).display !== 'none').length);

@@ -42,12 +42,15 @@ function handler(S, opts={}){
 
     // Profile statistics and the user-profile overlay both read User(id:).
     if(/User\s*\(/.test(q)) return J({User:{id:v.id||42,name:'me',siteUrl:'https://anilist.co/user/me',
-      avatar:{large:IMG,medium:IMG},statistics:{anime:STATS(S.entries.size)}}});
+      avatar:{large:IMG,medium:IMG},statistics:{anime:STATS(S.entries.size)},
+      favourites:{anime:{pageInfo:{total:5},nodes:Array.from({length:5},(_,i)=>withEntry(1000+i))}}}});
 
     // Profile → Following. 13 people, so the grid has more than its first
     // ten to fold behind Show all.
-    if(q.includes('following(')) return J({Page:{pageInfo:{total:13},
-      following:Array.from({length:13},(_,i)=>({id:7000+i,name:'friend'+i,avatar:{medium:IMG,large:IMG}}))}});
+    // Followers are 4, a different count, so a test can tell the two apart.
+    if(q.includes('following(')) return J({
+      following:{pageInfo:{total:13},following:Array.from({length:13},(_,i)=>({id:7000+i,name:'friend'+i,avatar:{medium:IMG,large:IMG}}))},
+      followers:{pageInfo:{total:4},followers:Array.from({length:4},(_,i)=>({id:7100+i,name:'fan'+i,avatar:{medium:IMG,large:IMG}}))}});
 
     if(q.includes('MediaTagCollection')) return J({MediaTagCollection:[
       {name:'Isekai',isAdult:false,isGeneralSpoiler:false},
