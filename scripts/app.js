@@ -66,41 +66,97 @@ function shareMedia(mediaId, title) {
 window.shareMedia = shareMedia;
 
 // ============ USER PROFILE OVERLAY ============
-// Opened from Social when the user taps a friend's avatar or username.
-// Renders a profile card (avatar + name + stats) plus a Home-style list
-// view of that user's anime library with status filter chips.
-// Mirrors My List: status + sort selection, plus a reqId to cancel stale renders.
+// Someone else's profile — opened from Social, a show's Friends row, a
+// notification, or Profile → Following. Their statistics, then their list,
+// and the list works like yours: the same bar (the list's name as a dropdown,
+// with counts; sort beside it), drawn in your List Style. Read-only: no swipe
+// targets, and their scores say whose they are.
 let userProfileState = {
   id: null,
   name: '',
   status: 'CURRENT',
   sort: 'MEDIA_AVERAGE_SCORE_DESC',
+  counts: null,
   reqId: 0,
+  listReqId: 0,
 };
+
+const SORT_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="9" y1="18" x2="15" y2="18"/></svg>';
+const CARET_ICON = '<svg class="list-title-caret" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
 
 async function openUser(userId, userName) {
   userProfileState.id = userId;
   userProfileState.name = userName;
   userProfileState.status = 'CURRENT';
   userProfileState.sort = 'MEDIA_AVERAGE_SCORE_DESC';
+  userProfileState.counts = null;
   const body = document.getElementById('user-body');
   document.getElementById('user-title').textContent = userName;
   document.getElementById('user-overlay').classList.add('visible');
+  body.scrollTop = 0;
 
-  // Skeleton
+  // The list bar goes up straight away; only the hero and stats wait on the
+  // profile request, and the list loads alongside it rather than after.
   body.innerHTML = `
-    <div class="user-hero">
+    <div class="user-hero" id="user-hero">
       <div class="user-hero-avatar skeleton"></div>
       <div class="user-hero-info">
-        <div class="skeleton" style="height: 20px; width: 60%; border-radius: 6px; margin-bottom: 8px;"></div>
-        <div class="skeleton" style="height: 12px; width: 80%; border-radius: 4px;"></div>
+        <div class="skeleton skel-line-lg"></div>
+        <div class="skeleton skel-line-sm"></div>
       </div>
     </div>
-    <div class="list-controls" id="user-list-controls"></div>
-    <div class="user-list-rows" id="user-list-rows"></div>
+    <div class="settings-group stats-group user-stats" id="ustats-body">${statsSkeleton()}</div>
+    <div class="list-bar user-list-bar">
+      <button class="list-bar-title list-title-btn" id="user-status-btn" type="button" aria-haspopup="dialog">
+        <span class="list-title-label" id="user-status-label">${escapeHtml(listStatusLabel(userProfileState.status))}</span>
+        <span class="list-title-count" id="user-status-count"></span>
+        ${CARET_ICON}
+      </button>
+      <div class="list-bar-actions">
+        <button class="icon-btn" id="user-sort-btn" type="button" aria-label="Sort: ${escapeHtml(listSortLabel(userProfileState.sort))}">${SORT_ICON}</button>
+      </div>
+    </div>
+    <div id="user-list-rows"></div>
   `;
 
-  await loadUserProfile();
+  document.getElementById('user-status-btn').addEventListener('click', () => {
+    const c = userProfileState.counts;
+    const options = LIST_STATUS_OPTIONS.map((o) => ({ ...o, count: c ? formatNum(c[o.value] || 0) : null }));
+    openSortModal(userProfileState.status, (v) => {
+      userProfileState.status = v;
+      renderUserListTitle();
+      loadUserList();
+    }, `${userProfileState.name}'s List`, options);
+  });
+  document.getElementById('user-sort-btn').addEventListener('click', () => {
+    openSortModal(userProfileState.sort, (v) => {
+      userProfileState.sort = v;
+      document.getElementById('user-sort-btn')?.setAttribute('aria-label', `Sort: ${listSortLabel(v)}`);
+      loadUserList();
+    }, `Sort ${userProfileState.name}'s List`, LIST_SORT_OPTIONS);
+  });
+  document.getElementById('ustats-body').addEventListener('click', onStatRowClick);
+
+  loadUserProfile();
+  loadUserCounts();
+  loadUserList();
+}
+
+function renderUserListTitle() {
+  const label = document.getElementById('user-status-label');
+  const count = document.getElementById('user-status-count');
+  if (label) label.textContent = listStatusLabel(userProfileState.status);
+  const n = userProfileState.counts?.[userProfileState.status];
+  if (count) count.textContent = n === null || n === undefined ? '' : formatNum(n);
+}
+
+async function loadUserCounts() {
+  const id = userProfileState.id;
+  const data = await anilist(LIST_COUNTS_QUERY, { userId: id }, { priority: 'low' });
+  // A failed count stays blank rather than reading as zero, as on My List.
+  if (userProfileState.id !== id || !data?.MediaListCollection) return;
+  userProfileState.counts = countByStatus(data);
+  renderUserListTitle();
 }
 
 async function loadUserProfile() {
@@ -109,73 +165,47 @@ async function loadUserProfile() {
     User(id: $id) {
       id name
       avatar { large medium }
-      siteUrl
-      statistics { anime { count minutesWatched episodesWatched } }
+      statistics { anime { ${VIEWER_STATS_FIELDS} } }
     }
   }`;
   const data = await anilist(q, { id: userProfileState.id });
   if (myReq !== userProfileState.reqId) return;
   const u = data?.User;
-  const body = document.getElementById('user-body');
+  const hero = document.getElementById('user-hero');
+  const stats = document.getElementById('ustats-body');
+  if (!hero || !stats) return;
   if (!u) {
-    body.innerHTML = `<div class="user-list-empty">Couldn't load this profile.</div>`;
+    hero.innerHTML = `<div class="user-list-empty">Couldn't load this profile.
+      <button class="retry-btn" type="button">Retry</button></div>`;
+    hero.querySelector('.retry-btn')?.addEventListener('click', () => loadUserProfile());
+    stats.hidden = true;
     return;
   }
-  const stats = u.statistics?.anime;
-  const watched = formatWatchTime(stats?.minutesWatched);
+  const s = u.statistics?.anime;
   const avatar = u.avatar?.large || u.avatar?.medium || '';
-  const statusLabel = listStatusLabel(userProfileState.status);
-  const sortLabel = listSortLabel(userProfileState.sort);
-  body.innerHTML = `
-    <div class="user-hero">
-      <div class="user-hero-avatar" style="background-image:url('${avatar}');"></div>
-      <div class="user-hero-info">
-        <div class="user-hero-name">${escapeHtml(u.name)}</div>
-        <div class="user-hero-stats">
-          <strong>${stats?.count || 0}</strong> anime · <strong>${watched}</strong> watched
-        </div>
+  hero.innerHTML = `
+    <div class="user-hero-avatar" style="background-image:url('${avatar}');"></div>
+    <div class="user-hero-info">
+      <div class="user-hero-name">${escapeHtml(u.name)}</div>
+      <div class="user-hero-stats">
+        <strong>${formatNum(s?.count || 0)}</strong> anime · <strong>${formatWatchTime(s?.minutesWatched)}</strong> watched
       </div>
-    </div>
-    <div class="list-controls" id="user-list-controls">
-      <button class="sort-trigger" id="user-list-status-btn">
-        <strong id="user-list-status-label">${escapeHtml(statusLabel)}</strong>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-      </button>
-      <button class="sort-trigger" id="user-list-sort-btn">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
-        <span>Sort: <strong id="user-list-sort-label">${escapeHtml(sortLabel)}</strong></span>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-      </button>
-    </div>
-    <div class="user-list-rows list-rows" id="user-list-rows"></div>
-  `;
-
-  // Wire status + sort dropdowns to the shared sort modal, same as Home.
-  document.getElementById('user-list-status-btn').addEventListener('click', () => {
-    openSortModal(userProfileState.status, (v) => {
-      userProfileState.status = v;
-      const label = document.getElementById('user-list-status-label');
-      if (label) label.textContent = listStatusLabel(v);
-      loadUserList();
-    }, `${u.name}'s List`, LIST_STATUS_OPTIONS);
-  });
-  document.getElementById('user-list-sort-btn').addEventListener('click', () => {
-    openSortModal(userProfileState.sort, (v) => {
-      userProfileState.sort = v;
-      const label = document.getElementById('user-list-sort-label');
-      if (label) label.textContent = listSortLabel(v);
-      loadUserList();
-    }, `Sort ${u.name}'s List`, LIST_SORT_OPTIONS);
-  });
-
-  loadUserList();
+    </div>`;
+  stats.hidden = !s;
+  if (s) {
+    stats.innerHTML = statsHtml(s, 'ustats', true);
+    wireStatsMore(stats, 'ustats');
+  }
 }
 
 async function loadUserList() {
-  const myReq = ++userProfileState.reqId;
+  const myReq = ++userProfileState.listReqId;
   const rows = document.getElementById('user-list-rows');
   if (!rows) return;
-  skeletonFillRows(rows, 5);
+  const asGrid = currentListStyle() === 'grid';
+  rows.className = myListClass(asGrid) + ' user-list-rows';
+  if (asGrid) skeletonFill(rows, 9);
+  else skeletonFillRows(rows, 5);
 
   const mediaShape = `
     id
@@ -206,12 +236,12 @@ async function loadUserList() {
     : { userId: userProfileState.id, status: userProfileState.status, sort: [apiSort] };
 
   const data = await anilist(q, vars);
-  if (myReq !== userProfileState.reqId) return;
+  if (myReq !== userProfileState.listReqId) return;
   // Same distinction loadMyList needed: a failed request is not an empty list.
   if (!data || !data.MediaListCollection) {
-    rows.innerHTML = `<div class="user-list-empty">
+    rows.innerHTML = `<div class="no-results">
       Couldn't load this list.
-      <button class="retry-btn" type="button" style="margin-top: 10px;">Retry</button>
+      <button class="retry-btn" type="button">Retry</button>
     </div>`;
     rows.querySelector('.retry-btn')?.addEventListener('click', () => loadUserList());
     return;
@@ -225,18 +255,20 @@ async function loadUserList() {
     entries = entries.slice().sort((a, b) => (b.media?.averageScore || 0) - (a.media?.averageScore || 0));
   }
   if (!entries.length) {
-    rows.innerHTML = `<div class="user-list-empty">
+    rows.innerHTML = `<div class="no-results">
       ${escapeHtml(userProfileState.name)}'s <strong>${escapeHtml(listStatusLabel(userProfileState.status))}</strong> list is empty.
     </div>`;
     return;
   }
-  rows.innerHTML = entries.map((e) => renderListEntryRow(e)).join('');
-  // Tap a row → open that anime's detail
+  if (asGrid) {
+    rows.innerHTML = entries.map((e) => renderListCard(e)).join('');
+    return;
+  }
+  const o = { ...myListOpts(), readonly: true, scoreBy: userProfileState.name };
+  rows.innerHTML = entries.map((e) => renderListEntryRow(e, o)).join('');
   Array.from(rows.children).forEach((wrap) => {
     const mediaId = parseInt(wrap.dataset.mediaId, 10);
-    if (!isNaN(mediaId)) {
-      wrap.addEventListener('click', () => openMedia(mediaId));
-    }
+    if (!isNaN(mediaId)) wrap.addEventListener('click', () => openMedia(mediaId));
   });
 }
 
@@ -469,7 +501,7 @@ function switchTab(tab) {
   if (tab === 'search') loadSearchTab();
   if (tab === 'seasonal') loadSeasonal();
   if (tab === 'social') loadSocial();
-  if (tab === 'profile' && state.user) loadProfileStats();
+  if (tab === 'profile' && state.user) { loadProfileStats(); loadFollowing(); }
   if (tab === 'home' && state.user) loadMyList();
 }
 
@@ -1673,10 +1705,84 @@ function updateAuthUI() {
   // could only ever be zeroes.
   const statsSection = document.getElementById('stats-section');
   if (statsSection) statsSection.hidden = !signedIn;
+  const following = document.getElementById('following-section');
+  if (following) following.hidden = !signedIn;
 
   // Signing in or out changes whether there's a token to reveal.
   refreshSetupCodes();
 }
+
+// ============ FOLLOWING ============
+// Who you follow, as a grid of avatars that wraps rather than a sideways
+// strip — the first rows show, the rest fold behind Show all. Each opens that
+// person's profile. Loaded with the statistics, at low priority.
+const FOLLOWING_SHOWN = 10;
+const FOLLOWING_QUERY = `query ($id: Int!) {
+  Page(perPage: 50) {
+    pageInfo { total }
+    following(userId: $id, sort: [USERNAME]) { id name avatar { medium large } }
+  }
+}`;
+let followingReqId = 0;
+
+async function loadFollowing() {
+  const section = document.getElementById('following-section');
+  const body = document.getElementById('following-body');
+  if (!section || !body || !state.user) return;
+  section.hidden = false;
+  const myReq = ++followingReqId;
+  if (!body.querySelector('.follow-grid')) {
+    body.innerHTML = `<div class="follow-grid">${Array(5).fill(`
+      <div class="friend-avatar"><div class="friend-avatar-img skeleton"></div></div>`).join('')}</div>`;
+  }
+  const data = await anilist(FOLLOWING_QUERY, { id: state.user.id }, {
+    priority: 'low',
+    onFresh: (fresh) => { if (followingReqId === myReq) paintFollowing(fresh); },
+  });
+  if (followingReqId !== myReq) return;
+  paintFollowing(data);
+}
+
+function paintFollowing(data) {
+  const body = document.getElementById('following-body');
+  const count = document.getElementById('following-count');
+  if (!body) return;
+  const page = data?.Page;
+  // A failed request is not "you follow nobody".
+  if (!page) {
+    if (body.querySelector('.follow-grid .user-tap')) return;
+    body.innerHTML = `<div class="muted-note follow-note">Couldn't load who you follow.
+      <button class="retry-btn" type="button">Retry</button></div>`;
+    body.querySelector('.retry-btn')?.addEventListener('click', () => loadFollowing());
+    return;
+  }
+  const people = (page.following || []).filter(u => u?.id && u?.name);
+  const total = page.pageInfo?.total || people.length;
+  if (count) count.textContent = people.length ? formatNum(total) : '';
+  if (!people.length) {
+    body.innerHTML = `<div class="muted-note follow-note">You're not following anyone yet. Follow people on AniList and they'll show up here.</div>`;
+    return;
+  }
+  const tile = (u, i) => `
+    <button class="friend-avatar user-tap" type="button" data-user-id="${u.id}" data-user-name="${escapeHtml(u.name)}"${i >= FOLLOWING_SHOWN ? ' hidden' : ''}>
+      <span class="friend-avatar-img" style="background-image:url('${u.avatar?.medium || u.avatar?.large || ''}');"></span>
+      <span class="friend-avatar-name">${escapeHtml(u.name)}</span>
+    </button>`;
+  const extra = people.length - FOLLOWING_SHOWN;
+  body.innerHTML = `<div class="follow-grid">${people.map(tile).join('')}</div>
+    ${extra > 0 ? `<button class="stat-more" type="button" id="following-more">Show all ${formatNum(people.length)}</button>` : ''}`;
+  document.getElementById('following-more')?.addEventListener('click', (e) => {
+    body.querySelectorAll('.follow-grid .user-tap[hidden]').forEach(el => { el.hidden = false; });
+    e.currentTarget.remove();
+  });
+}
+
+document.getElementById('following-body')?.addEventListener('click', (e) => {
+  const el = e.target.closest('.user-tap');
+  if (!el) return;
+  const id = parseInt(el.dataset.userId, 10);
+  if (id > 0 && el.dataset.userName) openUser(id, el.dataset.userName);
+});
 
 // ============ PROFILE STATISTICS ============
 // Loaded when the Profile tab is opened, not at boot. The boot-time Viewer
@@ -1721,30 +1827,45 @@ function paintStats(s) {
     return;
   }
 
-  const mean = s.meanScore ? (s.meanScore / 10).toFixed(1) : '—';
-  body.innerHTML = `
-    <div class="stat-tiles">
-      ${statTile(formatNum(s.count || 0), 'Titles')}
-      ${statTile(formatNum(s.episodesWatched || 0), 'Episodes')}
-      ${statTile(formatWatchTime(s.minutesWatched), 'Watched')}
-      ${statTile(mean, 'Mean')}
-    </div>
-    ${renderStatStack(s.statuses)}
-    ${renderStatHist(s.scores)}
-    ${renderStatBars('Top genres', (s.genres || []).map(g => ({ name: g.genre, count: g.count })), 'genre')}
-    <button class="stat-more" type="button" id="stats-more-btn">Show more</button>
-    <div id="stats-extra" hidden>
+  body.innerHTML = statsHtml(s, 'stats');
+  wireStatsMore(body, 'stats');
+}
+
+// The statistics block, for you or for someone you follow. Three tiles: Mean
+// is gone, because AniList returns meanScore on the account's own scale
+// (10-point, 100-point, 5-star…) and dividing it by ten was only right for
+// one of them — a 10-point user saw 0.8 for a mean of 8.
+//
+// `compact` (a friend's profile) keeps the tiles and the status split up top
+// and folds everything else behind Show more, so their list isn't pushed a
+// screen down by a histogram.
+function statsHtml(s, prefix, compact) {
+  const genres = renderStatBars('Top genres', (s.genres || []).map(g => ({ name: g.genre, count: g.count })), 'genre');
+  const rest = `
       ${renderStatBars('Formats', (s.formats || []).map(f => ({
         // The option list's own label, not capitalize() — that turns "TV"
         // into "Tv" and "TV_SHORT" into "Tv short".
         name: FORMAT_OPTIONS.find(o => o.value === f.format)?.label || capitalize(f.format),
         count: f.count,
       })), 'format')}
-      ${renderStatBars('Release years', (s.releaseYears || []).map(y => ({ name: y.releaseYear, count: y.count })), 'year')}
+      ${renderStatBars('Release years', (s.releaseYears || []).map(y => ({ name: y.releaseYear, count: y.count })), 'year')}`;
+  return `
+    <div class="stat-tiles">
+      ${statTile(formatNum(s.count || 0), 'Titles')}
+      ${statTile(formatNum(s.episodesWatched || 0), 'Episodes')}
+      ${statTile(formatWatchTime(s.minutesWatched), 'Watched')}
+    </div>
+    ${renderStatStack(s.statuses)}
+    ${compact ? '' : `${renderStatHist(s.scores)}${genres}`}
+    <button class="stat-more" type="button" id="${prefix}-more-btn">Show more</button>
+    <div id="${prefix}-extra" hidden>
+      ${compact ? `${renderStatHist(s.scores, 'Scores')}${genres}` : ''}${rest}
     </div>`;
+}
 
-  const more = document.getElementById('stats-more-btn');
-  const extra = document.getElementById('stats-extra');
+function wireStatsMore(body, prefix) {
+  const more = document.getElementById(prefix + '-more-btn');
+  const extra = document.getElementById(prefix + '-extra');
   if (more && extra) {
     more.addEventListener('click', () => {
       extra.hidden = !extra.hidden;
@@ -1756,7 +1877,9 @@ function paintStats(s) {
 // Every bar and column goes somewhere. A statistic you can't act on is just
 // decoration, and the destinations already exist — the genre browser, the
 // search tab's filters, and the list's own status/score views.
-document.getElementById('stats-body')?.addEventListener('click', (e) => {
+// Shared by your statistics and a friend's: a genre, format or year opens the
+// same browse whoever's chart it's on.
+function onStatRowClick(e) {
   const row = e.target.closest('.stat-bar-row');
   if (!row || row.disabled) return;
   const kind = row.dataset.statKind;
@@ -1771,9 +1894,12 @@ document.getElementById('stats-body')?.addEventListener('click', (e) => {
   } else if (kind === 'year') {
     searchFilters.year = parseInt(value, 10);
   }
+  // From a friend's profile, the overlay has to go or Search opens under it.
+  closeOverlay('user-overlay');
   switchTab('search');
   applyFilters();
-});
+}
+document.getElementById('stats-body')?.addEventListener('click', onStatRowClick);
 
 
 // `opts` is forwarded to the row renderer on every repaint. My List passes

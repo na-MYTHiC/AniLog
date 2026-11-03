@@ -683,13 +683,19 @@ function progressRing(p) {
 // always get. Every style keeps the same outer structure (wrap, swipe targets,
 // .list-row, cover), so swipe-to-+1 and the in-place repaint after a write work
 // in all of them unchanged; only what's inside the row differs.
+//
+// Someone else's list (`opts.readonly`) draws the same row in the same style,
+// but without the swipe targets — their progress isn't yours to change — and
+// with their score labelled by `opts.scoreBy` (their name) rather than "you".
 function renderListEntryRow(entry, opts) {
   const m = entry.media;
   if (!m) return '';
   const o = (opts && typeof opts === 'object') ? opts : {};
   const style = o.style && o.style !== 'classic' ? o.style : null;
-  if (style) return renderStyledRow(entry, style);
+  if (style) return renderStyledRow(entry, style, o);
   const bare = o.bare === true;
+  const swipe = !bare && !o.readonly;
+  const scoreBy = escapeHtml(o.scoreBy || 'you');
   const { progress, total, aired, behind, progressPct, airedPct } = entryProgress(entry);
 
   // TWO meta lines, not one.
@@ -729,7 +735,7 @@ function renderListEntryRow(entry, opts) {
   }
   // The user's own score (only if they've rated it) — tinted in the accent color
   if (entry.score > 0) {
-    secondary.push(`<span class="row-score-user">★ ${entry.score} you</span>`);
+    secondary.push(`<span class="row-score-user">★ ${entry.score} ${scoreBy}</span>`);
   }
   if (!o.episode && m.nextAiringEpisode && m.nextAiringEpisode.timeUntilAiring > 0) {
     secondary.push(`Ep ${m.nextAiringEpisode.episode} in ${formatHM(m.nextAiringEpisode.timeUntilAiring)}`);
@@ -747,8 +753,8 @@ function renderListEntryRow(entry, opts) {
   const tintAttr = o.style ? ` style="--tint:${safeTint(m.coverImage?.color)}"` : '';
   return `
     <div class="list-row-wrap" data-media-id="${m.id}"${tintAttr}>
-      ${bare ? '' : `<div class="list-row-action list-row-action-sub">−1</div>
-      <div class="list-row-action list-row-action-add">+1</div>`}
+      ${swipe ? `<div class="list-row-action list-row-action-sub">−1</div>
+      <div class="list-row-action list-row-action-add">+1</div>` : ''}
       <div class="list-row">
         <div class="list-row-cover" style="background-color:${m.coverImage?.color || 'var(--surface-2)'};">${coverImg(m.coverImage?.large)}</div>
         <div class="list-row-body">
@@ -775,11 +781,11 @@ function safeTint(c) {
 // The outer shell every My List row shares, whatever its style. --tint is the
 // show's own cover colour; it only shows when Cover colours is switched on,
 // but it rides on every row so turning it on doesn't need a re-render.
-function styledRowShell(m, inner, rowClass) {
+function styledRowShell(m, inner, rowClass, readonly) {
   return `
     <div class="list-row-wrap" data-media-id="${m.id}" style="--tint:${safeTint(m.coverImage?.color)}">
-      <div class="list-row-action list-row-action-sub">−1</div>
-      <div class="list-row-action list-row-action-add">+1</div>
+      ${readonly ? '' : `<div class="list-row-action list-row-action-sub">−1</div>
+      <div class="list-row-action list-row-action-add">+1</div>`}
       <div class="list-row${rowClass ? ' ' + rowClass : ''}">
         <div class="list-row-cover" style="background-color:${m.coverImage?.color || 'var(--surface-2)'};">${coverImg(m.coverImage?.large)}</div>
         ${inner}
@@ -788,8 +794,10 @@ function styledRowShell(m, inner, rowClass) {
   `;
 }
 
-function renderStyledRow(entry, style) {
+function renderStyledRow(entry, style, o = {}) {
   const m = entry.media;
+  const ro = !!o.readonly;
+  const scoreBy = escapeHtml(o.scoreBy || 'you');
   const p = entryProgress(entry);
   const title = `<div class="list-row-title">${escapeHtml(pickTitle(m.title) || 'Unknown')}</div>`;
   const total = p.total || '?';
@@ -812,7 +820,7 @@ function renderStyledRow(entry, style) {
       <div class="lr-edge">
         ${p.aired ? `<i class="lr-edge-aired" style="width:${p.airedPct}%"></i>` : ''}
         ${p.progress ? `<i class="lr-edge-watched" style="width:${p.progressPct}%"></i>` : ''}
-      </div>`);
+      </div>`, '', ro);
   }
 
   if (style === 'ring') {
@@ -820,7 +828,7 @@ function renderStyledRow(entry, style) {
     // body keeps the scores and what airs next.
     const scores = [];
     if (score) scores.push(`<span class="row-score-community">${score}</span>`);
-    if (entry.score > 0) scores.push(`<span class="row-score-user">★ ${entry.score} you</span>`);
+    if (entry.score > 0) scores.push(`<span class="row-score-user">★ ${entry.score} ${scoreBy}</span>`);
     const note = p.behind
       ? `<div class="lr-note behind">${p.behind} behind</div>`
       : `<div class="lr-note">${entry.status === 'COMPLETED' ? 'complete' : 'up to date'}</div>`;
@@ -835,7 +843,7 @@ function renderStyledRow(entry, style) {
           <div class="lr-ring-n"><strong${p.progress >= 1000 ? ' class="long"' : ''}>${p.progress}</strong><span>/${total}</span></div>
         </div>
         ${note}
-      </div>`);
+      </div>`, '', ro);
   }
 
   // editorial — the number that matters, set large: how many you can watch
@@ -856,7 +864,7 @@ function renderStyledRow(entry, style) {
       </div>
       <div class="list-row-meta lr-caps">${meta.join(sep)}</div>
     </div>
-    <div class="lr-aside lr-big">${big}</div>`, p.behind ? 'is-behind' : '');
+    <div class="lr-aside lr-big">${big}</div>`, p.behind ? 'is-behind' : '', ro);
 }
 
 // ============ MY LIST GRID CARD ============
@@ -940,7 +948,7 @@ function renderStatStack(statuses) {
 // Not tappable, unlike the bars below it. "The 23 titles you rated 8" would
 // need a score-filtered list view, which the app doesn't have — so the columns
 // are drawn as what they are rather than as buttons that lead somewhere vague.
-function renderStatHist(scores) {
+function renderStatHist(scores, label = 'Your scores') {
   const buckets = Array(10).fill(0);
   (scores || []).forEach((s) => {
     const raw = Number(s?.score);
@@ -952,7 +960,7 @@ function renderStatHist(scores) {
   if (!max) return '';
   return `
     <div class="stat-block">
-      <span class="field-label">Your scores</span>
+      <span class="field-label">${escapeHtml(label)}</span>
       <div class="stat-hist">
         ${buckets.map((n, i) => `
           <div class="stat-hist-col" role="img" aria-label="${n} rated ${i + 1}">
@@ -994,7 +1002,7 @@ function statsSkeleton() {
   const bar = (w, h, mt) => `<div class="skeleton" style="height:${h}; width:${w}; border-radius: 999px; margin-top:${mt};"></div>`;
   return `
     <div class="stat-tiles">
-      ${Array(4).fill(`<div class="stat-tile">
+      ${Array(3).fill(`<div class="stat-tile">
         ${bar('60%', '19px', '0')}
         ${bar('80%', '10px', '7px')}
       </div>`).join('')}

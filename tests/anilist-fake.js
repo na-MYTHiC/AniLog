@@ -44,6 +44,11 @@ function handler(S, opts={}){
     if(/User\s*\(/.test(q)) return J({User:{id:v.id||42,name:'me',siteUrl:'https://anilist.co/user/me',
       avatar:{large:IMG,medium:IMG},statistics:{anime:STATS(S.entries.size)}}});
 
+    // Profile → Following. 13 people, so the grid has more than its first
+    // ten to fold behind Show all.
+    if(q.includes('following(')) return J({Page:{pageInfo:{total:13},
+      following:Array.from({length:13},(_,i)=>({id:7000+i,name:'friend'+i,avatar:{medium:IMG,large:IMG}}))}});
+
     if(q.includes('MediaTagCollection')) return J({MediaTagCollection:[
       {name:'Isekai',isAdult:false,isGeneralSpoiler:false},
       {name:'Time Skip',isAdult:false,isGeneralSpoiler:false},

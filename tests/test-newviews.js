@@ -332,6 +332,77 @@ const label = (r) => r.q.includes('SaveMediaListEntry') ? 'MUTATION'
     await page.close();
   }
 
+  // ---- Following, and a friend's profile -----------------------------------
+  // Profile lists who you follow; each opens their stats and their list, and
+  // that list works like yours — same bar, counts, sort and List Style — but
+  // can't be changed.
+  console.log('Following and friend profiles');
+  for (const listStyle of ['ring', 'grid']) {
+    const { page, seen } = await boot(b, { prefs: { listStyle } });
+    await page.evaluate(() => switchTab('profile'));
+    await page.waitForTimeout(1600);
+    const f = await page.evaluate(() => ({
+      shown: !document.getElementById('following-section').hidden,
+      count: document.getElementById('following-count').textContent.trim(),
+      visible: [...document.querySelectorAll('#following-body .user-tap')].filter(e => getComputedStyle(e).display !== 'none').length,
+      more: document.getElementById('following-more')?.textContent.trim(),
+      cols: getComputedStyle(document.querySelector('.follow-grid')).gridTemplateColumns.split(' ').length,
+    }));
+    if (listStyle === 'ring') {
+      check('Following lists who you follow, ten at first', f.shown && f.count === '13' && f.visible === 10 && f.more === 'Show all 13', JSON.stringify(f));
+      check('a wrapping grid, not a sideways strip', f.cols === 5, JSON.stringify(f));
+      await page.evaluate(() => document.getElementById('following-more').click());
+      const all = await page.evaluate(() => [...document.querySelectorAll('#following-body .user-tap')].filter(e => getComputedStyle(e).display !== 'none').length);
+      check('Show all reveals everyone', all === 13, `${all}`);
+    }
+    seen.length = 0;
+    await page.evaluate(() => document.querySelector('#following-body .user-tap').click());
+    await page.waitForTimeout(1800);
+    const u = await page.evaluate(() => ({
+      open: document.getElementById('user-overlay').classList.contains('visible'),
+      title: document.getElementById('user-title').textContent,
+      tiles: [...document.querySelectorAll('#ustats-body .stat-tile-label')].map(e => e.textContent.trim()).join(','),
+      stack: document.querySelectorAll('#ustats-body .stat-seg').length,
+      histHidden: !!document.querySelector('#ustats-extra .stat-hist') && document.getElementById('ustats-extra').hidden,
+      bar: !!document.querySelector('#user-body .list-bar #user-status-btn') && !!document.getElementById('user-sort-btn'),
+      oldTriggers: document.querySelectorAll('#user-body .sort-trigger').length,
+      label: document.getElementById('user-status-label').textContent.trim(),
+      count: document.getElementById('user-status-count').textContent.trim(),
+      cls: document.getElementById('user-list-rows').className,
+      rows: document.querySelectorAll('#user-list-rows .list-row-wrap').length,
+      cards: document.querySelectorAll('#user-list-rows .list-card').length,
+      swipe: document.querySelectorAll('#user-list-rows .list-row-action').length,
+      you: /\byou\b/.test(document.getElementById('user-list-rows').textContent),
+    }));
+    check(`${listStyle}: tapping someone opens their profile`, u.open && u.title === 'friend0', JSON.stringify(u));
+    if (listStyle === 'ring') {
+      check('their stats: the same three tiles and status split, the rest folded away',
+        u.tiles === 'Titles,Episodes,Watched' && u.stack === 3 && u.histHidden, JSON.stringify(u));
+      check('their list has your bar: the list name with its count, and sort', u.bar && u.oldTriggers === 0
+        && u.label === 'Watching' && /^\d+$/.test(u.count), JSON.stringify(u));
+      check('drawn in your List Style', /\blst-ring\b/.test(u.cls) && u.rows > 0, u.cls);
+      check('read-only: no swipe targets, and scores aren\'t labelled "you"', u.swipe === 0 && !u.you, JSON.stringify(u));
+      // The dropdown switches their list, with counts in the sheet.
+      seen.length = 0;
+      await page.evaluate(() => document.getElementById('user-status-btn').click());
+      await page.waitForTimeout(300);
+      const sheet = await page.evaluate(() => [...document.querySelectorAll('.sort-option-count')].map(e => e.textContent.trim()));
+      check('the dropdown shows each list\'s count', sheet.length === 7 && sheet.every(c => /^\d+$/.test(c)), JSON.stringify(sheet));
+      await page.evaluate(() => [...document.querySelectorAll('.sort-option')].find(o => /Completed/.test(o.textContent)).click());
+      await page.waitForTimeout(900);
+      const sw = await page.evaluate(() => ({
+        label: document.getElementById('user-status-label').textContent.trim(),
+        statuses: [...document.querySelectorAll('#user-list-rows .list-row-wrap')].length,
+      }));
+      const calls = seen.filter(r => r.q.includes('MediaListCollection') && r.v.status === 'COMPLETED');
+      check('picking a list switches to it in one request', sw.label === 'Completed' && sw.statuses > 0
+        && calls.length === 1 && calls[0].v.userId === 7000, JSON.stringify({ sw, calls: calls.map(c => c.v) }));
+    } else {
+      check('Grid style draws their list as posters', /\blst-grid\b/.test(u.cls) && u.cards > 0 && u.rows === 0, JSON.stringify(u));
+    }
+    await page.close();
+  }
+
   // ---- Profile statistics -------------------------------------------------
   console.log('Profile statistics');
   {
@@ -355,10 +426,12 @@ const label = (r) => r.q.includes('SaveMediaListEntry') ? 'MUTATION'
     }));
     check('section visible with no skeletons left',
       st.sectionShown && st.skeletons === 0, `${st.skeletons} skeletons`);
-    check('four tiles', st.tiles.length === 4, st.tiles.join('|'));
+    // Mean is gone: AniList's meanScore is on the account's own scale, and
+    // dividing it by ten was only right for one of them.
+    check('three tiles, no Mean', st.tiles.length === 3, st.tiles.join('|'));
     check('watched shown in days', /^\d+d( \d+h)?$|^\d+h$|^\d+m$/.test(st.tiles[2]), `"${st.tiles[2]}"`);
     check('tile labels as designed',
-      st.labels.join(',') === 'Titles,Episodes,Watched,Mean', st.labels.join(','));
+      st.labels.join(',') === 'Titles,Episodes,Watched', st.labels.join(','));
     check('profile card uses the same unit as the tile',
       st.card.includes(st.tiles[2]), `tile="${st.tiles[2]}"`);
     check('status bar drawn with a legend', st.segs === 3 && st.legend === 3,
