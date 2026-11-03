@@ -269,33 +269,66 @@ const truth = (S) => {
   // ---- the back gesture --------------------------------------------------------
   // One page, so back used to close the app. It now walks back through what's
   // open: the top layer, then the landing tab, then asks before leaving.
-  console.log('Back gesture');
-  {
-    const { page } = await boot(b, {});
+  // Run twice: with a CloseWatcher (Chrome on Android), where back must not
+  // navigate at all — a history back makes Chrome slide in a stale screenshot
+  // of this page first — and without one, on the history-entry fallback.
+  for (const watcher of [true, false]) {
+    console.log(`Back gesture (${watcher ? 'CloseWatcher' : 'history fallback'})`);
+    const S = makeState();
+    const page = await b.newPage({ viewport: { width: 393, height: 852 } });
+    await page.addInitScript(({ p, watcher }) => {
+      if (!watcher) delete window.CloseWatcher;
+      window.__entriesAtLoad = history.length;   // before any app script runs
+      localStorage.setItem('anilog-prefs', JSON.stringify(p));
+    }, { p: BASE, watcher });
+    await page.route('**/*', handler(S));
+    await page.goto('http://localhost:8099/index.html', { waitUntil: 'load' });
+    await page.waitForTimeout(2400);
     await page.mouse.click(200, 400);           // a real gesture, as on a phone
-    const back = async () => { await page.evaluate(() => history.back()); await page.waitForTimeout(350); };
+    // The system back: a close request on the watcher, or a history back.
+    const back = async () => {
+      await page.evaluate(() => HAS_CLOSE_WATCHER ? backWatcher.requestClose() : history.back());
+      await page.waitForTimeout(350);
+    };
     const snap = () => page.evaluate(() => ({
       tab: state.activeTab,
       open: [...document.querySelectorAll('.overlay.visible, .modal-backdrop.visible')].map(e => e.id),
-      trap: !!(history.state && history.state.anilogTrap),
+      armed: HAS_CLOSE_WATCHER ? !!backWatcher : !!(history.state && history.state.anilogTrap),
+      pushed: history.length - window.__entriesAtLoad,
       toast: [...document.querySelectorAll('.toast-msg')].map(e => e.textContent).join('|'),
     }));
+    check('uses the CloseWatcher when there is one', await page.evaluate(() => HAS_CLOSE_WATCHER) === watcher);
     await page.evaluate(() => { switchTab('search'); openMedia(1000); });
     await page.waitForTimeout(500);
     await page.evaluate(() => openSortModal('POPULARITY_DESC', () => {}));
     await page.waitForTimeout(300);
     const url = page.url();
     await back(); const a = await snap();
-    check('back closes the sheet on top, leaving the page under it', a.open.join() === 'detail-overlay' && a.trap, JSON.stringify(a));
+    check('back closes the sheet on top, leaving the page under it', a.open.join() === 'detail-overlay' && a.armed, JSON.stringify(a));
     await back(); const c = await snap();
-    check('back closes the detail page', c.open.length === 0 && c.tab === 'search' && c.trap, JSON.stringify(c));
+    check('back closes the detail page', c.open.length === 0 && c.tab === 'search' && c.armed, JSON.stringify(c));
     await back(); const d = await snap();
-    check('back from another tab goes to the landing tab', d.tab === 'home' && d.trap, JSON.stringify(d));
+    check('back from another tab goes to the landing tab', d.tab === 'home' && d.armed, JSON.stringify(d));
     await back(); const e = await snap();
     check('back on the landing tab asks first instead of closing', /again to close/.test(e.toast) && page.url() === url, JSON.stringify(e));
     await page.waitForTimeout(2200);
     const f = await snap();
-    check('and re-arms once the prompt has gone', f.trap, JSON.stringify(f));
+    check('and re-arms once the prompt has gone', f.armed, JSON.stringify(f));
+    if (watcher) {
+      check('no history entries pushed, so Chrome has nothing to animate', f.pushed === 0, `pushed ${f.pushed}`);
+      // Escape goes through the same watcher on a desktop keyboard; it must
+      // close one layer, not two, and never switch tabs.
+      await page.evaluate(() => { openMedia(1000); });
+      await page.waitForTimeout(500);
+      await page.evaluate(() => openSortModal('POPULARITY_DESC', () => {}));
+      await page.waitForTimeout(300);
+      await page.keyboard.press('Escape'); await page.waitForTimeout(350);
+      const g = await snap();
+      check('Escape closes only the top layer', g.open.join() === 'detail-overlay', JSON.stringify(g));
+      await page.keyboard.press('Escape'); await page.keyboard.press('Escape'); await page.waitForTimeout(350);
+      const h = await snap();
+      check('Escape with nothing open does nothing', h.open.length === 0 && h.tab === 'home' && !h.toast, JSON.stringify(h));
+    }
     await page.close();
   }
 
@@ -314,7 +347,8 @@ const truth = (S) => {
       let skeleton = false;
       const mo = new MutationObserver(() => { if (grid.querySelector('.skeleton')) skeleton = true; });
       mo.observe(grid, { childList: true, subtree: true });
-      history.back(); await wait(600);      // the back gesture, to the landing tab
+      HAS_CLOSE_WATCHER ? backWatcher.requestClose() : history.back();
+      await wait(600);                      // the back gesture, to the landing tab
       mo.disconnect();
       const restored = content.scrollTop;
       const tab = state.activeTab;

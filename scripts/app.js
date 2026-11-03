@@ -2759,29 +2759,38 @@ function closeTopLayer() {
 
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  if (closeTopLayer()) e.preventDefault();
+  closeTopLayer();
+  // Always cancelled: an uncancelled Escape also fires the back-gesture
+  // CloseWatcher below, which would close a second layer — or, with none
+  // open, switch tabs on a desktop keyboard.
+  e.preventDefault();
 });
 
 // ============ BACK GESTURE ============
 // The app is one page, so the system back gesture (Android back, the edge
 // swipe in an installed PWA) used to have nothing to go back to and closed
-// the app. Instead, one spare history entry sits on top of the real one and
-// every back press lands on it:
+// the app. Each back now does the first of:
 //   1. an open layer → close the top one (same as Escape)
 //   2. a tab other than the landing tab → go to the landing tab
 //   3. otherwise → "back again to close"; a second back within the toast's
-//      lifetime leaves, since the spare entry isn't re-armed until it ends.
-// A single entry rather than one per layer: layers also close by tap, swipe
-// and Escape, and a stack of entries would drift out of step with them.
+//      lifetime leaves, because nothing is armed to catch it until it ends.
+//
+// Caught with a CloseWatcher where there is one (Chrome on Android): back
+// then fires its close event without navigating at all. The history-entry
+// fallback works, but a history back is a navigation, and Chrome animates it
+// by sliding in a screenshot of the entry being returned to — a stale frame
+// of this same page, often with a show still open — before the app has done
+// anything. That was the show appearing above or below on every back.
+//
+// One catcher at a time rather than one per layer: layers also close by tap,
+// swipe and Escape, and a stack would drift out of step with them.
 const BACK_EXIT_WINDOW = 2000;
+const HAS_CLOSE_WATCHER = typeof window.CloseWatcher === 'function';
 let backExitTimer = null;
+let backWatcher = null;
+let backWatcherTrusted = false;
 
-function armBackTrap() {
-  if (history.state && history.state.anilogTrap) return;
-  history.pushState({ anilogTrap: true }, '');
-}
-
-window.addEventListener('popstate', () => {
+function handleBack() {
   if (closeTopLayer()) return armBackTrap();
   const landing = state.landing || 'home';
   if (state.activeTab !== landing) {
@@ -2791,7 +2800,28 @@ window.addEventListener('popstate', () => {
   if (backExitTimer) return;
   showToast('Swipe back again to close', { duration: BACK_EXIT_WINDOW });
   backExitTimer = setTimeout(() => { backExitTimer = null; armBackTrap(); }, BACK_EXIT_WINDOW);
-});
+}
+
+function armBackTrap() {
+  if (HAS_CLOSE_WATCHER) {
+    // A watcher made without a user gesture may be ignored (Chrome's guard
+    // against pages trapping back), so one made during a gesture replaces it.
+    const trusted = !!navigator.userActivation?.isActive;
+    if (backWatcher && (backWatcherTrusted || !trusted)) return;
+    if (backWatcher) backWatcher.destroy();
+    try {
+      const w = new CloseWatcher();
+      w.onclose = () => { if (backWatcher === w) backWatcher = null; handleBack(); };
+      backWatcher = w;
+      backWatcherTrusted = trusted;
+    } catch (e) { backWatcher = null; }
+    return;
+  }
+  if (history.state && history.state.anilogTrap) return;
+  history.pushState({ anilogTrap: true }, '');
+}
+
+if (!HAS_CLOSE_WATCHER) window.addEventListener('popstate', handleBack);
 
 // Returning focus to whatever opened a layer, so closing one doesn't strand
 // keyboard focus at the top of the document. Watching the class attribute
@@ -4625,11 +4655,13 @@ document.addEventListener('pointerover', (e) => {
 // ============ BOOT ============
 switchTab(state.landing || 'home');
 // After the OAuth hash (state.js) and the launch-URL params (above) have been
-// stripped, so the spare entry carries neither. Chrome skips history entries
-// pushed without a user gesture when you press back, so a tap re-arms it too —
-// a no-op whenever the entry is already there.
+// stripped, so the fallback's spare entry carries neither. A tap re-arms too:
+// browsers ignore a back catcher (watcher or history entry) set up without a
+// user gesture, and this is a no-op whenever one is already armed.
 armBackTrap();
-document.addEventListener('pointerdown', () => { if (!backExitTimer) armBackTrap(); },
+// pointerup, not pointerdown: a touch only counts as a user gesture once the
+// finger lifts.
+document.addEventListener('pointerup', () => { if (!backExitTimer) armBackTrap(); },
   { capture: true, passive: true });
 // Manual retry from the "couldn't reach AniList" state.
 document.getElementById('home-retry-btn')?.addEventListener('click', async () => {
