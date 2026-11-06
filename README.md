@@ -22,6 +22,8 @@ AniLog/
 │   └── app.js              # All UI — tabs, overlays, detail page, swipe, boot
 ├── assets/
 │   └── icons/              # icon.svg (source) + the icon-*.png generated from it,
+│                           # icon-any-*.png — the glyph on full-bleed black, no
+│                           # plate, which Android draws on the launch screen —
 │                           # plus badge.svg / badge-96.png — the status-bar glyph
 ├── tools/
 │   ├── gen-icons.ps1       # Regenerates every icon-*.png natively at each size

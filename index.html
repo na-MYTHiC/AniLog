@@ -3,8 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#0d0d12">
+<meta name="theme-color" content="#000000">
 <title>AniLog</title>
+<!-- The saved theme, applied before the first frame. app.js does this too,
+     but only once every script has loaded — until then the page painted in
+     the default Dark and then switched, so an AMOLED launch went black
+     (launch screen) → grey (first frame) → black. Colours match base.css. -->
+<script>
+  try {
+    var t = JSON.parse(localStorage.getItem('anilog-prefs') || '{}').theme;
+    if (t) document.documentElement.setAttribute('data-theme', t);
+    var bg = { light: '#f7f7fa', amoled: '#000000' }[t] || '#0d0d12';
+    document.querySelector('meta[name="theme-color"]').setAttribute('content', bg);
+  } catch (e) {}
+</script>
 <link rel="stylesheet" href="styles/base.css">
 <link rel="stylesheet" href="styles/app.css">
 
@@ -567,7 +579,7 @@
         <div class="settings-row">
           <div>
             <div class="settings-label">App version</div>
-            <div class="settings-sub" id="update-status">v5.04</div>
+            <div class="settings-sub" id="update-status">v5.05</div>
           </div>
           <button class="btn-secondary" id="update-check-btn">Check for updates</button>
         </div>
@@ -596,7 +608,7 @@
       </div>
 
       <div class="app-footer">
-        AniLog · v5.04 · Powered by AniList
+        AniLog · v5.05 · Powered by AniList
       </div>
     </div>
   </div>

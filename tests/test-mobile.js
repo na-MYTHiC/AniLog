@@ -94,6 +94,41 @@ const VIEWS = [
   check('badge is RGBA with transparent corners (no background plate)',
     edgeAlpha !== null && edgeAlpha.every(a => a === 0), JSON.stringify(edgeAlpha));
 
+  // ---- the launch ---------------------------------------------------------------
+  // Android builds the installed app's launch screen from the manifest, then
+  // fades it out over the first frame. A grey launch screen under an AMOLED
+  // app, an icon with its own grey plate, and a first frame painted in the
+  // default theme read as a grey box ghosting over the list.
+  console.log('Launch');
+  {
+    const man = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'manifest.json'), 'utf8'));
+    check('launch screen is black, matching AMOLED and the system opening animation',
+      man.background_color === '#000000' && man.theme_color === '#000000', `${man.background_color} / ${man.theme_color}`);
+    const any = man.icons.filter(i => i.purpose === 'any');
+    check('launch icon is the plate-free one; the plated one is only maskable',
+      any.length > 0 && any.every(i => /icon-any-/.test(i.src)) && man.icons.every(i => !/\bany maskable\b/.test(i.purpose || '')),
+      JSON.stringify(man.icons.map(i => `${i.src}:${i.purpose}`)));
+    // The glyph sits on black edge to edge: no transparent corners, no plate.
+    const png = fs.readFileSync(path.join(__dirname, '..', 'assets', 'icons', 'icon-any-192.png'));
+    check('launch icon file exists', png.length > 0);
+
+    // The saved theme is on <html> before any app script has run.
+    const page = await b.newPage({ viewport: { width: 393, height: 852 } });
+    await page.addInitScript(() => localStorage.setItem('anilog-prefs', JSON.stringify({ theme: 'amoled', accessToken: null })));
+    await page.route('**/scripts/*.js', async (route) => { await new Promise(r => setTimeout(r, 2500)); return route.continue(); });
+    await page.goto('http://localhost:8099/index.html', { waitUntil: 'commit' });
+    await page.waitForTimeout(600);
+    const early = await page.evaluate(() => ({
+      theme: document.documentElement.getAttribute('data-theme'),
+      meta: document.querySelector('meta[name="theme-color"]').content,
+      appLoaded: typeof switchTab === 'function',
+      bg: getComputedStyle(document.body).backgroundColor,
+    }));
+    check('first frame is already in your theme, before app.js loads',
+      early.theme === 'amoled' && early.meta === '#000000' && !early.appLoaded && early.bg === 'rgb(0, 0, 0)', JSON.stringify(early));
+    await page.close();
+  }
+
   // ---- layout and targets ----------------------------------------------------
   for (const [w, h, name] of SIZES) {
     console.log(`${name} — ${w}x${h}`);
