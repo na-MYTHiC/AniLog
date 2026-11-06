@@ -51,6 +51,15 @@ function handler(S, opts={}){
       following:{pageInfo:{total:13},following:Array.from({length:13},(_,i)=>({id:7000+i,name:'friend'+i,avatar:{medium:IMG,large:IMG}}))},
       followers:{pageInfo:{total:4},followers:Array.from({length:4},(_,i)=>({id:7100+i,name:'fan'+i,avatar:{medium:IMG,large:IMG}}))}});
 
+    // A studio's works. Answers only when asked for main-studio works
+    // server-side (isMain: true), the way the real API filters them.
+    if(/Studio\s*\(/.test(q)){
+      if(!/isMain:\s*true/.test(q)) return J({Studio:{media:{pageInfo:{hasNextPage:false},nodes:[],
+        edges:Array.from({length:10},(_,i)=>({isMainStudio:null,node:withEntry(1000+i)}))}}});
+      const pg=v.page||1;
+      return J({Studio:{media:{pageInfo:{hasNextPage:pg<2},nodes:Array.from({length:8},(_,i)=>withEntry(1000+(pg-1)*8+i))}}});
+    }
+
     if(q.includes('MediaTagCollection')) return J({MediaTagCollection:[
       {name:'Isekai',isAdult:false,isGeneralSpoiler:false},
       {name:'Time Skip',isAdult:false,isGeneralSpoiler:false},

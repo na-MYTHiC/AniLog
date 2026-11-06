@@ -332,6 +332,62 @@ const label = (r) => r.q.includes('SaveMediaListEntry') ? 'MUTATION'
     await page.close();
   }
 
+  // ---- a studio's works --------------------------------------------------------
+  // The studio link opened onto nothing: every show was dropped client-side
+  // on an isMainStudio flag that came back unset, and the loader then sat on
+  // a page with nothing to show. AniList filters main works itself now.
+  console.log('Studio');
+  {
+    const { page, seen } = await boot(b);
+    seen.length = 0;
+    await page.evaluate(() => openStudio(11, 'Madhouse'));
+    await page.waitForTimeout(1500);
+    const st = await page.evaluate(() => ({
+      cards: document.querySelectorAll('#studio-grid .card').length,
+      note: document.querySelector('#studio-grid .scroll-sentinel')?.textContent.trim(),
+    }));
+    const calls = seen.filter(r => /Studio\s*\(/.test(r.q));
+    check('a studio opens with its shows', st.cards >= 8, JSON.stringify(st));
+    check('main works are filtered by AniList (isMain: true), not dropped client-side',
+      calls.length > 0 && calls.every(c => /isMain:\s*true/.test(c.q) && !/isMainStudio/.test(c.q)), `${calls.length} calls`);
+    await page.close();
+  }
+  {
+    const { page } = await boot(b, { onRequest: () => {} });
+    await page.route('https://graphql.anilist.co/**', async (route) => {
+      const q = JSON.parse(route.request().postData() || '{}').query || '';
+      if (/Studio\s*\(/.test(q)) return route.fulfill({ status: 500, body: '{}' });
+      return route.fallback();
+    });
+    await page.evaluate(() => openStudio(11, 'Madhouse'));
+    await page.waitForTimeout(4500);
+    const t = await page.evaluate(() => document.getElementById('studio-grid').textContent.replace(/\s+/g, ' ').trim());
+    check('a failed studio request says so with Retry, never "No animation works found"',
+      /Couldn.t load/.test(t) && !/No animation works/.test(t), `"${t.slice(0, 80)}"`);
+    await page.close();
+  }
+  // The loader itself: pages that render nothing must not stall the list.
+  {
+    const { page } = await boot(b);
+    const r = await page.evaluate(async () => {
+      const grid = document.createElement('div');
+      const scroll = document.createElement('div');
+      scroll.style.cssText = 'height:400px;overflow:auto';
+      scroll.appendChild(grid); document.body.appendChild(scroll);
+      let calls = 0;
+      const sc = setupInfiniteScroll(grid, scroll, async (p) => {
+        calls++;
+        return p < 3 ? { items: [], hasMore: true }
+          : { items: [{ id: 1, title: { userPreferred: 'X' }, coverImage: {} }], hasMore: false };
+      });
+      await sc.reload();
+      await new Promise(res => setTimeout(res, 300));
+      return { calls, cards: grid.querySelectorAll('.card').length };
+    });
+    check('empty pages are skipped through, not waited on', r.calls === 3 && r.cards === 1, JSON.stringify(r));
+    await page.close();
+  }
+
   // ---- Following, and a friend's profile -----------------------------------
   // Profile lists who you follow; each opens their stats and their list, and
   // that list works like yours — same bar, counts, sort and List Style — but

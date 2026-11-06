@@ -33,6 +33,9 @@ function setupInfiniteScroll(grid, scrollContainer, fetchPage, renderer, onAppen
   // back with zero renderable items and still have more pages behind it —
   // which is normal now that Studio filters out producer-only credits.
   let appended = 0;
+  // Consecutive pages that rendered nothing; see loadNext.
+  let emptyRun = 0;
+  const MAX_EMPTY_PAGES = 5;
 
   function clearSkeletons() {
     grid.querySelectorAll(':scope > .is-placeholder').forEach((el) => el.remove());
@@ -73,8 +76,14 @@ function setupInfiniteScroll(grid, scrollContainer, fetchPage, renderer, onAppen
       appended += items.length;
       hasMore = !!result?.hasMore;
       page += 1;
+      emptyRun = items.length ? 0 : emptyRun + 1;
       if (hasMore) {
         sentinel.textContent = '';
+        // A page that adds nothing (everything on it deduped or filtered)
+        // leaves the sentinel exactly where it was — still in view, so the
+        // observer never fires again and the list sat blank. Ask for the next
+        // page straight away, a bounded number of times.
+        if (!items.length && emptyRun < MAX_EMPTY_PAGES) queueMicrotask(loadNext);
       } else if (appended === 0 && emptyMessage) {
         sentinel.textContent = emptyMessage;
       } else {
@@ -111,6 +120,7 @@ function setupInfiniteScroll(grid, scrollContainer, fetchPage, renderer, onAppen
       hasMore = true;
       loading = false;
       appended = 0;
+      emptyRun = 0;
       grid.innerHTML = '';
       grid.appendChild(sentinel);
       sentinel.textContent = '';

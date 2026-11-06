@@ -3146,19 +3146,26 @@ async function loadStudio() {
       // one returns a 400 error and the overlay shows nothing.
       // (Studios only produce anime so the filter was always redundant anyway.)
       //
-      // edges (not nodes) because only the edge carries isMainStudio, which
-      // separates "we animated this" from "we were a production committee
-      // member". Without it, Production I.G lists all of Attack on Titan,
-      // which WIT animated.
+      // `isMain: true` keeps the works this studio actually animated, not the
+      // ones it sat on the production committee for — without it Production
+      // I.G lists all of Attack on Titan, which WIT animated. This used to be
+      // done here, by reading isMainStudio off each edge and dropping the
+      // rest; when that flag came back unset every show was dropped, page
+      // after page, and the studio opened empty. Filtering on AniList's side
+      // means every page is real works.
       const q = `query ($id: Int, $sort: [MediaSort], $page: Int) {
         Studio(id: $id) {
-          media(sort: $sort, page: $page, perPage: 30) {
+          media(sort: $sort, isMain: true, page: $page, perPage: 30) {
             pageInfo { hasNextPage }
-            edges { isMainStudio node { ${MEDIA_FRAGMENT} } }
+            nodes { ${MEDIA_FRAGMENT} }
           }
         }
       }`;
       const data = await anilist(q, { id: studioState.id, sort: [studioState.sort], page });
+      // A failed request is not an empty studio: null makes the scroller say
+      // "Couldn't load" with a Retry instead of "No animation works found".
+      const media = data?.Studio?.media;
+      if (!media) return null;
 
       // Dedup against what's actually on screen rather than a shared Set.
       // A Set mutated inside this fetcher gets poisoned by stale requests:
@@ -3172,20 +3179,15 @@ async function loadStudio() {
       );
       // Adding to `seen` as we go also covers duplicates WITHIN one page —
       // AniList can credit the same studio twice on one title.
-      const items = (data?.Studio?.media?.edges || [])
-        .filter((e) => {
-          if (!e?.isMainStudio || !e.node) return false;
-          const key = String(e.node.id);
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        })
-        .map((e) => e.node);
+      const items = (media.nodes || []).filter((m) => {
+        if (!m?.id) return false;
+        const key = String(m.id);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
 
-      return {
-        items,
-        hasMore: data?.Studio?.media?.pageInfo?.hasNextPage || false,
-      };
+      return { items, hasMore: !!media.pageInfo?.hasNextPage };
     }, null, null, (el) => skeletonFill(el, 12), 'No animation works found.');
   }
 
