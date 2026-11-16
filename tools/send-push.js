@@ -1,5 +1,6 @@
 // Polls AniList for new notifications and delivers them as Web Push.
-// Run on a schedule by .github/workflows/anilog-push.yml.
+// Run every couple of minutes by tools/push-loop.sh, inside the long-lived
+// job in .github/workflows/anilog-push.yml.
 //
 // Why this exists: the Push API requires *something* to POST to the push
 // endpoint — a phone can't schedule its own push. This is that something, and
@@ -15,6 +16,7 @@
 // never half-update.
 
 const fs = require('fs');
+const crypto = require('crypto');
 const path = require('path');
 const webpush = require('web-push');
 
@@ -22,8 +24,15 @@ const STATE_PATH = path.join(__dirname, 'push-state.json');
 const CONFIG_PATH = path.join(__dirname, '..', 'scripts', 'config.js');
 const ANILIST = 'https://graphql.anilist.co';
 // Nothing older than this is ever sent — otherwise the first run after a long
-// outage would dump a backlog of stale alerts onto the lock screen.
-const MAX_AGE_SECONDS = 6 * 60 * 60;
+// outage would dump a backlog of stale alerts onto the lock screen. A day, not
+// the six hours it was: runs used to start up to ten hours apart, and anything
+// that aged past six in the gap was silently never sent. Late beats never.
+const MAX_AGE_SECONDS = 24 * 60 * 60;
+// How many notifications to read per pass. 15 could be outrun by one busy gap.
+const PAGE_SIZE = 50;
+// A pass with nothing to send still records that it looked, this often, so the
+// app can tell "quiet day" from "the sender has stopped".
+const HEARTBEAT_SECONDS = 20 * 60;
 
 // ---- Test mode ----
 // Set by the workflow's "resend_today" dispatch input. Widens the window to a
@@ -47,6 +56,20 @@ function writeState(state) {
   fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2) + '\n');
 }
 
+// A subscription's fingerprint. The state file is public (the app reads it to
+// show push health), so it carries this rather than the endpoint itself; the
+// app hashes its own endpoint the same way to see whether it's on the list.
+function endpointId(sub) {
+  return crypto.createHash('sha256').update(String(sub?.endpoint || '')).digest('hex').slice(0, 16);
+}
+
+// A broken setup fails the run — a red run is what makes GitHub email about
+// it — but only the first time. Every later pass meets the same problem, and
+// one email per problem is the point, not one every half hour.
+class SetupError extends Error {
+  constructor(code, message) { super(message); this.code = code; }
+}
+
 // Pulled out of the client config by regex rather than by requiring the file:
 // config.js is a classic script that assigns bare globals, so `require` would
 // throw. One line, one source of truth.
@@ -59,8 +82,10 @@ function readPublicKey() {
 // 404/410 mean the subscription is dead (app deleted, push reset). Nothing to
 // do automatically — it lives in a secret this can't edit — so say so clearly
 // enough to act on.
+const isExpired = (err) => err.statusCode === 404 || err.statusCode === 410;
+
 function reportSendError(err) {
-  if (err.statusCode === 404 || err.statusCode === 410) {
+  if (isExpired(err)) {
     console.error('A subscription has expired — re-enable push in the app and update PUSH_SUBSCRIPTION.');
   } else {
     console.error(`Send failed (${err.statusCode || 'unknown'}): ${err.message}`);
@@ -137,7 +162,9 @@ async function fetchNotifications(token, perPage) {
 
       // 401/403 mean the token is dead: retrying can only produce the same
       // answer, so fail immediately and loudly.
-      if (res.status === 401 || res.status === 403) throw new Error(where);
+      if (res.status === 401 || res.status === 403) {
+        throw new SetupError('anilist-token', `${where}. The ANILIST_TOKEN secret has expired or been revoked — copy a new one from the app.`);
+      }
 
       // Everything else gets retried, including 400. A 400 is supposed to mean
       // a malformed query, but this query is a constant — and run #76 got one
@@ -243,7 +270,7 @@ async function main() {
 
   if (RESEND_TODAY) console.log('TEST MODE: resending the last 24h, ignoring the sent marker.');
 
-  const notifications = await fetchNotifications(ANILIST_TOKEN, RESEND_TODAY ? 50 : 15);
+  const notifications = await fetchNotifications(ANILIST_TOKEN, PAGE_SIZE);
   if (!notifications.length) console.log('AniList returned no notifications at all.');
 
   const cutoff = Math.floor(Date.now() / 1000) - (RESEND_TODAY ? TEST_AGE_SECONDS : MAX_AGE_SECONDS);
@@ -284,12 +311,33 @@ async function main() {
     return;   // never touches the marker
   }
 
+  const now = Math.floor(Date.now() / 1000);
+  // What the app's push-health line reads. `subs` are fingerprints of the
+  // subscriptions in the secret; `dead` the ones the push service has refused.
+  const health = (extra) => ({
+    lastId: state.lastId,
+    checkedAt: now,
+    sentAt: state.sentAt || null,
+    subs: subs.map(endpointId),
+    dead: state.dead || [],
+    error: null,
+    ...extra,
+  });
+
   if (!fresh.length) {
-    console.log('Nothing new to send.');
-    if (newestSeen !== state.lastId) writeState({ lastId: newestSeen });
+    const moved = newestSeen !== state.lastId;
+    const due = now - (state.checkedAt || 0) >= HEARTBEAT_SECONDS;
+    // Coming back from an AniList-side error is worth recording at once.
+    const recovered = state.error && state.error !== 'subscription-expired';
+    if (moved || due || recovered) {
+      writeState(health({ lastId: newestSeen, error: state.error === 'subscription-expired' ? state.error : null }));
+    }
     return;
   }
 
+  // Per subscription, so one dead phone doesn't hide behind a live one.
+  const delivered = new Map(subs.map((sub) => [endpointId(sub), 0]));
+  const dead = new Set();
   let sent = 0;
 
   for (const n of fresh) {
@@ -301,11 +349,15 @@ async function main() {
     // nothing arrived.
     if (RESEND_TODAY) payload.tag = `${payload.tag}-retest-${Date.now()}`;
     for (const sub of subs) {
+      const id = endpointId(sub);
+      if (dead.has(id)) continue;
       try {
         await webpush.sendNotification(sub, JSON.stringify(payload));
         sent += 1;
+        delivered.set(id, delivered.get(id) + 1);
       } catch (err) {
         reportSendError(err);
+        if (isExpired(err)) dead.add(id);
       }
     }
   }
@@ -317,11 +369,36 @@ async function main() {
     console.log('Test mode — leaving the sent marker untouched.');
     return;
   }
-  writeState({ lastId: newestSeen });
+
+  // Nothing reached anyone. The marker used to advance regardless, so every
+  // notification that arrived while the subscription was dead was thrown
+  // away for good. Now it stays put: re-pair the phone and the last day's
+  // worth is delivered.
+  if (sent === 0) {
+    const expired = dead.size === subs.length;
+    const code = expired ? 'subscription-expired' : 'send-failed';
+    const first = state.error !== code;
+    // On the first sighting the catch below records the code and fails the
+    // run; writing it here too would make that look like a repeat.
+    writeState(health({ dead: [...dead], error: expired && first ? (state.error || null) : code }));
+    if (expired && first) {
+      throw new SetupError(code, 'Every push subscription has expired. Open AniLog → Settings → Push notifications, copy the new code and update the PUSH_SUBSCRIPTION secret. Notifications from the last 24 hours will be delivered once it is.');
+    }
+    return;
+  }
+
+  writeState(health({ lastId: newestSeen, sentAt: now, dead: [...dead] }));
 }
 
 main().catch((err) => {
   console.error(err.message);
+  if (err instanceof SetupError) {
+    // Record it for the app, and fail the run only the first time it's seen.
+    const state = readState();
+    const first = state.error !== err.code;
+    writeState({ ...state, checkedAt: Math.floor(Date.now() / 1000), error: err.code });
+    process.exit(first ? 1 : 0);
+  }
   // AniList being down is not a broken setup, and this runs on a schedule —
   // the marker hasn't moved, so the next run picks up whatever was missed.
   // Failing the job here just emails "all jobs have failed" for a hiccup
@@ -334,5 +411,11 @@ main().catch((err) => {
     // indefinitely — a hung job is worse than the failed one this replaces.
     process.exit(0);
   }
-  process.exit(1);
+  // Anything else is ours too (bad VAPID key, malformed subscription), and
+  // gets the same once-only red run.
+  const code = `error: ${String(err.message).slice(0, 120)}`;
+  const state = readState();
+  const first = state.error !== code;
+  writeState({ ...state, checkedAt: Math.floor(Date.now() / 1000), error: code });
+  process.exit(first ? 1 : 0);
 });

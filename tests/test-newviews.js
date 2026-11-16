@@ -332,6 +332,95 @@ const label = (r) => r.q.includes('SaveMediaListEntry') ? 'MUTATION'
     await page.close();
   }
 
+  // ---- the detail page ------------------------------------------------------
+  console.log('Detail page');
+  {
+    const { page, seen } = await boot(b);
+    // Hold the detail request so what's on screen BEFORE it answers is visible.
+    let release; const gate = new Promise(r => { release = r; });
+    await page.route('https://graphql.anilist.co/**', async (route) => {
+      const q = JSON.parse(route.request().postData() || '{}').query || '';
+      if (/Media\(id:/.test(q) && /bannerImage/.test(q)) await gate;
+      return route.fallback();
+    });
+    await page.evaluate(() => { openMedia(1001); });
+    await page.waitForTimeout(250);
+    const early = await page.evaluate(() => ({
+      title: document.querySelector('#detail-body .detail-title')?.textContent,
+      cover: /url\(/.test(document.querySelector('#detail-body .detail-cover')?.style.backgroundImage || ''),
+      loadingText: /Loading/.test(document.getElementById('detail-body').textContent),
+      skeleton: !!document.querySelector('#detail-body .detail-skel'),
+    }));
+    check('opens with the title and cover at once, from what the list already had',
+      early.title === 'Anime 1' && early.cover && early.skeleton && !early.loadingText, JSON.stringify(early));
+    release();
+    await page.waitForTimeout(900);
+    const full = await page.evaluate(() => ({
+      stats: [...document.querySelectorAll('#detail-body .dstat span')].map(e => e.textContent).join(','),
+      both: document.querySelectorAll('#detail-body .dstat').length,
+      skeleton: !!document.querySelector('#detail-body .skeleton'),
+      plus: !!document.getElementById('detail-plus-btn'),
+      prog: document.getElementById('detail-list-prog')?.textContent,
+      status: document.getElementById('detail-list-label')?.textContent,
+    }));
+    check('community score and your score sit side by side', /^Score,(Your score|Rate),Members,Favourites$/.test(full.stats) && !full.skeleton, JSON.stringify(full));
+    // 1001 is PLANNING in the fake: no +1 on a show you aren't watching.
+    check('no +1 on a show you are not watching', full.status === 'Planning' && !full.plus, JSON.stringify(full));
+    await page.evaluate(() => { closeOverlay('detail-overlay'); openMedia(1006); });   // CURRENT, progress 6
+    await page.waitForTimeout(900);
+    seen.length = 0;
+    await page.evaluate(() => document.getElementById('detail-plus-btn').click());
+    await page.waitForTimeout(700);
+    const after = await page.evaluate(() => document.getElementById('detail-list-prog')?.textContent);
+    const mut = seen.filter(r => r.q.includes('SaveMediaListEntry'));
+    check('+1 saves one episode and shows it', mut.length === 1 && mut[0].v.progress === 7 && after === '7/12', `${after} ${JSON.stringify(mut.map(m => m.v))}`);
+    // Rating: scoreRaw, so it means the same on every AniList scoring scale.
+    seen.length = 0;
+    await page.evaluate(() => document.getElementById('detail-score-pill').click());
+    await page.waitForTimeout(300);
+    await page.evaluate(() => document.querySelector('.rate-btn[data-score="8"]').click());
+    await page.waitForTimeout(900);
+    const rate = seen.filter(r => r.q.includes('SaveMediaListEntry'));
+    const shown = await page.evaluate(() => document.querySelector('#detail-score-pill strong')?.textContent);
+    check('a rating is sent as scoreRaw 0-100 and read back on the 10 scale',
+      rate.length === 1 && rate[0].v.scoreRaw === 80 && rate[0].v.score === undefined && shown === '8', `${shown} ${JSON.stringify(rate.map(m => m.v))}`);
+    const reads = seen.concat([]).filter(r => /\bscore\b(?!\(format)/.test(r.q.replace(/averageScore|meanScore|scoreRaw|scores \{ score/g, '')));
+    check('no query reads a list score without naming its scale', reads.length === 0, reads.map(r => r.q.slice(0, 60)).join(' | '));
+    await page.close();
+  }
+
+  // ---- push health ---------------------------------------------------------
+  // The app reads the sender's state file and says what's wrong, instead of
+  // notifications stopping with nothing anywhere saying so.
+  console.log('Push health');
+  {
+    const { page } = await boot(b);
+    const r = await page.evaluate(async () => {
+      const now = 1_800_000_000;
+      const me = await pushEndpointId('https://push.example/abc');
+      const v = (h, copied) => pushHealthVerdict(h, me, now, copied);
+      return {
+        idLen: me.length,
+        ok: v({ checkedAt: now - 120, sentAt: now - 7200, subs: [me], dead: [] }),
+        notMine: v({ checkedAt: now - 120, subs: ['someoneelse'], dead: [] }),
+        dead: v({ checkedAt: now - 120, subs: [me], dead: [me] }),
+        justCopied: v({ checkedAt: now - 120, subs: ['old'], dead: [] }, now * 1000 - 60000),
+        token: v({ checkedAt: now - 120, subs: [me], error: 'anilist-token' }),
+        stalled: v({ checkedAt: now - 5 * 3600, subs: [me], dead: [] }),
+        legacy: v({ lastId: 5 }),
+      };
+    });
+    check('fingerprint matches the sender (16 hex chars)', r.idLen === 16);
+    check('healthy reads as working, with when it last checked', r.ok.level === 'ok' && /checked AniList/.test(r.ok.text), JSON.stringify(r.ok));
+    check('a code GitHub does not hold, or one refused, asks for a re-pair',
+      r.notMine.level === 'bad' && r.notMine.relink && r.dead.level === 'bad' && r.dead.relink);
+    check('just after copying a new code it waits instead of alarming', r.justCopied.level === 'warn' && !r.justCopied.relink, JSON.stringify(r.justCopied));
+    check('an expired AniList token is named', r.token.level === 'bad' && /ANILIST_TOKEN/.test(r.token.text));
+    check('a sender that stopped checking is flagged', r.stalled.level === 'warn');
+    check('the old state file (no health record) says nothing', r.legacy === null);
+    await page.close();
+  }
+
   // ---- a studio's works --------------------------------------------------------
   // The studio link opened onto nothing: every show was dropped client-side
   // on an isMainStudio flag that came back unset, and the loader then sat on

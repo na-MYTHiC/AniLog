@@ -42,6 +42,10 @@ const VAPID_PUBLIC_KEY = 'BMGOxfc34-MFbwRPYpiyp8IJy-atWV67MB3ZnppJPj-4yQp2nJK4vk
 // destroys the push subscription, so PUSH_SUBSCRIPTION has to be re-pasted
 // every time — linking straight at the field turns that from "navigate
 // GitHub's settings on a phone" into paste-and-save.
+// The sender's own record of how it's doing — last check, last send, which
+// subscriptions it holds (as fingerprints) and any standing error. Written to
+// the push-state branch by tools/push-loop.sh; public, like the repo.
+const PUSH_HEALTH_URL = 'https://raw.githubusercontent.com/na-MYTHiC/AniLog/push-state/push-state.json';
 const GITHUB_SECRETS = 'https://github.com/na-MYTHiC/AniLog/settings/secrets/actions';
 
 const MEDIA_FRAGMENT = `
@@ -93,7 +97,7 @@ const MEDIA_DETAIL_CORE = `
   type
   trailer { id site thumbnail }
   externalLinks { id url site icon color type language }
-  mediaListEntry { id status score progress }
+  mediaListEntry { id status score(format: POINT_10) progress }
   studios(isMain: true) { nodes { id name } }
   nextAiringEpisode { airingAt episode timeUntilAiring }
   startDate { year month day }
@@ -177,7 +181,7 @@ const SCHEDULE_MEDIA_FIELDS = `
   episodes
   status
   nextAiringEpisode { airingAt episode timeUntilAiring }
-  mediaListEntry { id status score progress }
+  mediaListEntry { id status score(format: POINT_10) progress }
 `;
 
 // Profile statistics. No `limit:`/`sort:` args — the lists are tiny (18 genres,

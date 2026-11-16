@@ -925,7 +925,9 @@
 .detail-banner {
   width: 100%;
   height: 180px;
-  background: var(--surface-2);
+  /* The show's own colour under the image, so the header has its mood before
+     the banner has downloaded (and when there isn't one). */
+  background-color: color-mix(in srgb, var(--tint, var(--surface-2)) 55%, var(--bg));
   background-size: cover; background-position: center;
   position: relative;
 }
@@ -1113,38 +1115,65 @@
 @media (hover: hover) {
   .sub-studio:hover { opacity: 0.8; text-decoration: underline; }
 }
+/* The numbers, as one strip of equal columns in a single card. They were
+   wrapping pills of different widths, with the status dropping to a second
+   row on its own. */
 .detail-stats {
-  display: flex; gap: 6px;
-  padding: 16px var(--gutter);
-  flex-wrap: wrap;
-}
-/* --tap-sm, not --tap: these sit several to a wrapping row, and at 44px the
-   two rows of them would push the synopsis off a 360px screen. Only the score
-   pill is tappable; the rest are labels that have to match it. */
-.stat-pill {
-  display: inline-flex; align-items: center;
-  min-height: var(--tap-sm);
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  margin: 16px var(--gutter) 12px;
   background: var(--surface);
   border: 1px solid var(--border);
-  padding: 0 11px;
-  border-radius: var(--radius-sm);
-  font-size: 11.5px;
-  color: var(--text-dim);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.dstat {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px;
+  min-height: 58px;
+  padding: 8px 4px;
+  background: none; border: 0;
+  color: inherit; font-family: inherit;
+  min-width: 0;
+}
+.dstat + .dstat { border-left: 1px solid var(--border); }
+.dstat strong {
+  font-size: 17px; font-weight: 800; letter-spacing: -0.3px;
+  color: var(--text);
+  line-height: 1.1;
+}
+.dstat span {
+  font-size: 10px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--text-faint);
   white-space: nowrap;
 }
-.stat-pill.score-clickable {
-  cursor: pointer;
-  transition: transform 0.15s ease, background 0.15s ease;
-}
-@media (hover: hover) {
-  .stat-pill.score-clickable:hover { background: var(--surface-2); }
-}
-.stat-pill.score-clickable:active { transform: scale(0.96); }
-.stat-pill.user-score {
-  border-color: var(--accent);
+.dstat-skel { display: block; width: 34px; height: 17px; border-radius: 5px; }
+/* Yours is the one you can tap: accent, and "+ Rate" until you have. */
+.dstat-you { cursor: pointer; transition: background 0.15s ease; }
+.dstat-you strong, .dstat-you span { color: var(--accent); }
+.dstat-you:active { background: var(--accent-soft); }
+
+.detail-airing {
+  display: flex; align-items: center; gap: 8px;
+  margin: 0 var(--gutter) 12px;
+  padding: 11px 14px;
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
+  font-size: 13px; font-weight: 600;
   color: var(--accent);
 }
-.stat-pill.user-score strong { color: var(--accent); }
+.detail-airing svg { flex-shrink: 0; }
+
+/* Placeholders under an instantly painted header. */
+.detail-skel { padding: 8px var(--gutter) 0; }
+.detail-skel-banner { height: 150px; border-radius: var(--radius); margin-bottom: 16px; }
+.detail-skel-line { height: 13px; border-radius: 6px; margin-top: 12px; }
+.detail-skel-line.w30 { width: 30%; margin-top: 18px; }
+.detail-skel-line.w60 { width: 60%; height: 18px; }
+.detail-skel-line.w80 { width: 80%; }
+.detail-action-skel { flex: 1; height: var(--tap); border-radius: var(--radius-sm); }
 
 /* Rate modal grid — 1 through 10 in two rows of five */
 .rate-grid {
@@ -1174,16 +1203,14 @@
   color: var(--accent-on);
 }
 
-.stat-pill strong {
-  color: var(--text);
-  font-weight: 700;
-  margin-right: 4px;
-}
 .detail-actions {
   padding: 0 var(--gutter) 16px;
   display: flex; gap: 8px;
 }
-.detail-actions .btn-primary, .detail-actions .btn-secondary { flex: 1; }
+.detail-actions .btn-primary { flex: 1; min-height: var(--tap); }
+.detail-actions .list-btn-on { gap: 7px; }
+.detail-plus { min-width: 64px; min-height: var(--tap); font-weight: 800; }
+.detail-plus:disabled { opacity: 0.5; }
 /* "On list" variant of the primary button — quieter, with a check */
 .btn-primary.list-btn-on {
   background: var(--accent-soft);
@@ -2778,6 +2805,12 @@
 .follow-row .skel-line-sm { width: 40%; }
 .seg-n { margin-left: 4px; opacity: 0.7; font-weight: 800; }
 .seg-n:empty { display: none; }
+
+/* Push health, under the push status line. */
+.push-health { margin-top: 6px; font-weight: 600; }
+.push-health[data-level="ok"] { color: var(--st-completed, #22c55e); }
+.push-health[data-level="warn"] { color: #f59e0b; }
+.push-health[data-level="bad"] { color: #ef4444; }
 
 /* Settings, behind the gear on Profile. */
 .settings-body { padding-bottom: 24px; }

@@ -88,6 +88,7 @@ function handler(S, opts={}){
       if(v.status!==undefined) cur.status=v.status;
       if(v.progress!==undefined) cur.progress=v.progress;
       if(v.score!==undefined) cur.score=v.score;
+      if(v.scoreRaw!==undefined) cur.score=v.scoreRaw/10;   // 0–100 on every scoring scale
       S.entries.set(mid,cur);
       return J({SaveMediaListEntry:{id:cur.id,status:cur.status,progress:cur.progress,score:cur.score}});
     }

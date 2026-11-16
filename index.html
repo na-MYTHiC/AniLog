@@ -500,6 +500,10 @@
           <div>
             <div class="settings-label">Push notifications</div>
             <div class="settings-sub" id="push-status">Get alerts even when AniLog is closed.</div>
+            <!-- What the sender on GitHub last reported: when it last checked
+                 AniList, and whether this phone's code is the one it holds.
+                 Notifications used to stop with nothing anywhere saying so. -->
+            <div class="settings-sub push-health" id="push-health" hidden></div>
           </div>
           <!-- Raised by the worker's pushsubscriptionchange handler. The
                subscription can rotate while the app is closed, and until the
@@ -579,7 +583,7 @@
         <div class="settings-row">
           <div>
             <div class="settings-label">App version</div>
-            <div class="settings-sub" id="update-status">v5.06</div>
+            <div class="settings-sub" id="update-status">v5.07</div>
           </div>
           <button class="btn-secondary" id="update-check-btn">Check for updates</button>
         </div>
@@ -608,7 +612,7 @@
       </div>
 
       <div class="app-footer">
-        AniLog · v5.06 · Powered by AniList
+        AniLog · v5.07 · Powered by AniList
       </div>
     </div>
   </div>

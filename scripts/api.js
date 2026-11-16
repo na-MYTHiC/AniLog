@@ -297,6 +297,25 @@ function invalidateAfterWrite() {
   schedulePersist();
 }
 
+// Whatever the cache already knows about one show: any media node with this
+// id that carries a title and cover, from a list row, a browse card, a search
+// result. The detail page paints its header from this the instant it opens,
+// instead of a "Loading…" line for the length of a round trip. Read-only.
+function peekCachedMedia(mediaId) {
+  if (!mediaId) return null;
+  const seen = new Set();
+  const stack = Object.values(cache);
+  while (stack.length) {
+    const node = stack.pop();
+    if (!node || typeof node !== 'object' || seen.has(node)) continue;
+    seen.add(node);
+    if (Array.isArray(node)) { for (const v of node) stack.push(v); continue; }
+    if (node.id === mediaId && node.title && node.coverImage) return node;
+    for (const k in node) { const v = node[k]; if (v && typeof v === 'object') stack.push(v); }
+  }
+  return null;
+}
+
 // Rewrite the viewer's entry on every cached copy of one media, so each view
 // is already correct the next time it renders — no refetch, and nothing stale.
 //

@@ -28,7 +28,7 @@ const TAPPABLE = [
   'button', 'a[href]', 'input', 'textarea', '[onclick]',
   '.chip', '.card', '.list-row', '.recent-chip', '.sort-option', '.theme-option',
   '.nav-btn', '.day-chip', '.stat-bar-row', '.season-chip', '.season-year',
-  '.friend-avatar', '.genre-pill', '.stat-pill.score-clickable', '.section-link',
+  '.friend-avatar', '.genre-pill', '.dstat.score-clickable', '.section-link',
 ].join(', ');
 
 // Phone sizes that matter: the narrowest Android still sold, the common

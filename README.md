@@ -28,10 +28,11 @@ AniLog/
 ├── tools/
 │   ├── gen-icons.ps1       # Regenerates every icon-*.png natively at each size
 │   ├── gen-vapid.sh        # Prints a fresh VAPID keypair for push setup
-│   ├── send-push.js        # The scheduled sender (run by the workflow below)
-│   └── push-state.json     # Last notification id sent; written back by CI
+│   ├── send-push.js        # One pass of the sender: read AniList, push what's new
+│   ├── push-loop.sh        # Runs it every 2 minutes; keeps state on the push-state branch
+│   └── push-state.json     # Seed for that state (the live copy is on push-state)
 └── .github/workflows/
-    └── anilog-push.yml     # Cron that runs send-push.js every 15 minutes
+    └── anilog-push.yml     # Long-running job that polls AniList every 2 minutes
 ```
 
 ### Why three files sit at the root
@@ -76,7 +77,7 @@ Every one of these exists because something shipped broken:
 | `test-addtolist` | the list badge updating everywhere the moment a show is added |
 | `test-stampede` | a write not marking the whole cache due for refresh |
 | `test-failstates` | no view ever reporting "no results" when the request actually failed |
-| `test-newviews` | the weekly schedule (skipping days with nothing airing), a studio's works (filtered by AniList with `isMain`, a failure never reading as an empty studio, empty pages never stalling the loader), Profile (every statistic showing, Favourites, the Following and Followers counts opening a list of people, Settings behind the gear) and a friend's profile (their stats, and their list under the same bar, counts, sort and List Style as yours, read-only), search filters and Profile statistics — including that filter values travel as GraphQL variables, and that a bar with a width actually paints one |
+| `test-newviews` | the push-health verdicts, the weekly schedule (skipping days with nothing airing), a studio's works (filtered by AniList with `isMain`, a failure never reading as an empty studio, empty pages never stalling the loader), Profile (every statistic showing, Favourites, the Following and Followers counts opening a list of people, Settings behind the gear) and a friend's profile (their stats, and their list under the same bar, counts, sort and List Style as yours, read-only), search filters and Profile statistics — including that filter values travel as GraphQL variables, and that a bar with a width actually paints one |
 | `test-home` | the list dropdown's counts matching the server (and a failed count never showing zeros), switching list as one request, the Grid style persisting (and the old grid switch migrating to it) with its retry panel spanning the grid, All not repeating custom-list entries, the bell sitting in the bar and scrolling away with it, the first tab being called List, the back gesture closing the top layer then returning to the landing tab and asking before it leaves (through a CloseWatcher, so Chrome has no history navigation to animate, with a history-entry fallback), coming back to List keeping your place without flashing placeholders, steady row heights, and every List Style with and without Cover Colours — including a real swipe repainting in the same style and each Grid card being laid out as a real cell |
 | `test-mobile` | the mobile contract: the notification badge being transparent and monochrome, no horizontal overflow and no touch target under 36px at four phone widths, no text field under 16px, carousels never scroll-snapping (it kills the fling), `[hidden]` beating every component's display rule, closed overlays being invisible rather than just off-screen, the status-bar strip Safari 26 tints from, and no inline styles in the markup |
 
@@ -162,6 +163,36 @@ Settings → Secrets and variables → Actions:
 
 Order doesn't matter. Until all three exist the workflow exits 0 with a line
 saying which are missing, so no run goes red mid-setup.
+
+### How it stays running
+
+GitHub does not honour a `*/15` schedule. Measured over three weeks, this
+workflow's "every 15 minutes" was actually every **2 to 10 hours**, so alerts
+arrived hours late — and with a 6-hour age cutoff, anything that aged past it
+between runs was never sent. So:
+
+- **One job polls every two minutes for an hour** (`tools/push-loop.sh`), then
+  starts its replacement with `gh workflow run`. The schedule (twice an hour)
+  is only a watchdog that restarts the chain; a tick that finds a run already
+  polling ends in under a minute.
+- **State lives on the `push-state` branch**, as one force-pushed commit, not
+  on `main`. It holds the last id sent and a health record: when the sender
+  last checked, when it last delivered, fingerprints of the subscriptions it
+  holds and which of them the push service has refused.
+- **Nothing is dropped while delivery is broken.** If no subscription accepts
+  a notification the marker doesn't move, so re-pairing the phone delivers the
+  last 24 hours.
+- **A broken setup fails one run, once** (expired AniList token, every
+  subscription expired), so GitHub emails about it a single time. While it
+  stays broken, jobs end after one pass and restart five minutes later, which
+  is what picks up a corrected secret quickly.
+- **The app reads the health record** (Settings → Push notifications) and says
+  which of those it is: working, this phone's code isn't the one GitHub holds,
+  the token expired, or the sender has stopped.
+
+It still can't self-heal: the subscription lives in a secret, and only you can
+change a secret. A phone that's given a new subscription needs the code copied
+across again — the app now tells you when.
 
 ### Testing it
 

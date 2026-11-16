@@ -1,12 +1,16 @@
 name: Send AniLog push notifications
 
-# Polls AniList and pushes anything new. AniList has no webhooks, so polling
-# is the only option — every 15 minutes is plenty for "an episode aired".
+# AniList has no webhooks, so something has to poll it and push what's new.
+#
+# GitHub does not run a */15 schedule every 15 minutes — measured here, it
+# started every 2 to 10 hours. So one job polls every two minutes for an
+# hour (tools/push-loop.sh) and starts its own replacement when it ends.
+# The schedule below only restarts that chain if it ever breaks.
 #
 # Free on public repositories: GitHub doesn't bill Actions minutes for them.
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '7,37 * * * *'
   workflow_dispatch:        # lets you trigger a run by hand from the Actions tab
     inputs:
       resend_today:
@@ -14,52 +18,71 @@ on:
         type: boolean
         default: false
 
-# Needed to commit the last-seen marker back to the repo.
 permissions:
-  contents: write
-
-concurrency:
-  # A slow run must not overlap the next tick, or both could send the same
-  # notification before either records that it did.
-  group: anilog-push
-  cancel-in-progress: false
+  contents: write   # the push-state branch
+  actions: write    # see whether a run is already polling, and start the next
 
 jobs:
   push:
     runs-on: ubuntu-latest
-    # The sender's own timeouts cap a run at roughly 70s even when AniList is
-    # unreachable. This is the backstop: with `concurrency` set to not cancel,
-    # one wedged run would otherwise sit for the default six hours and block
-    # every tick behind it.
-    timeout-minutes: 10
+    timeout-minutes: 80
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
+      # Only one run polls at a time. Not `concurrency:` — that queues every
+      # watchdog tick behind the running job and cancels all but the last,
+      # filling the Actions tab with cancelled runs. A tick that finds an
+      # older run still going simply ends here, green, in under a minute.
+      # The second look covers a hand-over: the run that started this one is
+      # still "in progress" for a few seconds after it does.
+      - name: Is another run already polling?
+        id: guard
+        if: inputs.resend_today != true
+        run: |
+          older() {
+            gh run list --repo "$GITHUB_REPOSITORY" --workflow anilog-push.yml --status in_progress \
+              --json databaseId --jq "[.[] | select(.databaseId < $GITHUB_RUN_ID)] | length"
+          }
+          n=$(older || echo 0)
+          if [ "${n:-0}" -gt 0 ]; then sleep 45; n=$(older || echo 0); fi
+          if [ "${n:-0}" -gt 0 ]; then
+            echo "An earlier run is still polling; nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v4
+        if: steps.guard.outputs.skip != 'true'
 
       - uses: actions/setup-node@v4
+        if: steps.guard.outputs.skip != 'true'
         with:
           node-version: '20'
 
       - run: npm install web-push@3.6.7 --no-save
+        if: steps.guard.outputs.skip != 'true'
 
-      # Before the secrets are set this exits 0 with a note saying which are
-      # missing, so setup can be finished in any order without a run ever
-      # going red. The public VAPID key isn't passed in — the script reads it
-      # from scripts/config.js.
+      # Before the secrets are set the sender exits 0 with a note saying which
+      # are missing, so setup can be finished in any order without a run going
+      # red. The public VAPID key isn't passed in — the script reads it from
+      # scripts/config.js.
       - name: Check AniList and send
+        if: steps.guard.outputs.skip != 'true'
         env:
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           ANILIST_TOKEN: ${{ secrets.ANILIST_TOKEN }}
           PUSH_SUBSCRIPTION: ${{ secrets.PUSH_SUBSCRIPTION }}
-          # Empty on scheduled runs, so the cron path is always normal mode.
           RESEND_TODAY: ${{ inputs.resend_today }}
-        run: node tools/send-push.js
-
-      - name: Record what we sent
         run: |
-          if [ -n "$(git status --porcelain tools/push-state.json)" ]; then
-            git config user.name  "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add tools/push-state.json
-            git commit -m "Record last pushed AniList notification [skip ci]"
-            git push
+          if [ "$RESEND_TODAY" = "true" ]; then
+            bash tools/push-loop.sh once
+          else
+            bash tools/push-loop.sh loop
           fi
+
+      # Start the replacement before this run ends, so polling never waits on
+      # the schedule. After a failure too: the sender fails a run only the
+      # first time it meets a problem, and the next job is what notices the
+      # secret has been fixed.
+      - name: Hand over to the next run
+        if: ${{ !cancelled() && steps.guard.outputs.skip != 'true' && inputs.resend_today != true }}
+        run: gh workflow run anilog-push.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"

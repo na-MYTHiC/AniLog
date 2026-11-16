@@ -220,12 +220,12 @@ async function loadUserList() {
   const q = isAll
     ? `query ($userId: Int, $sort: [MediaListSort]) {
         MediaListCollection(userId: $userId, type: ANIME, sort: $sort) {
-          lists { isCustomList entries { id status score progress media { ${mediaShape} } } }
+          lists { isCustomList entries { id status score(format: POINT_10) progress media { ${mediaShape} } } }
         }
       }`
     : `query ($userId: Int, $status: MediaListStatus, $sort: [MediaListSort]) {
         MediaListCollection(userId: $userId, type: ANIME, status: $status, sort: $sort) {
-          lists { entries { id status score progress media { ${mediaShape} } } }
+          lists { entries { id status score(format: POINT_10) progress media { ${mediaShape} } } }
         }
       }`;
   const isClientScoreSort = userProfileState.sort === 'MEDIA_AVERAGE_SCORE_DESC';
@@ -1860,6 +1860,7 @@ document.getElementById('settings-btn')?.addEventListener('click', () => {
   const ov = document.getElementById('settings-overlay');
   ov.querySelector('.overlay-body').scrollTop = 0;
   ov.classList.add('visible');
+  checkPushHealth();
 });
 document.getElementById('signout-row')?.addEventListener('click', () => {
   closeOverlay('settings-overlay');
@@ -2135,7 +2136,7 @@ const WATCHING_MEDIA = `
 `;
 const WATCHING_QUERY = `query ($userId: Int) {
   MediaListCollection(userId: $userId, type: ANIME, status_in: [CURRENT, REPEATING], sort: UPDATED_TIME_DESC) {
-    lists { entries { id status score progress media { ${WATCHING_MEDIA} } } }
+    lists { entries { id status score(format: POINT_10) progress media { ${WATCHING_MEDIA} } } }
   }
 }`;
 
@@ -2243,7 +2244,7 @@ async function saveListEdit() {
     vars.status = status;
   }
   const mutation = `mutation (${varDefs.join(', ')}) {
-    SaveMediaListEntry(${args.join(', ')}) { id status progress score }
+    SaveMediaListEntry(${args.join(', ')}) { id status progress score(format: POINT_10) }
   }`;
 
   const mid = editingMediaId;
@@ -2269,7 +2270,7 @@ async function removeFromList() {
   const snapshot = {
     mediaId: editingMediaId,
     status: editingEntry.status,
-    score: editingEntry.score || 0,
+    scoreRaw: Math.round((editingEntry.score || 0) * 10),
     progress: editingEntry.progress || 0,
   };
   const mutation = `mutation ($id: Int) { DeleteMediaListEntry(id: $id) { deleted } }`;
@@ -2294,8 +2295,8 @@ async function removeFromList() {
   showToast('Removed from your list', {
     actionLabel: 'Undo',
     onAction: async () => {
-      const restoreM = `mutation ($mediaId: Int, $status: MediaListStatus, $score: Float, $progress: Int) {
-        SaveMediaListEntry(mediaId: $mediaId, status: $status, score: $score, progress: $progress) { id }
+      const restoreM = `mutation ($mediaId: Int, $status: MediaListStatus, $scoreRaw: Int, $progress: Int) {
+        SaveMediaListEntry(mediaId: $mediaId, status: $status, scoreRaw: $scoreRaw, progress: $progress) { id }
       }`;
       const restored = await anilist(restoreM, snapshot);
       if (restored?.SaveMediaListEntry?.id) {
@@ -2368,12 +2369,12 @@ async function loadMyList() {
   const q = isAll
     ? `query ($userId: Int, $sort: [MediaListSort]) {
         MediaListCollection(userId: $userId, type: ANIME, sort: $sort) {
-          lists { isCustomList entries { id status score progress media { ${mediaShape} } } }
+          lists { isCustomList entries { id status score(format: POINT_10) progress media { ${mediaShape} } } }
         }
       }`
     : `query ($userId: Int, $status: MediaListStatus, $sort: [MediaListSort]) {
         MediaListCollection(userId: $userId, type: ANIME, status: $status, sort: $sort) {
-          lists { entries { id status score progress media { ${mediaShape} } } }
+          lists { entries { id status score(format: POINT_10) progress media { ${mediaShape} } } }
         }
       }`;
 
@@ -3393,7 +3394,7 @@ async function loadDetailFriends(mediaId) {
   const q = `query ($mediaId: Int) {
     Page(page: 1, perPage: 30) {
       mediaList(mediaId: $mediaId, isFollowing: true, sort: UPDATED_TIME_DESC) {
-        userId status score progress
+        userId status score(format: POINT_10) progress
         user { id name avatar { medium large } }
       }
     }
@@ -3591,6 +3592,161 @@ async function renderDetailCards(mediaId, body, stale, pending) {
   } catch (e) { /* the direct list above stays as the fallback */ }
 }
 
+// The top of the detail page: banner, cover, title, the numbers, what airs
+// next, and the actions. One function for two callers — the full render, and
+// the instant one openMedia paints from cached card data (`seed`), which has
+// no studio, banner, member counts or full list entry yet. Those slots are
+// left out or skeletoned so the full render lands without the layout moving.
+function detailHeadHtml(m, seed) {
+  const cover = m.coverImage || {};
+  const titleText = pickTitle(m.title);
+  // The small cover is already in the browser's cache from the list; layered
+  // under the big one, the art is there on the first frame and sharpens.
+  const layers = [...new Set([cover.extraLarge, cover.large].filter(Boolean))]
+    .map(u => `url('${escapeHtml(u)}')`).join(', ');
+  const tint = safeTint(cover.color);
+  const banner = m.bannerImage ? `url('${escapeHtml(m.bannerImage)}')` : (seed ? 'none' : layers || 'none');
+
+  const sub = [];
+  const studio = m.studios?.nodes?.[0];
+  if (studio) sub.push(`<span class="sub-studio" data-studio-id="${studio.id}" data-studio-name="${escapeHtml(studio.name)}">${escapeHtml(studio.name)}</span>`);
+  const seasonText = m.season ? `${capitalize(m.season)} ${m.seasonYear || ''}`.trim() : (m.startDate?.year || '');
+  if (seasonText) sub.push(escapeHtml(String(seasonText)));
+  const fmt = FORMAT_OPTIONS.find(o => o.value === m.format)?.label;
+  if (fmt) sub.push(escapeHtml(fmt));
+  if (m.episodes) sub.push(`${m.episodes} ${m.episodes === 1 ? 'episode' : 'episodes'}`);
+  const airingStatus = AIRING_STATUS_OPTIONS.find(o => o.value === m.status)?.label;
+  if (airingStatus) sub.push(airingStatus);
+
+  const entry = m.mediaListEntry;
+  const signedIn = !!state.accessToken;
+  const stat = (value, label, extra = '') =>
+    `<div class="dstat"${extra}><strong>${value}</strong><span>${label}</span></div>`;
+  const stats = [];
+  stats.push(stat(m.averageScore ? (m.averageScore / 10).toFixed(1) : '—', 'Score'));
+  // Your score sits beside the community one instead of replacing it — rating
+  // a show used to hide what everyone else thought of it.
+  if (signedIn) {
+    const mine = entry?.score > 0 ? entry.score : null;
+    stats.push(seed
+      ? stat('<i class="skeleton dstat-skel"></i>', 'Your score')
+      : `<button type="button" class="dstat dstat-you score-clickable${mine ? ' rated' : ''}" id="detail-score-pill"><strong>${mine ?? '+'}</strong><span>${mine ? 'Your score' : 'Rate'}</span></button>`);
+  }
+  if (seed) {
+    stats.push(stat('<i class="skeleton dstat-skel"></i>', 'Members'), stat('<i class="skeleton dstat-skel"></i>', 'Favourites'));
+  } else {
+    stats.push(stat(m.popularity ? formatNum(m.popularity) : '—', 'Members'));
+    stats.push(stat(m.favourites ? formatNum(m.favourites) : '—', 'Favourites'));
+  }
+
+  const airing = !seed && m.nextAiringEpisode ? formatNextEpisode(m.nextAiringEpisode) : '';
+
+  let actions;
+  if (seed) {
+    actions = '<div class="skeleton detail-action-skel"></div>';
+  } else if (!signedIn) {
+    actions = '<button class="btn-primary" onclick="signIn()">Sign in to track</button>';
+  } else {
+    const CHECK = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
+    const list = entry
+      ? `<button class="btn-primary list-btn-on" id="detail-list-btn" data-media-id="${m.id}">${CHECK}
+          <span id="detail-list-label">${escapeHtml(listStatusLabel(entry.status))}</span>${entry.progress != null
+            ? `<span class="list-btn-prog" id="detail-list-prog">${entry.progress}/${m.episodes || '?'}</span>` : ''}
+        </button>`
+      : `<button class="btn-primary" id="detail-list-btn" data-media-id="${m.id}">+ Add to list</button>`;
+    // +1 without opening the sheet, while there's an episode left to count.
+    const watching = entry && (entry.status === 'CURRENT' || entry.status === 'REPEATING');
+    const room = !m.episodes || (entry?.progress || 0) < m.episodes;
+    const plus = watching && room
+      ? '<button class="btn-secondary detail-plus" id="detail-plus-btn" type="button" aria-label="Add one episode">+1</button>' : '';
+    actions = list + plus;
+  }
+  const share = seed ? '' : `<button class="icon-btn" id="detail-share-btn" type="button" aria-label="Share" data-share-id="${m.id}" data-share-title="${escapeHtml(titleText || 'this anime')}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/></svg>
+    </button>`;
+
+  return `
+    <div class="detail-banner" style="--tint:${tint}; background-image:${banner};"></div>
+    <div class="detail-head">
+      <div class="detail-cover" style="background-image:${layers || 'none'}; background-color:${tint};"></div>
+      <div class="detail-titleblock">
+        <div class="detail-title">${escapeHtml(titleText || '')}</div>
+        <div class="detail-sub">${sub.join(' · ')}</div>
+      </div>
+    </div>
+    <div class="detail-stats">${stats.join('')}</div>
+    ${airing ? `<div class="detail-airing"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Next episode ${airing}</div>` : ''}
+    <div class="detail-actions">${actions}${share}</div>`;
+}
+
+// What stands in below the header while the detail request is out. `whole`
+// adds a header-shaped block for a show nothing in the cache knows about.
+function detailSkeletonHtml(whole) {
+  return `<div class="detail-skel">
+    ${whole ? '<div class="skeleton detail-skel-banner"></div><div class="skeleton detail-skel-line w60"></div>' : ''}
+    <div class="skeleton detail-skel-line w30"></div>
+    <div class="skeleton detail-skel-line"></div>
+    <div class="skeleton detail-skel-line"></div>
+    <div class="skeleton detail-skel-line w80"></div>
+  </div>`;
+}
+
+// The action row's handlers. Separate from openMedia because a +1 redraws
+// just this row, and the new buttons need wiring again.
+function wireDetailActions(body, m) {
+  body.querySelector('#detail-list-btn')?.addEventListener('click', () => {
+    if (m.mediaListEntry) openListEditSheet(m, m.mediaListEntry);
+    else addToList(m);
+  });
+  body.querySelector('#detail-plus-btn')?.addEventListener('click', () => bumpDetailProgress(m));
+  // Web Share API where there is one, clipboard otherwise.
+  const share = body.querySelector('#detail-share-btn');
+  share?.addEventListener('click', () => shareMedia(m.id, share.dataset.shareTitle || 'this anime'));
+}
+
+// +1 from the detail page: count it on the button at once, then reconcile.
+// Finishing the last episode completes the show, as a swipe on its row does.
+async function bumpDetailProgress(m) {
+  const entry = m.mediaListEntry;
+  if (!entry) return;
+  const total = m.episodes || Infinity;
+  const old = entry.progress || 0;
+  const next = Math.min(total, old + 1);
+  if (next === old) return;
+  const btn = document.getElementById('detail-plus-btn');
+  const prog = document.getElementById('detail-list-prog');
+  if (btn) btn.disabled = true;
+  if (prog) prog.textContent = `${next}/${m.episodes || '?'}`;
+  const done = total !== Infinity && next === total;
+  const vars = { mediaId: m.id, progress: next };
+  if (done) vars.status = 'COMPLETED';
+  const mutation = `mutation ($mediaId: Int, $progress: Int${done ? ', $status: MediaListStatus' : ''}) {
+    SaveMediaListEntry(mediaId: $mediaId, progress: $progress${done ? ', status: $status' : ''}) { id progress status }
+  }`;
+  const { data, queued } = await mutateList(mutation, vars);
+  if (!queued && !data?.SaveMediaListEntry) {
+    if (prog) prog.textContent = `${old}/${m.episodes || '?'}`;
+    if (btn) btn.disabled = false;
+    showToast("Couldn't save — try again");
+    return;
+  }
+  entry.progress = next;
+  if (done) entry.status = 'COMPLETED';
+  if (queued) showToast('Saved offline — will sync when you reconnect');
+  if (state.user) loadMyList();
+  // Only repaint if this show is still the one on screen.
+  if (currentMedia?.id === m.id && document.getElementById('detail-overlay').classList.contains('visible')) {
+    const head = document.getElementById('detail-body');
+    const actions = head.querySelector('.detail-actions');
+    if (actions) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = detailHeadHtml(m);
+      actions.replaceWith(tmp.querySelector('.detail-actions'));
+      wireDetailActions(head, m);
+    }
+  }
+}
+
 async function openMedia(id) {
   // Tapping a card inside Studio / Character / Staff / Genre / Category
   // would otherwise just update the detail overlay underneath — invisible
@@ -3603,8 +3759,19 @@ async function openMedia(id) {
 
   const overlay = document.getElementById('detail-overlay');
   const body = document.getElementById('detail-body');
-  document.getElementById('detail-title').textContent = 'Loading…';
-  body.innerHTML = `<div style="padding: 40px 20px; text-align:center; color:var(--text-dim);">Loading…</div>`;
+  // Re-opening the show that's already up (after a rating or an edit) keeps
+  // the page as it is until the fresh copy lands, rather than blanking it.
+  const refresh = overlay.classList.contains('visible') && currentMedia?.id === id
+    && !!body.querySelector('.detail-head');
+  if (!refresh) {
+    // Paint the header straight away from whatever the app already holds on
+    // this show — the row or card that was just tapped came from the cache —
+    // and skeleton the rest. Only a show nothing has ever listed starts blank.
+    const seed = peekCachedMedia(id);
+    document.getElementById('detail-title').textContent = seed ? (pickTitle(seed.title) || '') : '';
+    body.innerHTML = (seed ? detailHeadHtml(seed, true) : '') + detailSkeletonHtml(!seed);
+    body.scrollTop = 0;
+  }
   overlay.classList.add('visible');
 
   const myReq = ++detailReqId;
@@ -3622,7 +3789,11 @@ async function openMedia(id) {
   if (myReq !== detailReqId) return;   // a newer openMedia superseded this one
   const m = data?.Media;
   if (!m) {
-    body.innerHTML = `<div style="padding: 40px 20px; text-align:center; color:var(--text-dim);">Couldn't load details.</div>`;
+    if (refresh) return;   // keep the page that's up; the write itself succeeded
+    body.querySelectorAll('.detail-skel').forEach(el => el.remove());
+    body.insertAdjacentHTML('beforeend', `<div class="no-results">Couldn't load details.
+      <button class="retry-btn" type="button">Retry</button></div>`);
+    body.querySelector('.retry-btn')?.addEventListener('click', () => openMedia(id));
     return;
   }
 
@@ -3630,71 +3801,11 @@ async function openMedia(id) {
   const titleText = pickTitle(m.title);
   document.getElementById('detail-title').textContent = titleText || 'Detail';
   const desc = (m.description || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '');
-  const mainStudio = m.studios?.nodes?.[0];
-  const year = m.startDate?.year || '';
-  const seasonText = m.season ? `${capitalize(m.season)} ${m.seasonYear}` : year;
-  const countText = m.episodes ? `${m.episodes} episodes` : (m.status === 'RELEASING' ? 'Airing' : '');
-  const airing = m.nextAiringEpisode ? formatNextEpisode(m.nextAiringEpisode) : '';
-
-  // Build subtitle with clickable studio
-  const subParts = [];
-  if (mainStudio) {
-    subParts.push(`<span class="sub-studio" data-studio-id="${mainStudio.id}" data-studio-name="${escapeHtml(mainStudio.name)}">${escapeHtml(mainStudio.name)}</span>`);
-  }
-  if (seasonText) subParts.push(escapeHtml(seasonText));
-  if (countText) subParts.push(escapeHtml(countText));
 
   const descLong = desc && desc.length > 280;
 
   body.innerHTML = `
-    <div class="detail-banner" style="background-image:url('${m.bannerImage || m.coverImage?.extraLarge || ''}'); background-color:${m.coverImage?.color || 'var(--surface-2)'};"></div>
-    <div class="detail-head">
-      <div class="detail-cover" style="background-image:url('${m.coverImage?.extraLarge || m.coverImage?.large || ''}');"></div>
-      <div class="detail-titleblock">
-        <div class="detail-title">${escapeHtml(titleText)}</div>
-        <div class="detail-sub">${subParts.join(' · ')}</div>
-      </div>
-    </div>
-    <div class="detail-stats">
-      ${(() => {
-        // If the user is signed in and has rated, prefer their score; otherwise show community avg.
-        const userScore = m.mediaListEntry?.score;
-        if (state.accessToken && userScore > 0) {
-          return `<div class="stat-pill score-clickable user-score" id="detail-score-pill" title="Tap to change your rating"><strong>${userScore}</strong>★ your rating</div>`;
-        }
-        if (m.averageScore) {
-          const clickable = state.accessToken ? ' score-clickable' : '';
-          const id = state.accessToken ? ' id="detail-score-pill"' : '';
-          const hint = state.accessToken ? ' title="Tap to rate"' : '';
-          return `<div class="stat-pill${clickable}"${id}${hint}><strong>${(m.averageScore/10).toFixed(1)}</strong>★ score</div>`;
-        }
-        return '';
-      })()}
-      ${m.popularity ? `<div class="stat-pill"><strong>${formatNum(m.popularity)}</strong>members</div>` : ''}
-      ${m.favourites ? `<div class="stat-pill"><strong>${formatNum(m.favourites)}</strong>favorites</div>` : ''}
-      ${m.status ? `<div class="stat-pill"><strong>${capitalize(m.status)}</strong></div>` : ''}
-    </div>
-    ${airing ? `<div style="margin: 0 20px 16px; padding: 12px 14px; background: var(--accent-soft); border-radius: var(--radius-sm); font-size: 13px; color: var(--accent); font-weight: 600;">Next episode ${airing}</div>` : ''}
-    <div class="detail-actions">
-      ${(() => {
-        if (!state.accessToken) {
-          return `<button class="btn-primary" onclick="signIn()">Sign in to track</button>`;
-        }
-        const entry = m.mediaListEntry;
-        if (entry) {
-          const label = listStatusLabel(entry.status);
-          const prog = entry.progress != null && m.episodes
-            ? `<span class="list-btn-prog">${entry.progress}/${m.episodes}</span>`
-            : '';
-          return `<button class="btn-primary list-btn-on" id="detail-list-btn" data-media-id="${m.id}">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;"><path d="M20 6L9 17l-5-5"/></svg>
-            ${escapeHtml(label)}${prog}
-          </button>`;
-        }
-        return `<button class="btn-primary" id="detail-list-btn" data-media-id="${m.id}">+ Add to list</button>`;
-      })()}
-      <button class="btn-secondary" id="detail-share-btn" data-share-id="${m.id}" data-share-title="${escapeHtml(titleText || 'this anime')}">Share</button>
-    </div>
+    ${detailHeadHtml(m)}
     <div class="detail-section friends-section" id="detail-friends" hidden></div>
     ${m.genres?.length ? `
       <div class="detail-section">
@@ -3723,18 +3834,7 @@ async function openMedia(id) {
     ${renderTrailerSection(m.trailer)}
   `;
 
-  // Wire up the add/edit list button
-  const listBtn = body.querySelector('#detail-list-btn');
-  if (listBtn) {
-    listBtn.addEventListener('click', () => {
-      const entry = m.mediaListEntry;
-      if (entry) {
-        openListEditSheet(m, entry);
-      } else {
-        addToList(m);
-      }
-    });
-  }
+  wireDetailActions(body, m);
 
   // Wire trailer click → swap thumbnail for actual iframe player
   wireTrailerFrame(body);
@@ -3749,16 +3849,6 @@ async function openMedia(id) {
   if (coverEl) {
     const largeSrc = m.coverImage?.extraLarge || m.coverImage?.large || '';
     if (largeSrc) coverEl.addEventListener('click', () => openLightbox(largeSrc));
-  }
-
-  // Wire the share button — Web Share API on supported devices, clipboard fallback otherwise
-  const shareBtn = body.querySelector('#detail-share-btn');
-  if (shareBtn) {
-    shareBtn.addEventListener('click', () => {
-      const mediaId = parseInt(shareBtn.dataset.shareId, 10);
-      const title = shareBtn.dataset.shareTitle || 'this anime';
-      shareMedia(mediaId, title);
-    });
   }
 
   // Wire the inline subtitle studio link to open the studio overlay
@@ -3828,11 +3918,15 @@ function closeRateModal() {
 async function saveScore(score) {
   if (!ratingMediaId) return;
   if (!state.user) { closeRateModal(); openSignInModal(); return; }
-  const mutation = `mutation ($mediaId: Int, $score: Float) {
-    SaveMediaListEntry(mediaId: $mediaId, score: $score) { id score status progress }
+  // scoreRaw (0–100) rather than score: `score` is read in whatever scale
+  // the account uses, so sending 8 to a 100-point account stored 8/100 and to
+  // a 5-star account an out-of-range value. scoreRaw means the same on every
+  // scale, and every read asks for POINT_10, so the app is 1–10 throughout.
+  const mutation = `mutation ($mediaId: Int, $scoreRaw: Int) {
+    SaveMediaListEntry(mediaId: $mediaId, scoreRaw: $scoreRaw) { id score(format: POINT_10) status progress }
   }`;
   const mid = ratingMediaId;
-  const { data, queued } = await mutateList(mutation, { mediaId: mid, score });
+  const { data, queued } = await mutateList(mutation, { mediaId: mid, scoreRaw: score * 10 });
   if (queued) {
     closeRateModal();
     showToast('Score saved offline — will sync when you reconnect');
@@ -4481,7 +4575,13 @@ function markPushNeedsRelink() {
 }
 
 function clearPushNeedsRelink() {
-  try { localStorage.removeItem('anilog-push-relink'); } catch (e) {}
+  try {
+    localStorage.removeItem('anilog-push-relink');
+    // When the code was last copied: the sender reads its secrets at the start
+    // of each hourly job, so for a while after a fix its record still shows
+    // the old code. See pushHealthVerdict.
+    localStorage.setItem('anilog-push-copied-at', String(Date.now()));
+  } catch (e) {}
   refreshPushRelinkNotice();
 }
 
@@ -4491,6 +4591,70 @@ function refreshPushRelinkNotice() {
   let needs = false;
   try { needs = localStorage.getItem('anilog-push-relink') === '1'; } catch (e) {}
   el.hidden = !needs;
+}
+
+// ---- Push health ----
+// The sender runs on GitHub and has no way to reach the app, so the app asks:
+// it reads the sender's state file and compares it with this device. Three
+// things go wrong in practice, and each used to look identical from the phone
+// — notifications just stop:
+//   - the phone's subscription rotated, so the code in the secret is dead
+//   - the AniList token in the secret expired
+//   - the sender itself stopped running
+// Same fingerprint as tools/send-push.js: sha256 of the endpoint, 16 hex chars.
+async function pushEndpointId(endpoint) {
+  const bytes = new TextEncoder().encode(String(endpoint || ''));
+  const hash = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(hash), b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+}
+
+function pushHealthVerdict(health, myId, nowSec, copiedAt) {
+  if (!health || typeof health !== 'object') return null;
+  const ago = (t) => formatRelativeTime(t);
+  if (health.error === 'anilist-token') {
+    return { level: 'bad', text: 'The sender can no longer read your AniList notifications — its token expired. Open the setup codes below and copy a new token into ANILIST_TOKEN.' };
+  }
+  // Only meaningful once the sender has recorded which codes it holds.
+  if (Array.isArray(health.subs) && myId) {
+    if (!health.subs.includes(myId) || (health.dead || []).includes(myId)) {
+      if (copiedAt && nowSec * 1000 - copiedAt < 90 * 60 * 1000) {
+        return { level: 'warn', text: 'New code copied. Once it is saved in PUSH_SUBSCRIPTION on GitHub, the sender picks it up within the hour.' };
+      }
+      return { level: 'bad', relink: true, text: "This phone's push code isn't the one GitHub has, so nothing can reach it. Open the setup codes below and copy the subscription into PUSH_SUBSCRIPTION." };
+    }
+  }
+  if (health.checkedAt && nowSec - health.checkedAt > 3 * 3600) {
+    return { level: 'warn', text: `The sender last checked AniList ${ago(health.checkedAt)}. It should check every couple of minutes — look at the Actions tab on GitHub.` };
+  }
+  if (health.checkedAt) {
+    return { level: 'ok', text: `Working · checked AniList ${ago(health.checkedAt)}${health.sentAt ? ` · last alert ${ago(health.sentAt)}` : ''}` };
+  }
+  return null;
+}
+
+async function checkPushHealth() {
+  const el = document.getElementById('push-health');
+  if (!el || !pushSupported()) return;
+  let sub = null;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    sub = await reg?.pushManager.getSubscription();
+  } catch (e) {}
+  if (!sub) { el.hidden = true; return; }
+  let health = null;
+  try {
+    const res = await fetch(PUSH_HEALTH_URL, { cache: 'no-store' });
+    if (res.ok) health = await res.json();
+  } catch (e) { /* offline, or the sender hasn't written one yet */ }
+  let copiedAt = 0;
+  try { copiedAt = parseInt(localStorage.getItem('anilog-push-copied-at') || '0', 10) || 0; } catch (e) {}
+  const verdict = pushHealthVerdict(health, await pushEndpointId(sub.endpoint), Math.floor(Date.now() / 1000), copiedAt);
+  el.hidden = !verdict;
+  if (!verdict) return;
+  el.textContent = verdict.text;
+  el.dataset.level = verdict.level;
+  if (verdict.relink) markPushNeedsRelink();
+  return verdict;
 }
 
 // Cold start from a notification tap: ./?media=123, ./?activity=456, or
@@ -4895,6 +5059,18 @@ updatePendingUI();
 // calls this too (see api.js), but calling here handles the signed-out case
 // on cold boot cleanly.
 initNotifications();
+
+// Once things are quiet, see whether push is still wired up, and say so if it
+// isn't — the moment you open the app is the only chance to tell you.
+_idle(async () => {
+  const v = await checkPushHealth().catch(() => null);
+  if (v?.level === 'bad') {
+    showToast('Push notifications need attention', {
+      actionLabel: 'Fix',
+      onAction: () => { switchTab('profile'); document.getElementById('settings-btn')?.click(); },
+    });
+  }
+}, { timeout: 6000 });
 
 // ============ IDLE PRELOAD ============
 // After boot settles, silently warm the Seasonal tab (the most-visited
