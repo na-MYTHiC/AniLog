@@ -745,10 +745,24 @@
 }
 
 .search-wrap {
+  display: flex; align-items: center; gap: 8px;
   padding: 12px var(--gutter);
   position: sticky; top: 0;
   background: var(--bg);
   z-index: 5;
+}
+.search-field { position: relative; flex: 1; min-width: 0; }
+/* The filter button, beside the field. Filled once anything is set — the one
+   state that must be impossible to miss — with the count on its corner. */
+.filter-btn { position: relative; width: 48px; height: 48px; border-radius: var(--radius); }
+.filter-btn.on { background: var(--accent); color: var(--accent-on); }
+.filter-btn.on circle { fill: var(--accent); }
+.filter-count {
+  position: absolute; top: -5px; right: -5px;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 999px;
+  background: var(--text); color: var(--bg);
+  font-size: 11px; font-weight: 800; line-height: 18px; text-align: center;
 }
 .search-input {
   width: 100%;
@@ -769,14 +783,14 @@
 .search-input:focus { border-color: var(--accent); }
 .search-icon {
   position: absolute;
-  left: 34px; top: 50%;
+  left: 14px; top: 50%;
   transform: translateY(-50%);
   color: var(--text-dim);
   pointer-events: none;
 }
 .search-clear {
   position: absolute;
-  right: 30px; top: 50%;
+  right: 12px; top: 50%;
   transform: translateY(-50%);
   background: var(--surface-2);
   border: none;
@@ -789,44 +803,23 @@
 }
 .search-clear.visible { display: flex; }
 
-.seasonal-header {
-  display: flex; align-items: center;
-  gap: 12px;
-  padding: 20px var(--gutter) 0;
-}
-.seasonal-title-wrap {
-  flex: 1;
-  text-align: center;
-  min-width: 0;
-}
-.seasonal-title {
-  font-size: 22px; font-weight: 800; letter-spacing: -0.5px;
-  line-height: 1.15;
-}
+/* Seasonal's bar is .list-bar (see HOME). What's left here is the line of
+   context at the end of the control row. */
+.seasonal-controls { align-items: center; }
 .seasonal-sub {
-  font-size: 12px; color: var(--text-dim);
-  margin-top: 3px;
-  min-height: 16px;
+  margin-left: auto;
+  font-size: 12px; font-weight: 600;
+  color: var(--text-dim);
+  white-space: nowrap;
 }
-.season-nav-btn {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text);
-  width: var(--tap); height: var(--tap);
-  border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background 0.15s ease, transform 0.15s ease;
-}
-@media (hover: hover) {
-  .season-nav-btn:hover { background: var(--surface-2); }
-}
-.season-nav-btn:active { transform: scale(0.92); }
+.seasonal-sub:empty { display: none; }
 .back-to-current {
+  min-height: var(--tap-sm);
+  padding: 0 4px;
+  background: none; border: 0;
+  font: inherit;
   color: var(--accent);
   cursor: pointer;
-  font-weight: 600;
 }
 @media (hover: hover) {
   .back-to-current:hover { text-decoration: underline; }
@@ -1228,6 +1221,10 @@
   margin-left: 8px;
   font-size: 12px;
 }
+.score-value { font-size: 18px; font-weight: 700; color: var(--accent); min-width: 1.2em; text-align: right; }
+.progress-editor:has(+ .progress-editor) { margin-bottom: 8px; }
+/* Destructive, said with colour rather than weight. */
+.btn-danger { color: #ef4444; }
 /* Stack modal actions vertically for the edit sheet */
 #list-edit-modal .modal-actions { flex-direction: column; gap: 8px; }
 #list-edit-modal .modal-actions button { width: 100%; }
@@ -1772,19 +1769,6 @@
 
 /* My List header on the Home tab */
 /* Social tab — activity feed */
-.social-header {
-  padding: 20px var(--gutter) 0;
-}
-.social-title {
-  font-size: 24px;
-  font-weight: 800;
-  letter-spacing: -0.4px;
-}
-.social-sub {
-  font-size: 13px;
-  color: var(--text-dim);
-  margin-top: 3px;
-}
 .social-feed {
   padding-bottom: 24px;
 }
@@ -2217,26 +2201,6 @@
 
 /* ============ SEASON / YEAR JUMP PICKER ============ */
 
-/* The title is a button now, but must still read as the heading it was —
-   no chrome, just the caret marking it as tappable. */
-.seasonal-title-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: var(--tap);
-  gap: 6px;
-  background: none;
-  border: 0;
-  padding: 2px 4px;
-  margin: 0;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  max-width: 100%;
-}
-.seasonal-title-btn:active { background: var(--surface-2); }
-.seasonal-title-caret { color: var(--text-dim); flex-shrink: 0; }
 
 .season-chips {
   display: grid;
@@ -2449,13 +2413,8 @@
 }
 
 /* ============ SEARCH FILTERS ============ */
-.filter-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 0 var(--gutter) 2px;
-}
+.filter-bar { padding: 0 var(--gutter) 6px; }
+.filter-bar:has(.filter-result-count:empty) { display: none; }
 .filter-result-count {
   font-size: 12px;
   font-weight: 600;
@@ -2464,15 +2423,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Filled, not outlined, once anything is set — the one state that must be
-   impossible to miss, because a forgotten filter looks like a broken app. */
-#filter-btn.on {
-  background: var(--accent);
-  color: var(--accent-on);
-}
-#filter-btn.on > svg:first-child,
-#filter-btn.on strong { color: var(--accent-on); }
-
 /* Same chips as the recent searches directly below, including the × — the
    two blocks are the same idea and shouldn't look like two ideas. */
 .filter-active {

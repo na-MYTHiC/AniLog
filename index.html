@@ -111,23 +111,25 @@
 
     <!-- SEARCH -->
     <section class="tab" id="tab-search">
+      <!-- Search and its filters are one bar: the field, and the filter
+           button beside it. The button fills in and carries a count once
+           anything is set — the way combinable filters go wrong is forgetting
+           one is on and concluding the app is broken. It used to sit on a row
+           of its own under the field. -->
       <div class="search-wrap">
-        <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-        <input type="text" class="search-input" id="search-input" placeholder="Search anime…">
-        <button class="search-clear" id="search-clear" aria-label="Clear">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        <div class="search-field">
+          <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" class="search-input" id="search-input" placeholder="Search anime…">
+          <button class="search-clear" id="search-clear" aria-label="Clear">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <button class="icon-btn filter-btn" id="filter-btn" type="button" aria-label="Filters">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="17" x2="20" y2="17"/><circle cx="9" cy="7" r="2.6" fill="var(--bg)"/><circle cx="15" cy="17" r="2.6" fill="var(--bg)"/></svg>
+          <strong class="filter-count" id="filter-count" hidden></strong>
         </button>
       </div>
-
-      <!-- One trigger, not a row of per-facet dropdowns. The count on the
-           button is the whole point: the way combinable filters go wrong is
-           forgetting one is set and concluding the app is broken. -->
       <div class="filter-bar">
-        <button class="sort-trigger" id="filter-btn">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4-2v-4z"/></svg>
-          <span>Filters</span>
-          <strong id="filter-count" hidden></strong>
-        </button>
         <span class="filter-result-count" id="filter-result-count"></span>
       </div>
       <!-- Removable chips for whatever is set. Same component as the recent
@@ -220,41 +222,41 @@
 
     <!-- SEASONAL -->
     <section class="tab" id="tab-seasonal">
-      <div class="seasonal-header">
-        <button class="season-nav-btn" id="season-prev" aria-label="Previous season">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      <!-- The same bar as List and Profile: the title on the left — here it
+           opens the season picker — and the screen's controls on the right.
+           It was a centred title between two round arrows, the one tab that
+           didn't start like the others. -->
+      <div class="list-bar seasonal-bar">
+        <button class="list-bar-title list-title-btn" id="seasonal-picker-btn" type="button" aria-label="Choose season and year">
+          <span class="list-title-label" id="seasonal-title">Spring 2026</span>
+          <svg class="list-title-caret seasonal-title-caret" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
         </button>
-        <div class="seasonal-title-wrap">
-          <!-- The title itself is the picker trigger. The arrows stay put for
-               step-by-step browsing; this is for jumping years at a time. -->
-          <button class="seasonal-title-btn" id="seasonal-picker-btn" aria-label="Choose season and year">
-            <span class="seasonal-title" id="seasonal-title">Spring 2026</span>
-            <svg class="seasonal-title-caret" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+        <div class="list-bar-actions">
+          <button class="icon-btn" id="seasonal-sort-btn" type="button" aria-label="Sort">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
           </button>
-          <div class="seasonal-sub" id="seasonal-sub">Trending releases this season</div>
+          <button class="icon-btn season-nav-btn" id="season-prev" type="button" aria-label="Previous season">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <button class="icon-btn season-nav-btn" id="season-next" type="button" aria-label="Next season">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l-6-6 6-6" transform="translate(24 0) scale(-1 1)"/></svg>
+          </button>
         </div>
-        <button class="season-nav-btn" id="season-next" aria-label="Next season">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-        </button>
       </div>
-      <!-- One control row in both views: the view switch stays put and the
-           control beside it changes to whichever one applies. Sort has no
-           meaning on a schedule (it's ordered by time) and the scope switch
-           has none on a season grid. -->
-      <div class="sort-trigger-bar">
+      <!-- Grid or Schedule, and in Schedule whose shows. One row; the second
+           control only exists in the view it applies to. A line of context
+           sits at its far end: what the schedule covers, or the way back to
+           the current season. -->
+      <div class="sort-trigger-bar seasonal-controls">
         <div class="seg" id="seasonal-view-seg">
           <button class="seg-btn active" data-sview="grid">Grid</button>
           <button class="seg-btn" data-sview="schedule">Schedule</button>
         </div>
-        <button class="sort-trigger" id="seasonal-sort-btn">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="9" y1="18" x2="15" y2="18"/></svg>
-          <span>Sort: <strong id="seasonal-sort-label">Trending</strong></span>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-        </button>
         <div class="seg" id="schedule-scope-seg" hidden>
           <button class="seg-btn active" data-scope="mine">My List</button>
           <button class="seg-btn" data-scope="all">All airing</button>
         </div>
+        <div class="seasonal-sub" id="seasonal-sub"></div>
       </div>
       <div class="grid" id="seasonal-grid"></div>
       <div class="schedule" id="seasonal-schedule" hidden>
@@ -265,9 +267,8 @@
 
     <!-- SOCIAL -->
     <section class="tab" id="tab-social">
-      <div class="social-header">
-        <div class="social-title">Friends</div>
-        <div class="social-sub">Recent activity from people you follow</div>
+      <div class="list-bar">
+        <div class="list-bar-title">Social</div>
       </div>
       <div id="social-feed" class="social-feed"></div>
     </section>
@@ -583,7 +584,7 @@
         <div class="settings-row">
           <div>
             <div class="settings-label">App version</div>
-            <div class="settings-sub" id="update-status">v5.07</div>
+            <div class="settings-sub" id="update-status">v5.08</div>
           </div>
           <button class="btn-secondary" id="update-check-btn">Check for updates</button>
         </div>
@@ -612,7 +613,7 @@
       </div>
 
       <div class="app-footer">
-        AniLog · v5.07 · Powered by AniList
+        AniLog · v5.08 · Powered by AniList
       </div>
     </div>
   </div>
@@ -806,6 +807,20 @@
         <button class="progress-step" id="progress-plus" aria-label="One episode forward">+</button>
       </div>
 
+      <!-- Your score, in the same sheet as progress and status, so one Save
+           covers all three. It used to be reachable only from the show's page. -->
+      <div class="progress-editor">
+        <button class="progress-step" id="score-minus" type="button" aria-label="Lower score">−</button>
+        <div class="progress-field">
+          <span class="progress-label">Your score</span>
+          <span class="progress-value">
+            <strong class="score-value" id="list-edit-score">—</strong>
+            <span class="progress-total">/ 10</span>
+          </span>
+        </div>
+        <button class="progress-step" id="score-plus" type="button" aria-label="Raise score">+</button>
+      </div>
+
       <div class="status-grid" id="list-edit-status">
         <div class="chip" data-status="CURRENT">Watching</div>
         <div class="chip" data-status="PLANNING">Planning</div>
@@ -816,7 +831,7 @@
       </div>
       <div class="modal-actions">
         <button class="btn-primary" id="list-edit-save-btn">Save</button>
-        <button class="btn-secondary" id="list-edit-remove-btn">Remove from list</button>
+        <button class="btn-secondary btn-danger" id="list-edit-remove-btn">Remove from list</button>
         <button class="btn-secondary" onclick="closeListEditSheet()">Cancel</button>
       </div>
     </div>

@@ -384,6 +384,23 @@ const label = (r) => r.q.includes('SaveMediaListEntry') ? 'MUTATION'
     const shown = await page.evaluate(() => document.querySelector('#detail-score-pill strong')?.textContent);
     check('a rating is sent as scoreRaw 0-100 and read back on the 10 scale',
       rate.length === 1 && rate[0].v.scoreRaw === 80 && rate[0].v.score === undefined && shown === '8', `${shown} ${JSON.stringify(rate.map(m => m.v))}`);
+    // The edit sheet carries the score too, and only sends it when it changed.
+    await page.evaluate(() => document.getElementById('detail-list-btn').click());
+    await page.waitForTimeout(300);
+    const sheetScore = await page.evaluate(() => document.getElementById('list-edit-score').textContent);
+    seen.length = 0;
+    await page.evaluate(() => document.getElementById('list-edit-save-btn').click());
+    await page.waitForTimeout(800);
+    const untouched = seen.filter(r => r.q.includes('SaveMediaListEntry'));
+    await page.evaluate(() => document.getElementById('detail-list-btn').click());
+    await page.waitForTimeout(300);
+    seen.length = 0;
+    await page.evaluate(() => { document.getElementById('score-plus').click(); document.getElementById('list-edit-save-btn').click(); });
+    await page.waitForTimeout(800);
+    const changed = seen.filter(r => r.q.includes('SaveMediaListEntry'));
+    check('edit sheet shows your score, leaves it alone when untouched, saves it when changed',
+      sheetScore === '8' && untouched.length === 1 && untouched[0].v.scoreRaw === undefined
+      && changed.length === 1 && changed[0].v.scoreRaw === 90, JSON.stringify({ sheetScore, u: untouched.map(m => m.v), c: changed.map(m => m.v) }));
     const reads = seen.concat([]).filter(r => /\bscore\b(?!\(format)/.test(r.q.replace(/averageScore|meanScore|scoreRaw|scores \{ score/g, '')));
     check('no query reads a list score without naming its scale', reads.length === 0, reads.map(r => r.q.slice(0, 60)).join(' | '));
     await page.close();

@@ -1087,18 +1087,18 @@ function updateSeasonalHeader() {
 
   if (inSchedule) {
     document.getElementById('seasonal-title').textContent = 'This Week';
-    // Says exactly what the window is, because "Today · 0" at 9pm should read
-    // as "nothing left today" and not as a broken screen.
-    sub.textContent = 'Episodes airing over the next 7 days';
+    // The title says what the window is; two segmented controls already fill
+    // the row this would sit on.
+    sub.textContent = '';
     return;
   }
 
   document.getElementById('seasonal-title').textContent = `${capitalize(seasonalView.season)} ${seasonalView.year}`;
   const isCurrent = seasonalView.season === state.season && seasonalView.year === state.seasonYear;
   if (isCurrent) {
-    sub.textContent = 'Trending releases this season';
+    sub.textContent = '';
   } else {
-    sub.innerHTML = `<span class="back-to-current">Back to current season</span>`;
+    sub.innerHTML = `<button type="button" class="back-to-current">Back to current</button>`;
     sub.querySelector('.back-to-current').addEventListener('click', () => {
       seasonalView.season = state.season;
       seasonalView.year = state.seasonYear;
@@ -1538,11 +1538,14 @@ function closeSortModal() {
 }
 
 // Wire seasonal sort button (after openSortModal & labelForSort exist)
-document.getElementById('seasonal-sort-label').textContent = labelForSort(state.seasonalSort);
+// An icon button, as on List; its label keeps the current sort for a screen reader.
+const syncSeasonalSortLabel = () => document.getElementById('seasonal-sort-btn')
+  .setAttribute('aria-label', `Sort: ${labelForSort(state.seasonalSort)}`);
+syncSeasonalSortLabel();
 document.getElementById('seasonal-sort-btn').addEventListener('click', () => {
   openSortModal(state.seasonalSort, (newSort) => {
     state.seasonalSort = newSort;
-    document.getElementById('seasonal-sort-label').textContent = labelForSort(newSort);
+    syncSeasonalSortLabel();
     savePrefs();
     loadSeasonal();
   });
@@ -2174,6 +2177,8 @@ function openListEditSheet(media, entry) {
   document.getElementById('list-edit-progress-total').textContent =
     editingTotal ? `/ ${editingTotal}` : 'eps';
   syncProgressButtons();
+  editingScore = Math.round(entry.score || 0);
+  syncScoreStepper();
   // Heading says what the sheet does; the anime goes underneath. Putting the
   // title in the h3 made it two wrapped lines of 18px bold for anything
   // longer than a few words.
@@ -2209,6 +2214,23 @@ function syncProgressButtons() {
   if (plus) plus.disabled = !!editingTotal && v >= editingTotal;
 }
 
+// Your score in the sheet: whole numbers 0–10, where 0 is "not rated".
+let editingScore = 0;
+function syncScoreStepper() {
+  const el = document.getElementById('list-edit-score');
+  if (el) el.textContent = editingScore > 0 ? String(editingScore) : '—';
+  const minus = document.getElementById('score-minus');
+  const plus = document.getElementById('score-plus');
+  if (minus) minus.disabled = editingScore <= 0;
+  if (plus) plus.disabled = editingScore >= 10;
+}
+function stepScore(delta) {
+  editingScore = Math.max(0, Math.min(10, editingScore + delta));
+  syncScoreStepper();
+}
+document.getElementById('score-minus')?.addEventListener('click', () => stepScore(-1));
+document.getElementById('score-plus')?.addEventListener('click', () => stepScore(1));
+
 function stepProgress(delta) {
   const input = document.getElementById('list-edit-progress');
   if (!input) return;
@@ -2242,6 +2264,13 @@ async function saveListEdit() {
     varDefs.push('$status: MediaListStatus');
     args.push('status: $status');
     vars.status = status;
+  }
+  // Only when it changed: an untouched score isn't rewritten, so a decimal
+  // score set on AniList's own site isn't rounded just by saving progress.
+  if (editingScore !== Math.round(editingEntry?.score || 0)) {
+    varDefs.push('$scoreRaw: Int');
+    args.push('scoreRaw: $scoreRaw');
+    vars.scoreRaw = editingScore * 10;
   }
   const mutation = `mutation (${varDefs.join(', ')}) {
     SaveMediaListEntry(${args.join(', ')}) { id status progress score(format: POINT_10) }
